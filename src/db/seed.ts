@@ -32,26 +32,46 @@ const DEFAULT_CATEGORIES: {
   name: string;
   counts: boolean;
 }[] = [
-  // ฝั่งรับ
+  /* ---------- ฝั่งรับ: นับเป็นรายได้ ---------- */
   { direction: "in", name: "ขายหน้าร้าน", counts: true },
   { direction: "in", name: "ขายออนไลน์", counts: true },
+  { direction: "in", name: "ขายส่ง", counts: true },
   { direction: "in", name: "ค่าส่งที่เก็บจากลูกค้า", counts: true },
+  { direction: "in", name: "รับจ้าง/บริการ", counts: true },
+  { direction: "in", name: "ขายของเก่า/ทรัพย์สิน", counts: true },
+  { direction: "in", name: "ดอกเบี้ยรับ", counts: true },
   { direction: "in", name: "รายได้อื่น", counts: true },
-  // counts = false คือเงินเข้าจริงแต่ไม่ใช่กำไรของร้าน
+
+  /* ---------- ฝั่งรับ: เงินเข้าจริงแต่ไม่ใช่กำไรของร้าน ---------- */
   { direction: "in", name: "เติมทุน", counts: false },
   { direction: "in", name: "เงินกู้", counts: false },
-  { direction: "in", name: "รับเงินคืน", counts: false },
+  { direction: "in", name: "รับเงินคืนจากผู้ขาย", counts: false },
+  { direction: "in", name: "รับคืนเงินยืม", counts: false },
+  { direction: "in", name: "โอนย้ายบัญชี (เข้า)", counts: false },
 
-  // ฝั่งจ่าย
+  /* ---------- ฝั่งจ่าย: นับเป็นรายจ่าย ---------- */
   { direction: "out", name: "ซื้อของเข้าร้าน", counts: true },
   { direction: "out", name: "ค่าแรง", counts: true },
-  { direction: "out", name: "ค่าส่ง", counts: true },
+  { direction: "out", name: "ค่าเช่าที่", counts: true },
   { direction: "out", name: "ค่าน้ำค่าไฟ", counts: true },
+  { direction: "out", name: "ค่าเน็ต/ค่าโทรศัพท์", counts: true },
+  { direction: "out", name: "ค่าส่ง", counts: true },
+  { direction: "out", name: "ค่าน้ำมัน/ค่าเดินทาง", counts: true },
+  { direction: "out", name: "ค่าบรรจุภัณฑ์/ถุง", counts: true },
   { direction: "out", name: "ของใช้ในร้าน", counts: true },
-  // counts = false คือเงินออกจริงแต่ไม่ใช่ขาดทุนของร้าน
+  { direction: "out", name: "ค่าซ่อมบำรุง/อุปกรณ์", counts: true },
+  { direction: "out", name: "ค่าโฆษณา/การตลาด", counts: true },
+  { direction: "out", name: "ค่าธรรมเนียมธนาคาร", counts: true },
+  { direction: "out", name: "ภาษี/ค่าธรรมเนียมราชการ", counts: true },
+  { direction: "out", name: "ของเสีย/ของหาย", counts: true },
+  { direction: "out", name: "รายจ่ายอื่น", counts: true },
+
+  /* ---------- ฝั่งจ่าย: เงินออกจริงแต่ไม่ใช่ขาดทุนของร้าน ---------- */
   { direction: "out", name: "ถอนใช้ส่วนตัว", counts: false },
-  { direction: "out", name: "โอนย้ายบัญชี", counts: false },
+  { direction: "out", name: "คืนเงินกู้", counts: false },
+  { direction: "out", name: "ให้ยืม", counts: false },
   { direction: "out", name: "ยืมข้ามร้าน", counts: false },
+  { direction: "out", name: "โอนย้ายบัญชี (ออก)", counts: false },
 ];
 
 /** บัญชีตั้งต้น — shopId ว่างแปลว่าเป็นบัญชีกลางที่ทุกร้านใช้ร่วมกัน */

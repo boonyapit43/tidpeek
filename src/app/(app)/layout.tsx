@@ -1,8 +1,7 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { AccountStrip } from "@/components/account-strip";
 import { Nav } from "@/components/nav";
-import { getTotalBalance, listAccountsWithBalance } from "@/db/queries";
+import { getTotalBalance } from "@/db/queries";
 import { hasSession } from "@/lib/auth";
 import { bahtShort } from "@/lib/money";
 import { getSelectedShop } from "@/lib/shop";
@@ -12,7 +11,7 @@ export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
 
 /**
- * เปลือกของแอป — แถบบน เมนู แถบยอดบัญชี และเนื้อหา
+ * เปลือกของแอป — แถบบน เมนู และเนื้อหา
  *
  * ตรวจสองอย่างก่อนปล่อยผ่าน ล็อกอินแล้วหรือยัง และเลือกร้านหรือยัง
  * ทำที่นี่ที่เดียวแทนการใช้ middleware.ts เพราะ middleware รันบน Edge
@@ -21,10 +20,9 @@ export const runtime = "nodejs";
  * การ์ดนี้กันคนเข้าหน้าเว็บ ส่วนการเขียนข้อมูลมีการ์ดของตัวเองอีกชั้น
  * อยู่ในทุก server action เพราะ action ยิงตรงได้โดยไม่ผ่าน layout นี้
  *
- * โครงหน้าจอมีสามขนาด
- *   มือถือ  เมนูตรึงขอบล่าง ยอดบัญชีเลื่อนแนวนอน เนื้อหาคอลัมน์เดียว
- *   iPad    เมนูขึ้นไปอยู่บน ยอดบัญชีกางเป็นตารางสามช่อง
- *   จอกว้าง ยอดบัญชีย้ายไปเป็นแถบข้างที่ตรึงไว้ เห็นยอดตลอดเวลาที่กรอก
+ * เดิมมีแถบการ์ดยอดแต่ละบัญชีอยู่ตรงนี้ เอาออกไปแล้วเพื่อให้ v1 เบาลง
+ * เหลือแค่ยอดรวมบนแถบบน ส่วนการแยกดูรายบัญชีจะกลับมาในรูปแบบการจัดกลุ่ม
+ * ที่หน้าสรุปกับรายวันแทน
  */
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
   if (!(await hasSession())) redirect("/login");
@@ -35,10 +33,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   // เด้งไปให้เลือกใหม่ ไม่เดาร้านให้เอง
   if (!shop) redirect("/shops");
 
-  const [accounts, total] = await Promise.all([
-    listAccountsWithBalance(shop.id),
-    getTotalBalance(shop.id),
-  ]);
+  const total = await getTotalBalance(shop.id);
 
   return (
     <div className="min-h-dvh">
@@ -47,7 +42,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
        * ตลอดเวลา ไม่งั้นพอเลื่อนดูรายการยาวๆ แล้วลืมว่ากำลังดูร้านไหนอยู่
        */}
       <header className="sticky top-0 z-30 border-b border-line bg-surface/90 pt-[env(safe-area-inset-top)] backdrop-blur-md">
-        <div className="mx-auto flex max-w-2xl items-center justify-between gap-3 px-4 py-2 md:max-w-4xl lg:max-w-6xl">
+        <div className="mx-auto flex max-w-2xl items-center justify-between gap-3 px-4 py-2">
           {/* ชื่อร้านเป็นลิงก์กลับไปหน้าเลือกร้าน ซึ่งเป็นที่เดียวที่สลับร้านได้
               จงใจไม่ทำเป็นดรอปดาวน์ในแถบนี้ เพราะสลับร้านพลาดระหว่างกรอก
               จะทำให้บันทึกลงผิดร้านโดยไม่ทันสังเกต */}
@@ -85,7 +80,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
        * เว้นที่ด้านล่างให้แถบเมนูที่ลอยทับอยู่บนมือถือ ไม่งั้นเนื้อหาบรรทัด
        * สุดท้ายจะถูกบังจนกดไม่ได้ ตัวเลข = ความสูงเมนู + safe area ของ iPhone
        */}
-      <div className="mx-auto w-full max-w-2xl px-4 pb-[calc(4.5rem+env(safe-area-inset-bottom))] md:max-w-4xl md:pb-8 lg:max-w-6xl">
+      <div className="mx-auto w-full max-w-2xl px-4 pb-[calc(4.5rem+env(safe-area-inset-bottom))] md:pb-8">
         {/**
          * เมนูอยู่ก่อนเนื้อหาใน DOM โดยตั้งใจ
          *
@@ -97,24 +92,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
           <Nav />
         </div>
 
-        {/**
-         * ตั้งแต่ iPad ขึ้นไปแยกเป็นสองคอลัมน์ — ยอดบัญชีเป็นแถบข้างที่ตรึงไว้
-         * ส่วนเนื้อหาอยู่ขวา
-         *
-         * แยกที่ 768px ไม่ใช่ 1024px เพราะ iPad แนวตั้งมีที่เหลือมากพอแล้ว
-         * ถ้าปล่อยเป็นคอลัมน์เดียวจะเหมือนมือถือที่ถูกยืดออก และต้องเลื่อน
-         * ผ่านยอดบัญชีทุกครั้งกว่าจะถึงฟอร์ม
-         *
-         * แถบข้างตรึงไว้ด้วย sticky จึงเห็นยอดคงเหลือตลอดเวลาที่กำลังกรอก
-         * ซึ่งเป็นสิ่งที่คนต้องเหลือบดูบ่อยที่สุดตอนลงบัญชี
-         */}
-        <div className="gap-5 pt-3 md:grid md:grid-cols-[15rem_minmax(0,1fr)] md:items-start lg:grid-cols-[17rem_minmax(0,1fr)]">
-          <aside className="md:sticky md:top-20">
-            <AccountStrip accounts={accounts} />
-          </aside>
-
-          <main className="pt-3 md:pt-0">{children}</main>
-        </div>
+        <main className="pt-3">{children}</main>
       </div>
     </div>
   );

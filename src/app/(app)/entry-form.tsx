@@ -50,7 +50,17 @@ export function EntryForm({
   // เริ่มที่ฝั่งรับเข้า เพราะยอดขายคือรายการที่ร้านบันทึกบ่อยที่สุด
   const [direction, setDirection] = useState<Direction>("in");
   const [date, setDate] = useState(today);
-  const [categoryId, setCategoryId] = useState("");
+  /**
+   * ประเภทที่เลือกไว้ มีสามสถานะ ไม่ใช่สอง
+   *
+   *   null  ยังไม่ได้เลือกเอง — ให้ระบบเลือกตัวแรกของฝั่งนั้นให้
+   *   ""    เลือก "ไม่ระบุ" ไว้เองโดยตั้งใจ
+   *   uuid  เลือกประเภทนั้นไว้
+   *
+   * ต้องแยก null กับ "" ออกจากกัน เพราะถ้าใช้ "" แทนทั้งสองความหมาย
+   * ตอนคนเลือก "ไม่ระบุ" ระบบจะนึกว่ายังไม่ได้เลือกแล้วเด้งกลับไปตัวแรกทันที
+   */
+  const [categoryId, setCategoryId] = useState<string | null>(null);
   const [accountId, setAccountId] = useState("");
   const [title, setTitle] = useState("");
   const [amount, setAmount] = useState("");
@@ -71,11 +81,15 @@ export function EntryForm({
    * เพราะการ setState ใน effect ทำให้ render สองรอบต่อการกดหนึ่งครั้ง
    * และจะมีเสี้ยววินาทีที่หน้าจอโชว์ประเภทของฝั่งเก่าค้างอยู่
    *
-   * ค่าที่เลือกไว้ถ้ายังใช้ได้ก็ใช้ต่อ ถ้าใช้ไม่ได้แล้วก็ตกไปที่ตัวแรกของฝั่งใหม่
+   * ⚠️ "" (ไม่ระบุ) ต้องนับว่าเป็นค่าที่ใช้ได้ด้วย
+   *    ถ้าเช็คแค่ว่ามีอยู่ในรายการไหม string ว่างจะไม่ผ่านแล้วเด้งกลับไป
+   *    ตัวแรกทันที ทำให้เลือก "ไม่ระบุ" ไม่ได้เลย
    */
-  const effectiveCategoryId = visibleCategories.some((c) => c.id === categoryId)
-    ? categoryId
-    : (visibleCategories[0]?.id ?? "");
+  const chosen = categoryId !== null;
+  const stillUsable = categoryId === "" || visibleCategories.some((c) => c.id === categoryId);
+
+  const effectiveCategoryId =
+    chosen && stillUsable ? categoryId : (visibleCategories[0]?.id ?? "");
 
   /**
    * ล้างช่องที่ต้องกรอกใหม่ทุกครั้ง หลังบันทึกสำเร็จ
