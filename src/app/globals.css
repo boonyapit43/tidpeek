@@ -1,0 +1,236 @@
+@import "tailwindcss";
+
+/* ฟอนต์มาจาก npm ไม่ใช่ Google Fonts ตอน build
+   เพราะโฮสต์บางที่ต่อเน็ตออกนอกไม่ได้ แล้ว build จะค้าง */
+@import "@fontsource-variable/noto-sans-thai";
+
+/* ------------------------------------------------------------------ */
+/*  สี                                                                 */
+/* ------------------------------------------------------------------ */
+
+/**
+ * โทนสีประกาศเป็น CSS variable ธรรมดาใน :root แล้วค่อย map เข้า @theme
+ * ทีเดียวที่ท้ายไฟล์
+ *
+ * ⚠️ ห้ามเขียน @theme ซ้อนใน @media (prefers-color-scheme: dark)
+ *    Tailwind v4 ไม่ได้ทำให้มันมีผลเฉพาะในโหมดนั้น แต่จะเอาบล็อกหลัง
+ *    ไปทับบล็อกแรกทั้งหมด ผลคือได้สีโหมดมืดตลอดเวลาและโหมดสว่างหายไปเงียบๆ
+ *    วิธีที่ถูกคือสลับค่าที่ตัวแปรดิบตรงนี้ แล้วให้ @theme ชี้มาที่ตัวแปรนั้น
+ */
+
+:root {
+  /* เขียว = เงินเข้า  แดง = เงินออก
+     ไม่ใช้สีบอกความหมายอย่างเดียว ทุกที่ที่ใช้สีจะมีเครื่องหมาย + −
+     หรือข้อความกำกับด้วยเสมอ เพราะคนตาบอดสีแยกคู่นี้ไม่ออก */
+  --income: oklch(0.56 0.15 160);
+  --income-soft: oklch(0.95 0.05 160);
+  --expense: oklch(0.57 0.2 25);
+  --expense-soft: oklch(0.95 0.035 25);
+
+  /* คู่สีหลักของแอปเป็นน้ำเงินม่วง ใช้ deep เป็นปลายเข้มของ gradient */
+  --brand: oklch(0.54 0.19 275);
+  --brand-deep: oklch(0.45 0.21 288);
+  --brand-soft: oklch(0.94 0.045 275);
+
+  /* สีประจำชนิดบัญชี ให้แถบยอดเงินอ่านแยกกันได้ในพริบตา
+     เงินสด = เหลืองทอง  ธนาคาร = น้ำเงิน(brand)  วอลเล็ต = ม่วงชมพู */
+  --cash: oklch(0.56 0.12 75);
+  --cash-soft: oklch(0.95 0.055 85);
+  --wallet: oklch(0.56 0.17 320);
+  --wallet-soft: oklch(0.95 0.045 320);
+
+  /* พื้นหลังอมม่วงจางๆ ให้การ์ดขาวลอยขึ้นมา ไม่ใช่เทาแบนๆ */
+  --surface: oklch(1 0 0);
+  --surface-2: oklch(0.965 0.01 275);
+  --ink: oklch(0.21 0.02 275);
+  --ink-soft: oklch(0.5 0.02 275);
+  --line: oklch(0.9 0.012 275);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --income: oklch(0.75 0.15 160);
+    --income-soft: oklch(0.3 0.06 160);
+    --expense: oklch(0.7 0.17 25);
+    --expense-soft: oklch(0.3 0.06 25);
+
+    --brand: oklch(0.72 0.16 275);
+    --brand-deep: oklch(0.6 0.2 288);
+    --brand-soft: oklch(0.3 0.07 275);
+
+    --cash: oklch(0.8 0.13 85);
+    --cash-soft: oklch(0.3 0.05 85);
+    --wallet: oklch(0.77 0.15 320);
+    --wallet-soft: oklch(0.3 0.06 320);
+
+    --surface: oklch(0.23 0.02 275);
+    --surface-2: oklch(0.17 0.02 275);
+    --ink: oklch(0.96 0.008 275);
+    --ink-soft: oklch(0.68 0.015 275);
+    --line: oklch(0.32 0.02 275);
+  }
+}
+
+@theme inline {
+  --font-sans: "Noto Sans Thai Variable", ui-sans-serif, system-ui, sans-serif;
+
+  --color-income: var(--income);
+  --color-income-soft: var(--income-soft);
+  --color-expense: var(--expense);
+  --color-expense-soft: var(--expense-soft);
+
+  --color-surface: var(--surface);
+  --color-surface-2: var(--surface-2);
+  --color-ink: var(--ink);
+  --color-ink-soft: var(--ink-soft);
+  --color-line: var(--line);
+  --color-brand: var(--brand);
+  --color-brand-deep: var(--brand-deep);
+  --color-brand-soft: var(--brand-soft);
+  --color-cash: var(--cash);
+  --color-cash-soft: var(--cash-soft);
+  --color-wallet: var(--wallet);
+  --color-wallet-soft: var(--wallet-soft);
+
+  /* ความสูงขั้นต่ำของสิ่งที่กดได้ ต่ำกว่านี้นิ้วโป้งกดพลาดบ่อย */
+  --spacing-touch: 2.75rem; /* 44px ตามที่ Apple แนะนำ */
+}
+
+/* ------------------------------------------------------------------ */
+/*  พื้นผิวไล่สี — ประกาศที่เดียว ใช้ซ้ำได้ทุกที่                       */
+/* ------------------------------------------------------------------ */
+
+/* ปุ่มหลักและโลโก้ ไล่จาก brand ไปปลายเข้ม ดูมีมิติกว่าสีแบนสีเดียว */
+.bg-brand-gradient {
+  background-image: linear-gradient(135deg, var(--brand), var(--brand-deep));
+}
+
+/* พื้นการ์ดกำไร/ขาดทุน — ไล่จากสีอ่อนไปหาพื้นการ์ด นุ่มกว่าถมสีทึบทั้งแผ่น */
+.bg-income-wash {
+  background-image: linear-gradient(
+    135deg,
+    var(--income-soft),
+    color-mix(in oklab, var(--income-soft) 30%, var(--surface))
+  );
+}
+
+.bg-expense-wash {
+  background-image: linear-gradient(
+    135deg,
+    var(--expense-soft),
+    color-mix(in oklab, var(--expense-soft) 30%, var(--surface))
+  );
+}
+
+/* ------------------------------------------------------------------ */
+/*  พื้นฐาน                                                            */
+/* ------------------------------------------------------------------ */
+
+html {
+  /* บอกเบราว์เซอร์ว่ารองรับทั้งสองโหมด ตัวควบคุมของระบบอย่างแถบเลื่อน
+     ปฏิทินของ input type=date และเมนูของ select จะได้เปลี่ยนสีตามไปด้วย
+     ถ้าไม่ใส่ ปฏิทินจะเป็นพื้นขาวโผล่มากลางหน้าจอสีเข้ม */
+  color-scheme: light dark;
+
+  /* กันไม่ให้ Safari บน iOS ขยายตัวอักษรเองตอนหมุนจอเป็นแนวนอน */
+  -webkit-text-size-adjust: 100%;
+}
+
+body {
+  background: var(--surface-2);
+  color: var(--ink);
+  font-family: var(--font-sans);
+  /* กันการลากหน้าจอจนเด้ง แล้วเผลอทริกเกอร์ pull-to-refresh ขณะกรอกฟอร์ม */
+  overscroll-behavior-y: none;
+}
+
+/* กรอบไฮไลต์ตอนแตะบน Android ทำเอง จะได้คุมสีและรูปทรงได้ */
+* {
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* วงแหวนโฟกัสต้องเห็นชัดสำหรับคนที่ใช้คีย์บอร์ด แต่ไม่โผล่ตอนใช้เมาส์กด */
+:focus-visible {
+  outline: 2px solid var(--brand);
+  outline-offset: 2px;
+  border-radius: 0.375rem;
+}
+
+/* ------------------------------------------------------------------ */
+/*  ตัวเลข                                                             */
+/* ------------------------------------------------------------------ */
+
+/**
+ * ตัวเลขเงินทุกตัวใช้ความกว้างเท่ากันทุกหลัก (tabular)
+ * ไม่งั้นเลขในคอลัมน์เดียวกันจะไม่ตรงแนวและอ่านเทียบกันยาก
+ * ซึ่งเป็นเรื่องใหญ่ในสมุดบัญชี
+ */
+.num {
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: "tnum";
+  letter-spacing: -0.01em;
+}
+
+/* ------------------------------------------------------------------ */
+/*  ช่องกรอก                                                           */
+/* ------------------------------------------------------------------ */
+
+/**
+ * iOS จะซูมหน้าจอเข้าอัตโนมัติเมื่อโฟกัสช่องกรอกที่ตัวอักษรเล็กกว่า 16px
+ * แล้วซูมกลับให้ไม่เป็น คนใช้ต้องถ่างนิ้วออกเองทุกครั้ง
+ * บังคับ 16px ขั้นต่ำไว้ตรงนี้ ห้ามแก้ให้เล็กลงในคอมโพเนนต์
+ */
+input,
+select,
+textarea,
+button {
+  font-family: inherit;
+  font-size: max(16px, 1rem);
+}
+
+/* ปุ่มลูกศรขึ้นลงของ input type=number กินที่และกดพลาดง่ายบนมือถือ */
+input[type="number"]::-webkit-outer-spin-button,
+input[type="number"]::-webkit-inner-spin-button {
+  appearance: none;
+  margin: 0;
+}
+
+input[type="number"] {
+  appearance: textfield;
+  -moz-appearance: textfield;
+}
+
+input[type="date"]::-webkit-calendar-picker-indicator {
+  cursor: pointer;
+  padding: 0.25rem;
+}
+
+/* ------------------------------------------------------------------ */
+/*  เคลื่อนไหว                                                         */
+/* ------------------------------------------------------------------ */
+
+/* เคารพการตั้งค่าของคนที่เวียนหัวง่ายกับภาพเคลื่อนไหว */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+@keyframes slide-up {
+  from {
+    opacity: 0;
+    transform: translateY(0.5rem);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.animate-slide-up {
+  animation: slide-up 0.18s ease-out;
+}

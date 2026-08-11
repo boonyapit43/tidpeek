@@ -1,0 +1,51 @@
+# ตัวอย่างการตั้ง nginx สำหรับรันบน VPS
+#
+#   sudo cp deploy-nginx.conf.example /etc/nginx/sites-available/shop-ledger
+#   sudo ln -s /etc/nginx/sites-available/shop-ledger /etc/nginx/sites-enabled/
+#   sudo nginx -t && sudo systemctl reload nginx
+#   sudo certbot --nginx -d ledger.example.com
+#
+# ใช้เฉพาะบน VPS ที่คุมเครื่องเอง ถ้าใช้ DirectAdmin ไม่ต้องตั้งอะไรตรงนี้เลย
+# เพราะ Passenger จัดการ reverse proxy ให้อยู่แล้ว
+
+server {
+    listen 80;
+    server_name ledger.example.com;
+
+    # certbot จะแก้บล็อกนี้เป็น redirect ไป https ให้เองตอนออกใบรับรอง
+
+    location / {
+        proxy_pass http://127.0.0.1:3000;
+        proxy_http_version 1.1;
+
+        # ส่ง IP จริงของคนเข้าเว็บต่อไปให้แอป
+        # ตัวนับจำนวนครั้งที่กรอก PIN ผิดอ่านค่านี้ ถ้าไม่ส่งมา ทุกคนจะถูกนับ
+        # รวมเป็นก้อนเดียวกัน แล้วคนใช้งานปกติจะโดนล็อกเพราะคนอื่นเดารหัสผิด
+        proxy_set_header X-Real-IP        $remote_addr;
+        proxy_set_header X-Forwarded-For  $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_set_header Host             $host;
+
+        proxy_set_header Upgrade    $http_upgrade;
+        proxy_set_header Connection "upgrade";
+
+        proxy_read_timeout 60s;
+    }
+
+    # ไฟล์ที่ Next.js สร้างตอน build มีชื่อไฟล์ผูกกับเนื้อหาอยู่แล้ว
+    # จึงแคชยาวได้ปลอดภัย เนื้อหาเปลี่ยนเมื่อไหร่ชื่อไฟล์เปลี่ยนตาม
+    location /_next/static/ {
+        proxy_pass http://127.0.0.1:3000;
+        proxy_cache_valid 200 365d;
+        add_header Cache-Control "public, max-age=31536000, immutable";
+    }
+
+    # หน้าบัญชีของร้านไม่ควรถูก search engine เก็บไปทำดัชนี
+    add_header X-Robots-Tag "noindex, nofollow" always;
+
+    # กันไม่ให้เว็บอื่นเอาแอปไปฝังใน iframe แล้วหลอกให้กดปุ่ม
+    add_header X-Frame-Options "DENY" always;
+    add_header X-Content-Type-Options "nosniff" always;
+
+    client_max_body_size 2m;
+}

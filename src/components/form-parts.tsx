@@ -1,0 +1,223 @@
+"use client";
+
+import { useFormStatus } from "react-dom";
+import type { ActionState } from "@/actions/shared";
+import { cn } from "@/lib/cn";
+
+/**
+ * ชิ้นส่วนฟอร์มที่ใช้ซ้ำทั้งแอป
+ *
+ * ทุกอย่างที่กดได้ในไฟล์นี้สูงอย่างน้อย 44px (min-h-touch) ตามขนาดที่นิ้วโป้ง
+ * กดไม่พลาด และช่องกรอกทุกช่องตัวอักษร 16px ขึ้นไปเพื่อไม่ให้ iOS ซูมเอง
+ */
+
+const fieldBase =
+  "w-full min-h-touch rounded-xl border border-line bg-surface px-3.5 py-2.5 " +
+  "text-ink placeholder:text-ink-soft/60 transition-colors " +
+  "focus:border-brand focus:outline-none focus:ring-2 focus:ring-brand/25 " +
+  "disabled:opacity-50";
+
+export function Field({
+  label,
+  htmlFor,
+  hint,
+  error,
+  children,
+}: {
+  label: string;
+  htmlFor: string;
+  hint?: string;
+  error?: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <div className="space-y-1.5">
+      <label htmlFor={htmlFor} className="block text-sm font-medium text-ink-soft">
+        {label}
+      </label>
+      {children}
+      {hint && !error && <p className="text-xs leading-relaxed text-ink-soft">{hint}</p>}
+      {/* role=alert ทำให้โปรแกรมอ่านหน้าจออ่านข้อความผิดพลาดทันทีที่โผล่ */}
+      {error && (
+        <p role="alert" className="text-xs font-medium text-expense">
+          {error}
+        </p>
+      )}
+    </div>
+  );
+}
+
+export function Input({ className, ...props }: React.ComponentProps<"input">) {
+  return <input className={cn(fieldBase, className)} {...props} />;
+}
+
+export function Select({ className, ...props }: React.ComponentProps<"select">) {
+  return (
+    <select
+      className={cn(fieldBase, "appearance-none bg-no-repeat pr-9", className)}
+      style={{
+        // ลูกศรวาดเป็น data URI เพื่อไม่ต้องโหลดไฟล์ภาพจากภายนอก
+        backgroundImage:
+          "url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 8' fill='none' stroke='%23888' stroke-width='1.5'%3E%3Cpath d='M1 1.5 6 6.5 11 1.5'/%3E%3C/svg%3E\")",
+        backgroundPosition: "right 0.85rem center",
+        backgroundSize: "0.7rem",
+      }}
+      {...props}
+    />
+  );
+}
+
+/**
+ * ช่องกรอกจำนวนเงิน
+ *
+ * ใช้ type=text คู่กับ inputMode=decimal ไม่ใช่ type=number เพราะ
+ *   • type=number บน Android เปิดคีย์บอร์ดที่ไม่มีจุดทศนิยมในบางเครื่อง
+ *   • ค่าที่อ่านจาก type=number ถูกแปลงเป็น number ไปแล้วหนึ่งรอบ
+ *     ซึ่งขัดกับกฎที่ว่าเงินต้องเป็น string ตลอดทาง
+ * pattern บังคับให้ Safari บน iOS เปิดแป้นตัวเลขเช่นกัน
+ */
+export function MoneyInput({ className, ...props }: React.ComponentProps<"input">) {
+  return (
+    <input
+      type="text"
+      inputMode="decimal"
+      pattern="[0-9]*[.,]?[0-9]*"
+      autoComplete="off"
+      className={cn(fieldBase, "num text-right text-2xl font-semibold tabular-nums", className)}
+      {...props}
+    />
+  );
+}
+
+export function Button({
+  variant = "primary",
+  className,
+  ...props
+}: React.ComponentProps<"button"> & { variant?: "primary" | "ghost" | "danger" }) {
+  return (
+    <button
+      className={cn(
+        "inline-flex min-h-touch items-center justify-center gap-2 rounded-xl px-4",
+        "font-semibold transition active:scale-[0.98] disabled:pointer-events-none disabled:opacity-50",
+        variant === "primary" &&
+          "bg-brand-gradient text-white shadow-md shadow-brand/25 hover:brightness-110",
+        variant === "ghost" && "border border-line bg-surface text-ink hover:bg-surface-2",
+        variant === "danger" && "border border-expense/30 text-expense hover:bg-expense-soft",
+        className,
+      )}
+      {...props}
+    />
+  );
+}
+
+/**
+ * ปุ่มส่งฟอร์มที่รู้สถานะของฟอร์มเอง
+ *
+ * useFormStatus ต้องอยู่ในคอมโพเนนต์ลูกของ <form> ไม่ใช่ตัวเดียวกับที่มี form
+ * ถ้าเรียกในตัวเดียวกันจะได้ pending เป็น false ตลอด
+ *
+ * การล็อกปุ่มระหว่างส่งสำคัญมากบนมือถือ เพราะเน็ตช้าแล้วคนมักกดซ้ำ
+ * ซึ่งจะได้รายการซ้ำสองบรรทัด
+ */
+export function SubmitButton({
+  children,
+  pendingLabel,
+  className,
+  variant = "primary",
+  ...props
+}: React.ComponentProps<"button"> & {
+  pendingLabel?: string;
+  variant?: "primary" | "ghost" | "danger";
+}) {
+  const { pending } = useFormStatus();
+
+  return (
+    <Button type="submit" variant={variant} disabled={pending} className={className} {...props}>
+      {pending && (
+        <span
+          aria-hidden
+          className="size-4 animate-spin rounded-full border-2 border-current border-t-transparent"
+        />
+      )}
+      {pending ? (pendingLabel ?? "กำลังบันทึก") : children}
+    </Button>
+  );
+}
+
+/**
+ * สลับทิศทางของเงิน — ใช้ทั้งฟอร์มบันทึกและฟอร์มแก้ไข
+ *
+ * อยู่ที่เดียวเพื่อให้ลำดับปุ่มกับสีตรงกันเสมอ ถ้าแยกกันเขียนสองที่
+ * วันที่แก้ลำดับจะเหลือที่หนึ่งเป็นแบบเก่า แล้วคนกดผิดฝั่งโดยไม่ทันสังเกต
+ *
+ * รับเข้าอยู่ซ้ายและเป็นค่าตั้งต้น เพราะร้านค้าบันทึกยอดขายบ่อยที่สุด
+ */
+export function DirectionToggle({
+  direction,
+  onChange,
+}: {
+  direction: "in" | "out";
+  onChange: (direction: "in" | "out") => void;
+}) {
+  const isIncome = direction === "in";
+
+  return (
+    <div
+      role="group"
+      aria-label="ทิศทางของเงิน"
+      className="grid grid-cols-2 gap-1.5 rounded-xl bg-surface-2 p-1.5"
+    >
+      <button
+        type="button"
+        aria-pressed={isIncome}
+        onClick={() => onChange("in")}
+        className={cn(
+          "min-h-touch rounded-lg font-semibold transition",
+          isIncome ? "bg-income text-white shadow-sm" : "text-ink-soft",
+        )}
+      >
+        รับเข้า
+      </button>
+      <button
+        type="button"
+        aria-pressed={!isIncome}
+        onClick={() => onChange("out")}
+        className={cn(
+          "min-h-touch rounded-lg font-semibold transition",
+          !isIncome ? "bg-expense text-white shadow-sm" : "text-ink-soft",
+        )}
+      >
+        จ่ายออก
+      </button>
+    </div>
+  );
+}
+
+/** แถบแจ้งผลหลังส่งฟอร์ม */
+export function StatusMessage({ state }: { state: ActionState }) {
+  if (state.status === "idle") return null;
+
+  const ok = state.status === "ok";
+  const text = ok ? state.message : state.message;
+  if (!text) return null;
+
+  return (
+    <p
+      // aria-live ทำให้โปรแกรมอ่านหน้าจอประกาศผลลัพธ์โดยไม่ต้องย้ายโฟกัส
+      role={ok ? "status" : "alert"}
+      aria-live="polite"
+      className={cn(
+        "animate-slide-up rounded-xl px-3.5 py-2.5 text-sm font-medium",
+        ok ? "bg-income-soft text-income" : "bg-expense-soft text-expense",
+      )}
+    >
+      {text}
+    </p>
+  );
+}
+
+/** ดึงข้อความผิดพลาดของช่องหนึ่งออกจากผลลัพธ์ของ action */
+export function fieldError(state: ActionState, name: string): string | undefined {
+  if (state.status !== "error") return undefined;
+  return state.fieldErrors?.[name]?.[0];
+}

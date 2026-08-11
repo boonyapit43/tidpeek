@@ -1,0 +1,191 @@
+import { sql } from "drizzle-orm";
+import {
+  boolean,
+  check,
+  date,
+  index,
+  integer,
+  numeric,
+  pgTable,
+  text,
+  timestamp,
+  uuid,
+} from "drizzle-orm/pg-core";
+
+/* ------------------------------------------------------------------ */
+/*  ชนิดข้อมูลร่วม                                                     */
+/* ------------------------------------------------------------------ */
+
+export type Direction = "in" | "out";
+export type AccountKind = "cash" | "bank" | "ewallet";
+
+export const DIRECTIONS = ["in", "out"] as const;
+export const ACCOUNT_KINDS = ["cash", "bank", "ewallet"] as const;
+
+/**
+ * จำนวนเงินเก็บเป็น numeric(12,2) และ Drizzle คืนมาเป็น string เสมอ
+ *
+ * นี่คือสิ่งที่ต้องการ ไม่ใช่ข้อจำกัด: ถ้าคืนมาเป็น number ของ JavaScript
+ * ยอดจะเพี้ยนตอนบวกเลขหลายบรรทัด (0.1 + 0.2 !== 0.3)
+ *
+ * กฎคือ **ห้ามบวกเงินใน JavaScript** ให้ SQL รวมยอดมาให้เสร็จแล้วค่อยแปลง
+ * เป็นตัวเลขครั้งเดียวตอนแสดงผล ดู src/lib/money.ts
+ */
+const money = (name: string) => numeric(name, { precision: 12, scale: 2 });
+
+/**
+ * คอลัมน์ที่ทุกตารางต้องมีเหมือนกันหมด
+ *
+ * is_deleted — ลบแบบไม่ลบจริง
+ *   ในระบบบัญชี การลบแถวออกจริงคือการทำลายหลักฐาน ถ้าลบผิดแล้วไม่มีทางรู้
+ *   ว่าเคยมีอะไรอยู่ และรายการที่อ้างถึงแถวนั้นจะกลายเป็นเด็กกำพร้าทันที
+ *   ทุก query จึงกรอง is_deleted = false ออกไปแทน ข้อมูลยังอยู่ในฐานครบ
+ *   กู้กลับได้ด้วย SQL บรรทัดเดียว
+ *
+ *   ⚠️ ถ้าเพิ่ม query ใหม่ ต้องใส่เงื่อนไข is_deleted ด้วยเสมอ
+ *      ไม่งั้นของที่ลบไปแล้วจะโผล่กลับมา ดู notDeleted() ใน queries.ts
+ *
+ * created_at / updated_at — ตอบว่าแถวนี้เกิดเมื่อไหร่และถูกแตะครั้งสุดท้ายเมื่อไหร่
+ *   ใช้ timestamptz เพราะเป็นเวลาจริงที่เกิดเหตุ ต่างจาก txn_date ที่เป็น
+ *   วันของรายการซึ่งต้องเป็น date ล้วน
+ */
+const auditColumns = {
+  isDeleted: boolean("is_deleted").notNull().default(false),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+};
+
+/* ------------------------------------------------------------------ */
+/*  ร้าน                                                               */
+/* ------------------------------------------------------------------ */
+
+export const shops = pgTable(
+  "shops",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    name: text("name").notNull(),
+    sortOrder: integer("sort_order").notNull().default(0),
+    isActive: boolean("is_active").notNull().default(true),
+    ...auditColumns,
+  },
+  (t) => [index("idx_shops_live").on(t.isDeleted, t.sortOrder)],
+);
+
+/* ------------------------------------------------------------------ */
+/*  บัญชี / ช่องทางเงิน                                                */
+/* ------------------------------------------------------------------ */
+
+/**
+ * shopId = null  →  บัญชีกลาง ทุกร้านใช้ร่วมกัน (เช่นบัญชีธนาคารใบเดียวใช้สองร้าน)
+ * shopId มีค่า   →  บัญชีของร้านนั้นร้านเดียว
+ *
+ * openingBalance เป็นของ "บัญชี" ไม่ใช่ของ "ร้าน" — ห้ามนับซ้ำระดับร้าน
+ * ไม่งั้นสองร้านที่ใช้บัญชีร่วมกันจะเห็นยอดตั้งต้นคนละใบ
+ */
+export const accounts = pgTable(
+  "accounts",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    shopId: uuid("shop_id").references(() => shops.id, { onDelete: "cascade" }),
+    name: text("name").notNull(),
+    kind: text("kind").$type<AccountKind>().notNull().default("bank"),
+    bank: text("bank"),
+    accountNo: text("account_no"),
+    openingBalance: money("opening_balance").notNull().default("0"),
+    sortOrder: integer("sort_order").notNull().default(0),
+    isActive: boolean("is_active").notNull().default(true),
+    ...auditColumns,
+  },
+  (t) => [
+    check("accounts_kind_check", sql`${t.kind} in ('cash','bank','ewallet')`),
+    index("idx_accounts_shop").on(t.shopId, t.isDeleted),
+  ],
+);
+
+/* ------------------------------------------------------------------ */
+/*  ประเภทรายรับรายจ่าย                                                */
+/* ------------------------------------------------------------------ */
+
+/**
+ * counts = false คือเงินที่เข้าออกจริงแต่ไม่ใช่กำไรหรือขาดทุนของร้าน
+ * เช่น เติมทุน เงินกู้ ถอนใช้ส่วนตัว โอนย้ายบัญชี
+ *
+ * ⚠️ กฎเหล็ก: ธงนี้ใช้กรองตอน "คิดกำไร" เท่านั้น
+ *    ห้ามใช้กรองตอน "คิดยอดคงเหลือของบัญชี" เด็ดขาด
+ *    ไม่งั้นยอดในแอปจะไม่ตรงกับยอดในแอปธนาคาร
+ *    ทั้งสองกรณีถูกบังคับไว้ที่ src/db/queries.ts แล้ว
+ */
+export const categories = pgTable(
+  "categories",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    shopId: uuid("shop_id").references(() => shops.id, { onDelete: "cascade" }),
+    direction: text("direction").$type<Direction>().notNull(),
+    name: text("name").notNull(),
+    counts: boolean("counts").notNull().default(true),
+    sortOrder: integer("sort_order").notNull().default(0),
+    isActive: boolean("is_active").notNull().default(true),
+    ...auditColumns,
+  },
+  (t) => [
+    check("categories_direction_check", sql`${t.direction} in ('in','out')`),
+    index("idx_categories_shop").on(t.shopId, t.isDeleted),
+  ],
+);
+
+/* ------------------------------------------------------------------ */
+/*  รายการเคลื่อนไหว                                                   */
+/* ------------------------------------------------------------------ */
+
+/**
+ * amount เก็บเป็นค่าบวกเสมอ ทิศทางเงินอยู่ที่คอลัมน์ direction
+ * เก็บแบบนี้เพราะเลขติดลบในตารางบัญชีอ่านยากและพลาดง่ายเวลา query
+ */
+export const transactions = pgTable(
+  "transactions",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    shopId: uuid("shop_id")
+      .notNull()
+      .references(() => shops.id, { onDelete: "cascade" }),
+    /**
+     * ชนิด date ของ Postgres — เก็บแค่ปีเดือนวัน ไม่มีเวลาและไม่มี timezone
+     *
+     * mode "string" ระบุไว้ชัดเจนเพื่อให้ค่าที่วิ่งเข้าออกเป็น "YYYY-MM-DD" เสมอ
+     * ถ้าปล่อยให้กลายเป็น Date object ของ JavaScript ค่าจะถูกตีความเป็น UTC
+     * แล้ววันจะเลื่อนไป 1 วันบนเซิร์ฟเวอร์ที่ไม่ได้ตั้งเวลาเป็นไทย
+     *
+     * "วันนี้" คำนวณจาก Asia/Bangkok เสมอ ดู src/lib/date.ts
+     */
+    txnDate: date("txn_date", { mode: "string" }).notNull(),
+    direction: text("direction").$type<Direction>().notNull(),
+    categoryId: uuid("category_id").references(() => categories.id, { onDelete: "set null" }),
+    accountId: uuid("account_id").references(() => accounts.id, { onDelete: "set null" }),
+    title: text("title").notNull(),
+    amount: money("amount").notNull(),
+    note: text("note"),
+    ...auditColumns,
+  },
+  (t) => [
+    check("transactions_direction_check", sql`${t.direction} in ('in','out')`),
+    check("transactions_amount_check", sql`${t.amount} >= 0`),
+    // ดัชนีหลักที่ทุกหน้าใช้ — กรองร้าน ตัดของที่ลบแล้ว เรียงวันใหม่สุดขึ้นก่อน
+    index("idx_txn_shop_date").on(t.shopId, t.isDeleted, t.txnDate.desc()),
+    index("idx_txn_account").on(t.accountId, t.isDeleted),
+    index("idx_txn_category").on(t.categoryId, t.isDeleted),
+  ],
+);
+
+/* ------------------------------------------------------------------ */
+/*  ชนิดที่อนุมานจาก schema — อย่าประกาศ type ของแถวซ้ำที่อื่น          */
+/* ------------------------------------------------------------------ */
+
+export type Shop = typeof shops.$inferSelect;
+export type Account = typeof accounts.$inferSelect;
+export type Category = typeof categories.$inferSelect;
+export type Transaction = typeof transactions.$inferSelect;
+
+export type NewShop = typeof shops.$inferInsert;
+export type NewAccount = typeof accounts.$inferInsert;
+export type NewCategory = typeof categories.$inferInsert;
+export type NewTransaction = typeof transactions.$inferInsert;
