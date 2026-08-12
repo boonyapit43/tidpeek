@@ -18,6 +18,7 @@ import {
   failed,
   formObject,
   invalid,
+  runAction,
   succeeded,
 } from "./shared";
 
@@ -66,62 +67,26 @@ export async function createTransaction(
   _prev: ActionState,
   formData: FormData,
 ): Promise<ActionState> {
-  if (!(await hasSession())) return UNAUTHORIZED;
+  return runAction(async () => {
+    if (!(await hasSession())) return UNAUTHORIZED;
 
-  const parsed = createTransactionSchema.safeParse(formObject(formData));
-  if (!parsed.success) return invalid(parsed.error);
+    const parsed = createTransactionSchema.safeParse(formObject(formData));
+    if (!parsed.success) return invalid(parsed.error);
 
-  const input = parsed.data;
+    const input = parsed.data;
 
-  if (!(await getShop(input.shopId))) return SHOP_NOT_FOUND;
+    if (!(await getShop(input.shopId))) return SHOP_NOT_FOUND;
 
-  const refError = await checkReferences(
-    input.shopId,
-    input.direction,
-    input.categoryId,
-    input.accountId,
-  );
-  if (refError) return refError;
+    const refError = await checkReferences(
+      input.shopId,
+      input.direction,
+      input.categoryId,
+      input.accountId,
+    );
+    if (refError) return refError;
 
-  await db.insert(transactions).values({
-    shopId: input.shopId,
-    txnDate: input.txnDate,
-    direction: input.direction,
-    categoryId: input.categoryId,
-    accountId: input.accountId,
-    title: input.title,
-    amount: input.amount,
-    note: input.note,
-  });
-
-  revalidateAll();
-  return succeeded("บันทึกแล้ว");
-}
-
-export async function updateTransaction(
-  _prev: ActionState,
-  formData: FormData,
-): Promise<ActionState> {
-  if (!(await hasSession())) return UNAUTHORIZED;
-
-  const parsed = updateTransactionSchema.safeParse(formObject(formData));
-  if (!parsed.success) return invalid(parsed.error);
-
-  const input = parsed.data;
-
-  if (!(await getShop(input.shopId))) return SHOP_NOT_FOUND;
-
-  const refError = await checkReferences(
-    input.shopId,
-    input.direction,
-    input.categoryId,
-    input.accountId,
-  );
-  if (refError) return refError;
-
-  const updated = await db
-    .update(transactions)
-    .set({
+    await db.insert(transactions).values({
+      shopId: input.shopId,
       txnDate: input.txnDate,
       direction: input.direction,
       categoryId: input.categoryId,
@@ -129,58 +94,100 @@ export async function updateTransaction(
       title: input.title,
       amount: input.amount,
       note: input.note,
-      updatedAt: new Date(),
-    })
-    // เงื่อนไข shopId ตรงนี้คือสิ่งที่กันไม่ให้แก้รายการของร้านอื่นด้วยการ
-    // เปลี่ยน id ในฟอร์ม ห้ามตัดออกเด็ดขาด
-    .where(
-      and(
-        eq(transactions.id, input.id),
-        eq(transactions.shopId, input.shopId),
-        eq(transactions.isDeleted, false),
-      ),
-    )
-    .returning({ id: transactions.id });
+    });
 
-  if (updated.length === 0) return failed("ไม่พบรายการที่จะแก้ไข อาจถูกลบไปแล้ว");
+    revalidateAll();
+    return succeeded("บันทึกแล้ว");
+  });
+}
 
-  revalidateAll();
-  return succeeded("แก้ไขแล้ว");
+export async function updateTransaction(
+  _prev: ActionState,
+  formData: FormData,
+): Promise<ActionState> {
+  return runAction(async () => {
+    if (!(await hasSession())) return UNAUTHORIZED;
+
+    const parsed = updateTransactionSchema.safeParse(formObject(formData));
+    if (!parsed.success) return invalid(parsed.error);
+
+    const input = parsed.data;
+
+    if (!(await getShop(input.shopId))) return SHOP_NOT_FOUND;
+
+    const refError = await checkReferences(
+      input.shopId,
+      input.direction,
+      input.categoryId,
+      input.accountId,
+    );
+    if (refError) return refError;
+
+    const updated = await db
+      .update(transactions)
+      .set({
+        txnDate: input.txnDate,
+        direction: input.direction,
+        categoryId: input.categoryId,
+        accountId: input.accountId,
+        title: input.title,
+        amount: input.amount,
+        note: input.note,
+        updatedAt: new Date(),
+      })
+      // เงื่อนไข shopId ตรงนี้คือสิ่งที่กันไม่ให้แก้รายการของร้านอื่นด้วยการ
+      // เปลี่ยน id ในฟอร์ม ห้ามตัดออกเด็ดขาด
+      .where(
+        and(
+          eq(transactions.id, input.id),
+          eq(transactions.shopId, input.shopId),
+          eq(transactions.isDeleted, false),
+        ),
+      )
+      .returning({ id: transactions.id });
+
+    if (updated.length === 0) return failed("ไม่พบรายการที่จะแก้ไข อาจถูกลบไปแล้ว");
+
+    revalidateAll();
+    return succeeded("แก้ไขแล้ว");
+  });
 }
 
 export async function deleteTransaction(
   _prev: ActionState,
   formData: FormData,
 ): Promise<ActionState> {
-  if (!(await hasSession())) return UNAUTHORIZED;
+  return runAction(async () => {
+    if (!(await hasSession())) return UNAUTHORIZED;
 
-  const parsed = deleteTransactionSchema.safeParse(formObject(formData));
-  if (!parsed.success) return invalid(parsed.error);
+    const parsed = deleteTransactionSchema.safeParse(formObject(formData));
+    if (!parsed.success) return invalid(parsed.error);
 
-  /**
-   * ลบแบบไม่ลบจริง — ตั้งธง is_deleted แทนการ DELETE แถวออก
-   *
-   * ในระบบบัญชี การลบแถวจริงคือการทำลายหลักฐาน ถ้าลบผิดจะไม่มีทางรู้เลยว่า
-   * เคยมีรายการอะไรอยู่ ตั้งธงไว้แทนแล้วทุก query กรองออกให้ ผลที่คนใช้เห็น
-   * เหมือนลบทุกอย่าง แต่กู้กลับได้ด้วย SQL บรรทัดเดียว
-   *
-   * เงื่อนไข is_deleted = false ใน where กันการกดลบซ้ำรายการเดิม
-   * ซึ่งจะได้ข้อความ "ลบแล้ว" ทั้งที่ไม่มีอะไรเปลี่ยน
-   */
-  const deleted = await db
-    .update(transactions)
-    .set({ isDeleted: true, updatedAt: new Date() })
-    .where(
-      and(
-        eq(transactions.id, parsed.data.id),
-        eq(transactions.shopId, parsed.data.shopId),
-        eq(transactions.isDeleted, false),
-      ),
-    )
-    .returning({ id: transactions.id });
+    /**
+     * ลบแบบไม่ลบจริง — ตั้งธง is_deleted แทนการ DELETE แถวออก
+     *
+     * ในระบบบัญชี การลบแถวจริงคือการทำลายหลักฐาน ถ้าลบผิดจะไม่มีทางรู้เลยว่า
+     * เคยมีรายการอะไรอยู่ ตั้งธงไว้แทนแล้วทุก query กรองออกให้ ผลที่คนใช้เห็น
+     * เหมือนลบทุกอย่าง แต่กู้กลับได้ด้วย SQL บรรทัดเดียว
+     *
+     * เงื่อนไข is_deleted = false ใน where กันการกดลบซ้ำรายการเดิม
+     * ซึ่งจะได้ข้อความ "ลบแล้ว" ทั้งที่ไม่มีอะไรเปลี่ยน
+     */
+    const deleted = await db
+      .update(transactions)
+      .set({ isDeleted: true, updatedAt: new Date() })
+      .where(
+        and(
+          eq(transactions.id, parsed.data.id),
+          eq(transactions.shopId, parsed.data.shopId),
+          eq(transactions.isDeleted, false),
+        ),
+      )
+      .returning({ id: transactions.id });
 
-  if (deleted.length === 0) return failed("ไม่พบรายการที่จะลบ");
+    if (deleted.length === 0) return failed("ไม่พบรายการที่จะลบ");
 
-  revalidateAll();
-  return succeeded("ลบแล้ว");
+    revalidateAll();
+    return succeeded("ลบแล้ว");
+  });
 }

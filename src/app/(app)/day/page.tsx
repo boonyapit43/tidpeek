@@ -62,7 +62,32 @@ export default async function DayPage({
         <DayLink date={addDays(date, 1)} label="วันถัดไป" direction="next" />
       </div>
 
-      <DateJump date={date} />
+      <div className="flex gap-2">
+        <div className="min-w-0 flex-1">
+          <DateJump date={date} />
+        </div>
+
+        {/* ค้นหาอยู่ตรงนี้แทนที่จะเป็นแท็บที่ห้าในเมนูล่าง เพราะสี่ช่องคือขนาด
+            ที่นิ้วโป้งกดไม่พลาด และค้นหาเป็นสิ่งที่ใช้นานๆ ครั้ง */}
+        <Link
+          href="/search"
+          aria-label="ค้นหารายการ"
+          className="flex size-11 shrink-0 items-center justify-center rounded-xl border border-line bg-surface text-ink-soft transition active:scale-95 hover:bg-surface-2"
+        >
+          <svg
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth={2}
+            strokeLinecap="round"
+            className="size-5"
+            aria-hidden
+          >
+            <circle cx="11" cy="11" r="7" />
+            <path d="m20 20-3.5-3.5" />
+          </svg>
+        </Link>
+      </div>
 
       <SummaryCard summary={summary} title={`สรุปวันที่ ${date}`} />
 

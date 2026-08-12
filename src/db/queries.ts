@@ -1,5 +1,5 @@
 import "server-only";
-import { and, asc, count, desc, eq, gte, isNull, lte, or, sql } from "drizzle-orm";
+import { and, asc, count, desc, eq, gte, ilike, isNull, lte, or, sql } from "drizzle-orm";
 import { db } from "./index";
 import { accounts, categories, shops, transactions } from "./schema";
 import type { Account, Category, Direction, Shop } from "./schema";
@@ -380,6 +380,92 @@ export async function listTransactionsByDate(shopId: string, date: string): Prom
       ),
     )
     .orderBy(asc(transactions.direction), desc(transactions.createdAt));
+}
+
+export type SearchFilters = {
+  /** คำค้น หาจากชื่อรายการและหมายเหตุ */
+  q: string;
+  direction?: Direction;
+  from?: string;
+  to?: string;
+};
+
+/**
+ * ค้นหารายการย้อนหลัง
+ *
+ * ใช้ ILIKE ไม่ใช่ full-text search เพราะภาษาไทยไม่มีการเว้นวรรคระหว่างคำ
+ * ตัวตัดคำของ Postgres จึงแยกคำไทยไม่ออก การค้นแบบ full-text จะพลาดคำที่
+ * อยู่กลางประโยค ส่วน ILIKE '%คำ%' หาเจอทุกตำแหน่งแน่นอน
+ *
+ * แลกกับที่ ILIKE ใช้ดัชนีไม่ได้ ต้องอ่านทุกแถวของร้าน ซึ่งยอมรับได้เพราะ
+ * ร้านหนึ่งมีรายการหลักพันถึงหมื่นต่อปี ไม่ใช่ล้าน ถ้าวันหนึ่งช้าขึ้นมาจริง
+ * ค่อยเพิ่มดัชนี GIN แบบ trigram (pg_trgm) ทีหลังได้โดยไม่ต้องแก้โค้ดตรงนี้
+ *
+ * จำกัดผลไว้ 200 แถว กันการเผลอค้นคำสั้นๆ แล้วลากข้อมูลทั้งร้านมาทั้งก้อน
+ */
+export async function searchTransactions(
+  shopId: string,
+  filters: SearchFilters,
+): Promise<TxnRow[]> {
+  // escape อักขระพิเศษของ LIKE ไม่งั้นคนพิมพ์ % หรือ _ จะกลายเป็นตัวแทนที่
+  const pattern = `%${filters.q.replace(/[\\%_]/g, (c) => `\\${c}`)}%`;
+
+  const conditions = [
+    eq(transactions.shopId, shopId),
+    eq(transactions.isDeleted, false),
+    or(
+      ilike(transactions.title, pattern),
+      ilike(transactions.note, pattern),
+      ilike(categories.name, pattern),
+    ),
+  ];
+
+  if (filters.direction) conditions.push(eq(transactions.direction, filters.direction));
+  if (filters.from) conditions.push(gte(transactions.txnDate, filters.from));
+  if (filters.to) conditions.push(lte(transactions.txnDate, filters.to));
+
+  return db
+    .select(txnSelection)
+    .from(transactions)
+    .leftJoin(categories, eq(categories.id, transactions.categoryId))
+    .leftJoin(accounts, eq(accounts.id, transactions.accountId))
+    .where(and(...conditions))
+    .orderBy(desc(transactions.txnDate), desc(transactions.createdAt))
+    .limit(200);
+}
+
+/** ยอดรวมของผลค้นหา คิดใน SQL เหมือนทุกที่ ไม่บวกจากแถวที่ได้มา */
+export async function searchTotals(
+  shopId: string,
+  filters: SearchFilters,
+): Promise<{ income: string; expense: string; count: number }> {
+  const pattern = `%${filters.q.replace(/[\\%_]/g, (c) => `\\${c}`)}%`;
+
+  const conditions = [
+    eq(transactions.shopId, shopId),
+    eq(transactions.isDeleted, false),
+    or(
+      ilike(transactions.title, pattern),
+      ilike(transactions.note, pattern),
+      ilike(categories.name, pattern),
+    ),
+  ];
+
+  if (filters.direction) conditions.push(eq(transactions.direction, filters.direction));
+  if (filters.from) conditions.push(gte(transactions.txnDate, filters.from));
+  if (filters.to) conditions.push(lte(transactions.txnDate, filters.to));
+
+  const [row] = await db
+    .select({
+      income: sql<string>`coalesce(sum(case when ${transactions.direction} = 'in' then ${transactions.amount} else 0 end), 0)`,
+      expense: sql<string>`coalesce(sum(case when ${transactions.direction} = 'out' then ${transactions.amount} else 0 end), 0)`,
+      count: count(),
+    })
+    .from(transactions)
+    .leftJoin(categories, eq(categories.id, transactions.categoryId))
+    .where(and(...conditions));
+
+  return row ?? { income: "0", expense: "0", count: 0 };
 }
 
 /**
