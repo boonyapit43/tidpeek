@@ -32,13 +32,6 @@
   --brand-deep: oklch(0.45 0.21 288);
   --brand-soft: oklch(0.94 0.045 275);
 
-  /* สีประจำชนิดบัญชี ให้แถบยอดเงินอ่านแยกกันได้ในพริบตา
-     เงินสด = เหลืองทอง  ธนาคาร = น้ำเงิน(brand)  วอลเล็ต = ม่วงชมพู */
-  --cash: oklch(0.56 0.12 75);
-  --cash-soft: oklch(0.95 0.055 85);
-  --wallet: oklch(0.56 0.17 320);
-  --wallet-soft: oklch(0.95 0.045 320);
-
   /* พื้นหลังอมม่วงจางๆ ให้การ์ดขาวลอยขึ้นมา ไม่ใช่เทาแบนๆ */
   --surface: oklch(1 0 0);
   --surface-2: oklch(0.965 0.01 275);
@@ -57,11 +50,6 @@
     --brand: oklch(0.72 0.16 275);
     --brand-deep: oklch(0.6 0.2 288);
     --brand-soft: oklch(0.3 0.07 275);
-
-    --cash: oklch(0.8 0.13 85);
-    --cash-soft: oklch(0.3 0.05 85);
-    --wallet: oklch(0.77 0.15 320);
-    --wallet-soft: oklch(0.3 0.06 320);
 
     --surface: oklch(0.23 0.02 275);
     --surface-2: oklch(0.17 0.02 275);
@@ -87,10 +75,6 @@
   --color-brand: var(--brand);
   --color-brand-deep: var(--brand-deep);
   --color-brand-soft: var(--brand-soft);
-  --color-cash: var(--cash);
-  --color-cash-soft: var(--cash-soft);
-  --color-wallet: var(--wallet);
-  --color-wallet-soft: var(--wallet-soft);
 
   /* ความสูงขั้นต่ำของสิ่งที่กดได้ ต่ำกว่านี้นิ้วโป้งกดพลาดบ่อย */
   --spacing-touch: 2.75rem; /* 44px ตามที่ Apple แนะนำ */
