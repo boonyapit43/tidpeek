@@ -196,7 +196,7 @@ async function DayView({ shopId, day }: { shopId: string; day: string }) {
           href={`/day?d=${day}`}
           className="flex min-h-touch items-center justify-center gap-2 rounded-xl border border-line text-sm font-semibold text-ink transition hover:bg-surface-2"
         >
-          ดูรายการทีละบรรทัดของวันนี้
+          ดูรายการของวันนี้
         </Link>
       </div>
 

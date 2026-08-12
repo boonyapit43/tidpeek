@@ -343,7 +343,7 @@ export async function updateCategory(
 
   revalidateAll();
   // เปลี่ยนธง counts แล้วยอดสรุปย้อนหลังเปลี่ยนตามทันที เพราะกำไรคำนวณสด
-  return succeeded("แก้ไขแล้ว ยอดสรุปย้อนหลังปรับตามแล้ว");
+  return succeeded("แก้ไขแล้ว");
 }
 
 export async function setCategoryActive(
@@ -395,5 +395,5 @@ export async function deleteCategory(_prev: ActionState, formData: FormData): Pr
    * ยอดสรุปย้อนหลังจะไม่ขยับเลยหลังลบประเภท ซึ่งเป็นสิ่งที่ต้องการ
    * ไม่งั้นการลบประเภท "โอนย้ายบัญชี" จะทำให้เงินโอนกลายเป็นกำไรย้อนหลัง
    */
-  return succeeded("ลบประเภทแล้ว รายการเก่ายังนับเหมือนเดิม");
+  return succeeded("ลบประเภทแล้ว");
 }

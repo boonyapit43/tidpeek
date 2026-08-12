@@ -231,11 +231,7 @@ function AccountFields({ account }: { account?: AccountWithBalance }) {
         />
       </Field>
 
-      <Field
-        label="ยอดตั้งต้น"
-        htmlFor="acc-opening"
-        hint="ยอดที่มีอยู่ในบัญชีก่อนเริ่มใช้แอปนี้ ใส่ 0 ได้ถ้าเริ่มนับจากศูนย์"
-      >
+      <Field label="ยอดตั้งต้น" htmlFor="acc-opening">
         <MoneyInput
           id="acc-opening"
           name="openingBalance"
@@ -256,13 +252,7 @@ function SharedToggle({ defaultChecked }: { defaultChecked: boolean }) {
         defaultChecked={defaultChecked}
         className="mt-0.5 size-5 shrink-0 accent-[var(--color-brand)]"
       />
-      <span className="text-sm text-ink">
-        ใช้ร่วมกันทุกร้าน
-        <span className="mt-1 block text-xs leading-relaxed text-ink-soft">
-          ติ๊กเมื่อบัญชีใบนี้ใช้กับหลายร้าน เช่นบัญชีธนาคารใบเดียวรับเงินให้สองร้าน
-          ยอดคงเหลือจะรวมรายการของทุกร้านที่ใช้บัญชีนี้
-        </span>
-      </span>
+      <span className="text-sm text-ink">ใช้ร่วมกันทุกร้าน</span>
     </label>
   );
 }

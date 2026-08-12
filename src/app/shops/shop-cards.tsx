@@ -188,12 +188,12 @@ function EditShopSheet({ shop, onClose }: { shop: ShopCardData | null; onClose: 
 
             {confirming ? (
               <>
-                <p className="rounded-xl bg-expense-soft px-3 py-2.5 text-xs leading-relaxed text-expense">
+                {/* เหลือแต่จำนวนรายการที่จะหายไป ซึ่งเป็นตัวเลขที่ทำให้คนหยุดคิด
+                    คำอธิบายอื่นตัดออก เพราะยาวแล้วคนอ่านผ่านอยู่ดี */}
+                <p className="rounded-xl bg-expense-soft px-3 py-2 text-xs text-expense">
                   {shop.totalCount === 0
-                    ? "ลบร้านนี้ พร้อมบัญชีและประเภทที่เป็นของร้านนี้"
-                    : `ลบร้านนี้ พร้อมรายการทั้งหมด ${shop.totalCount} รายการ และบัญชีกับประเภทที่เป็นของร้านนี้`}
-                  <br />
-                  บัญชีและประเภทที่ใช้ร่วมกับร้านอื่นจะไม่ถูกแตะ
+                    ? "ลบร้านนี้"
+                    : `ลบร้านนี้ พร้อมรายการทั้งหมด ${shop.totalCount} รายการ`}
                 </p>
 
                 <form action={remove} className="flex gap-2">

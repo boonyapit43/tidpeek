@@ -68,9 +68,6 @@ export function AddCategorySheet({
           />
           <span className="text-sm text-ink">
             นับเป็น{direction === "in" ? "รายได้" : "รายจ่าย"}ตอนคิดกำไร
-            <span className="mt-0.5 block text-xs text-ink-soft">
-              ติ๊กออกถ้าเงินเดินจริงแต่ไม่ใช่กำไร เช่นเติมทุน โอนย้ายบัญชี
-            </span>
           </span>
         </label>
 

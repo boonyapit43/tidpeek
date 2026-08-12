@@ -32,11 +32,7 @@ export function TxnList({
   if (items.length === 0) {
     return (
       <div className="rounded-2xl bg-surface px-4 py-10 text-center shadow-sm">
-        <p className="text-sm text-ink-soft">
-          วันนี้ยังไม่มีรายการ
-          <br />
-          ไปที่แท็บบันทึกเพื่อเพิ่มรายการแรก
-        </p>
+        <p className="text-sm text-ink-soft">ยังไม่มีรายการ</p>
       </div>
     );
   }

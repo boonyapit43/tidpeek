@@ -61,10 +61,12 @@ export function SummaryCard({ summary, title }: { summary: Summary; title: strin
         </div>
       </div>
 
+      {/* บอกให้เห็นว่ามีเงินอีกก้อนที่ไม่ได้อยู่ในตัวเลขข้างบน ไม่งั้นคนจะงง
+          ว่าทำไมยอดบัญชีขยับมากกว่ากำไร แต่เขียนสั้นๆ พอ */}
       {hasExcluded && (
-        <p className="border-t border-line px-4 py-2.5 text-xs leading-relaxed text-ink-soft">
-          มีเงินเดินอีก <span className="num font-semibold">{bahtShort(summary.excluded)}</span> บาท
-          จากประเภทที่ไม่นับเป็นกำไร ยอดบัญชีเปลี่ยนตามแล้ว แต่ไม่รวมในตัวเลขข้างบน
+        <p className="border-t border-line px-4 py-2 text-xs text-ink-soft">
+          ไม่นับเป็นกำไรอีก{" "}
+          <span className="num font-semibold">{bahtShort(summary.excluded)}</span> บาท
         </p>
       )}
     </section>

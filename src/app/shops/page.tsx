@@ -34,9 +34,6 @@ export default async function ShopsPage() {
       <header className="mb-5 flex items-center justify-between gap-3">
         <div className="min-w-0">
           <h1 className="text-xl font-bold tracking-tight text-ink">เลือกร้าน</h1>
-          {shops.length > 0 && (
-            <p className="mt-0.5 text-sm text-ink-soft">ตัวเลขคือกำไรของวันนี้</p>
-          )}
         </div>
 
         {/* ปุ่มออกจากระบบมีกรอบและไอคอน ไม่ใช่ข้อความลอยๆ เพราะบนมือถือ
@@ -64,12 +61,8 @@ export default async function ShopsPage() {
       </header>
 
       {shops.length === 0 ? (
-        <div className="flex flex-1 flex-col items-center justify-center gap-5 text-center">
-          <p className="text-sm leading-relaxed text-ink-soft">
-            ยังไม่มีร้านในระบบ
-            <br />
-            เพิ่มร้านแรกเพื่อเริ่มบันทึกบัญชี
-          </p>
+        <div className="flex flex-1 flex-col items-center justify-center gap-4 text-center">
+          <p className="text-sm text-ink-soft">ยังไม่มีร้าน</p>
           <AddShopButton autoFocus />
         </div>
       ) : (

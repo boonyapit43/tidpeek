@@ -17,16 +17,20 @@ const fieldBase =
   "focus:border-brand focus:outline-none focus:ring-2 focus:ring-brand/25 " +
   "disabled:opacity-50";
 
+/**
+ * ป้ายกำกับ + ช่องกรอก + ข้อความผิดพลาด
+ *
+ * ตั้งใจไม่มีช่องคำอธิบายใต้ช่องกรอก ถ้าต้องเขียนอธิบายว่าช่องนี้คืออะไร
+ * แปลว่าป้ายกำกับยังตั้งชื่อได้ไม่ดีพอ ให้ไปแก้ชื่อแทนการเติมคำอธิบาย
+ */
 export function Field({
   label,
   htmlFor,
-  hint,
   error,
   children,
 }: {
   label: string;
   htmlFor: string;
-  hint?: string;
   error?: string;
   children: React.ReactNode;
 }) {
@@ -36,7 +40,6 @@ export function Field({
         {label}
       </label>
       {children}
-      {hint && !error && <p className="text-xs leading-relaxed text-ink-soft">{hint}</p>}
       {/* role=alert ทำให้โปรแกรมอ่านหน้าจออ่านข้อความผิดพลาดทันทีที่โผล่ */}
       {error && (
         <p role="alert" className="text-xs font-medium text-expense">
