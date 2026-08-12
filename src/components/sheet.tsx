@@ -55,12 +55,26 @@ export function Sheet({
       }}
       className={cn(
         "m-0 mt-auto w-full max-w-lg bg-transparent p-0 backdrop:bg-black/40",
+        /**
+         * แอนิเมชันเลื่อนขึ้นอยู่ที่ตัว dialog ไม่ใช่กล่องเนื้อหาข้างใน
+         *
+         * เดิมใส่ไว้ที่กล่องข้างใน ซึ่งตอนเริ่มจะถูกเลื่อนลง 8px แล้วล้นออก
+         * นอกกรอบของ dialog พอบวกกับที่เบราว์เซอร์ตั้ง overflow:auto ให้
+         * dialog มาตั้งแต่ต้น มันเลยกลายเป็นพื้นที่เลื่อนได้ 8px
+         * ผลคือแผ่นที่เนื้อหาสั้นๆ กลับเลื่อนได้นิดหน่อยแบบไม่มีเหตุผล
+         *
+         * ย้ายมาไว้ที่ dialog แล้วทั้งกล่องขยับไปพร้อมกัน ไม่มีอะไรล้นออกมา
+         *
+         * overflow-hidden กำกับไว้อีกชั้น เพราะตัว dialog ไม่ควรเลื่อนเลย
+         * ตัวที่ควรเลื่อนคือกล่องเนื้อหาข้างในที่มี max-h ของตัวเอง
+         */
+        "animate-slide-up overflow-hidden",
         "md:m-auto md:px-4",
       )}
     >
       <div
         className={cn(
-          "animate-slide-up rounded-t-2xl bg-surface p-5 shadow-xl md:rounded-2xl",
+          "rounded-t-2xl bg-surface p-5 shadow-xl md:rounded-2xl",
           // เว้นที่ให้แถบ home ของ iPhone
           "pb-[calc(1.25rem+env(safe-area-inset-bottom))] md:pb-5",
           // จำกัดความสูงแล้วให้เลื่อนข้างใน กันแผ่นล้นจอเมื่อคีย์บอร์ดเด้งขึ้น
