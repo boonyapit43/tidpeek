@@ -65,6 +65,7 @@ export function EntryForm({
   const [title, setTitle] = useState("");
   const [amount, setAmount] = useState("");
   const [note, setNote] = useState("");
+  const [noteOpen, setNoteOpen] = useState(false);
   const [sheetOpen, setSheetOpen] = useState(false);
 
   const visibleCategories = useMemo(
@@ -108,6 +109,8 @@ export function EntryForm({
       setAmount("");
       setTitle("");
       setNote("");
+      // ยุบหมายเหตุกลับด้วย รายการถัดไปส่วนใหญ่ไม่ได้ใช้
+      setNoteOpen(false);
     }
   }
 
@@ -232,22 +235,64 @@ export function EntryForm({
 
         <DatePicker value={date} onChange={setDate} error={fieldError(state, "txnDate")} />
 
-        <Field label="หมายเหตุ (ไม่บังคับ)" htmlFor="note">
-          <Input
-            id="note"
-            name="note"
-            value={note}
-            onChange={(e) => setNote(e.target.value)}
-            maxLength={500}
-            enterKeyHint="done"
-          />
-        </Field>
+        {/**
+         * หมายเหตุยุบไว้จนกว่าจะกดเปิด
+         *
+         * เป็นช่องที่ไม่ได้ใช้ทุกรายการ แต่กินความสูง 72px ทุกครั้ง
+         * ซึ่งคือส่วนหนึ่งที่ดันปุ่มบันทึกให้ตกไปใต้ขอบจอ
+         */}
+        {noteOpen ? (
+          <Field label="หมายเหตุ" htmlFor="note">
+            <Input
+              id="note"
+              name="note"
+              value={note}
+              onChange={(e) => setNote(e.target.value)}
+              maxLength={500}
+              enterKeyHint="done"
+              autoFocus
+            />
+          </Field>
+        ) : (
+          <button
+            type="button"
+            onClick={() => setNoteOpen(true)}
+            className="flex min-h-touch w-full items-center justify-center gap-1.5 rounded-xl border border-dashed border-line text-sm font-medium text-ink-soft transition hover:border-brand/40 hover:text-brand"
+          >
+            <svg
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth={2}
+              strokeLinecap="round"
+              className="size-4"
+              aria-hidden
+            >
+              <path d="M12 5v14M5 12h14" />
+            </svg>
+            เพิ่มหมายเหตุ
+          </button>
+        )}
 
         <StatusMessage state={state} />
 
-        <SubmitButton className="w-full" disabled={!canSubmit}>
-          บันทึกรายการ
-        </SubmitButton>
+        {/**
+         * ปุ่มบันทึกลอยติดอยู่เหนือแถบเมนู ไม่ไหลไปตามฟอร์ม
+         *
+         * วัดแล้วว่าถ้าปล่อยให้ไหลตามปกติ ปุ่มจะอยู่ต่ำกว่าขอบจอ 126px
+         * บนจอ 375x750 และราว 209px บนจอเล็กอย่าง iPhone SE
+         * แปลว่าต้องเลื่อนก่อนกดทุกครั้งที่ลงรายการ ซึ่งวันหนึ่งลงหลายสิบครั้ง
+         *
+         * แค่ยุบหมายเหตุกับสลับลำดับช่วยได้ราว 139px ซึ่งพอสำหรับจอใหญ่
+         * แต่ไม่พอสำหรับจอเล็ก ปุ่มลอยจึงเป็นทางเดียวที่แก้ได้ทุกขนาดจอ
+         *
+         * บนจอ md ขึ้นไปไม่ต้องลอย เพราะฟอร์มพอดีจออยู่แล้ว
+         */}
+        <div className="sticky bottom-[calc(4.75rem+env(safe-area-inset-bottom))] z-20 md:static md:bottom-auto">
+          <SubmitButton className="w-full shadow-lg" disabled={!canSubmit}>
+            บันทึกรายการ
+          </SubmitButton>
+        </div>
       </form>
 
       {/* ต้องอยู่นอก <form> ข้างบน เพราะ HTML ไม่อนุญาตให้ form ซ้อน form */}
