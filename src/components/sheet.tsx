@@ -65,6 +65,9 @@ export function Sheet({
           "pb-[calc(1.25rem+env(safe-area-inset-bottom))] md:pb-5",
           // จำกัดความสูงแล้วให้เลื่อนข้างใน กันแผ่นล้นจอเมื่อคีย์บอร์ดเด้งขึ้น
           "max-h-[85dvh] overflow-y-auto",
+          // overscroll-contain กันไม่ให้หน้าข้างหลังเลื่อนตามเมื่อเลื่อนสุดขอบแผ่น
+          // ซึ่งบน Safari ของ iOS จะทำให้ทั้งหน้าเด้งไปมาจนแผ่นดูเหมือนจะหลุด
+          "overscroll-contain",
         )}
       >
         <div className="mb-4 flex items-center justify-between gap-3">

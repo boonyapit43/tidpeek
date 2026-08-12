@@ -288,8 +288,17 @@ export function EntryForm({
          *
          * บนจอ md ขึ้นไปไม่ต้องลอย เพราะฟอร์มพอดีจออยู่แล้ว
          */}
-        <div className="sticky bottom-[calc(4.75rem+env(safe-area-inset-bottom))] z-20 md:static md:bottom-auto">
-          <SubmitButton className="w-full shadow-lg" disabled={!canSubmit}>
+        <div
+          className={cn(
+            "sticky bottom-[calc(4.75rem+env(safe-area-inset-bottom))] z-20",
+            // แถบไล่สีบางๆ ใต้ปุ่ม ทำให้เนื้อหาที่เลื่อนลอดใต้ปุ่มค่อยๆ จางหาย
+            // แทนที่จะโผล่มาชนขอบปุ่มตรงๆ ซึ่งดูเหมือนของวางทับกันผิดที่
+            "before:pointer-events-none before:absolute before:inset-x-0 before:-bottom-4",
+            "before:h-8 before:bg-gradient-to-b before:from-transparent before:to-surface",
+            "md:static md:bottom-auto md:before:hidden",
+          )}
+        >
+          <SubmitButton className="relative w-full shadow-lg" disabled={!canSubmit}>
             บันทึกรายการ
           </SubmitButton>
         </div>

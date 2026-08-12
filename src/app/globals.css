@@ -205,6 +205,38 @@ input[type="date"]::-webkit-calendar-picker-indicator {
   padding: 0.25rem;
 }
 
+/**
+ * Safari บน iOS บังคับหน้าตาของตัวเองให้ input type=date
+ *
+ * ค่าจะถูกจัดชิดกลางในกล่องที่มีความสูงของมันเอง ทำให้ไม่ตรงแนวกับ
+ * ช่องอื่นในฟอร์มที่จัดชิดซ้าย ต้องรีเซ็ต appearance แล้วจัดเอง
+ */
+input[type="date"] {
+  appearance: none;
+  -webkit-appearance: none;
+  text-align: left;
+  /* iOS ให้ความสูงตามเนื้อหาของตัวเอง ถ้าไม่บังคับจะเตี้ยกว่าช่องอื่น */
+  min-height: 1.5rem;
+}
+
+/**
+ * Safari บน iOS วาด input type=search เป็นแคปซูลมีเงาข้างในของตัวเอง
+ * ทับกรอบที่เราออกแบบไว้ ทำให้ช่องค้นหาหน้าตาไม่เหมือนช่องอื่นในแอป
+ * และบนมือถือจะเห็นเป็นกล่องซ้อนกันสองชั้น
+ */
+input[type="search"] {
+  appearance: none;
+  -webkit-appearance: none;
+}
+
+/* ปุ่มกากบาทของ Safari เองซ้อนกับปุ่มค้นหาที่เราวางไว้ ซ่อนทิ้ง */
+input[type="search"]::-webkit-search-decoration,
+input[type="search"]::-webkit-search-cancel-button,
+input[type="search"]::-webkit-search-results-button {
+  appearance: none;
+  -webkit-appearance: none;
+}
+
 /* ------------------------------------------------------------------ */
 /*  เคลื่อนไหว                                                         */
 /* ------------------------------------------------------------------ */
