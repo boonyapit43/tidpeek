@@ -210,16 +210,6 @@ export async function listAllAccountsForShop(shopId: string): Promise<AccountWit
     .orderBy(desc(accounts.isActive), asc(accounts.sortOrder), asc(accounts.name));
 }
 
-/** ยอดรวมทุกบัญชีที่ร้านนี้ใช้ — รวมใน SQL ไม่ใช่บวกจากรายการข้างบน */
-export async function getTotalBalance(shopId: string): Promise<string> {
-  const [row] = await db
-    .select({ total: sql<string>`coalesce(sum(${balanceExpr}), 0)` })
-    .from(accounts)
-    .where(and(visibleToShop(shopId), eq(accounts.isActive, true)));
-
-  return row?.total ?? "0";
-}
-
 /* ------------------------------------------------------------------ */
 /*  ประเภท                                                             */
 /* ------------------------------------------------------------------ */

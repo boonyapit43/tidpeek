@@ -31,11 +31,16 @@ const GRADIENT = `
     </linearGradient>
   </defs>`;
 
-/** เส้นกราฟขาขึ้นกับจุดปลาย — ชิ้นเดียวกับใน src/app/icon.svg */
+/** ปีก — ชิ้นเดียวกับใน src/app/icon.svg */
 const MARK = `
-  <path d="M128 335 L224 239 L288 303 L384 175" fill="none" stroke="#fff"
-        stroke-width="44" stroke-linecap="round" stroke-linejoin="round" />
-  <circle cx="384" cy="175" r="32" fill="#fff" />`;
+  <path fill="#fff" d="M104 352
+    C 112 254 178 174 288 136
+    C 246 192 224 246 218 292
+    C 268 222 326 182 400 162
+    C 356 222 328 274 314 318
+    C 352 284 384 268 418 262
+    C 372 336 268 374 138 374
+    C 112 374 102 368 104 352 Z" />`;
 
 /** แบบปกติ — มุมโค้งในตัว ใช้กับ favicon และไอคอนของ iOS */
 const standard = `<svg viewBox="0 0 512 512" xmlns="http://www.w3.org/2000/svg">

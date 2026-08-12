@@ -62,7 +62,6 @@ export default async function LoginPage() {
           <h1 className="mt-3 text-xl leading-tight font-bold tracking-tight text-ink">
             tidpeek
           </h1>
-          <p className="text-xs text-ink-soft">บัญชีร้าน</p>
         </header>
 
         <LoginForm />
@@ -82,18 +81,18 @@ export default async function LoginPage() {
 function Mark() {
   return (
     <div className="bg-brand-gradient flex size-12 items-center justify-center rounded-2xl shadow-lg shadow-brand/30">
-      <svg
-        viewBox="0 0 512 512"
-        fill="none"
-        stroke="white"
-        strokeWidth={44}
-        strokeLinecap="round"
-        strokeLinejoin="round"
-        className="size-7"
-        aria-hidden
-      >
-        <path d="M128 335 L224 239 L288 303 L384 175" />
-        <circle cx="384" cy="175" r="32" fill="white" stroke="none" />
+      <svg viewBox="0 0 512 512" className="size-7" aria-hidden>
+        <path
+          fill="white"
+          d="M104 352
+             C 112 254 178 174 288 136
+             C 246 192 224 246 218 292
+             C 268 222 326 182 400 162
+             C 356 222 328 274 314 318
+             C 352 284 384 268 418 262
+             C 372 336 268 374 138 374
+             C 112 374 102 368 104 352 Z"
+        />
       </svg>
     </div>
   );

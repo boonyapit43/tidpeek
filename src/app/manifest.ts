@@ -11,7 +11,7 @@ import type { MetadataRoute } from "next";
  */
 export default function manifest(): MetadataRoute.Manifest {
   return {
-    name: "tidpeek — บัญชีร้าน",
+    name: "tidpeek",
     // ชื่อใต้ไอคอนบนหน้าโฮม ยาวเกินจะโดนตัดด้วย … จึงใช้ชื่อแอปล้วน
     short_name: "tidpeek",
     description: "บันทึกรายรับรายจ่ายรายวัน สรุปกำไรรายวัน รายเดือน รายปี แยกตามร้าน",

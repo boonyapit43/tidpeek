@@ -38,6 +38,11 @@ yarn-error.log*
 # โฟลเดอร์ที่ npm run pack ประกอบขึ้นมาสำหรับอัปโหลดขึ้นโฮสต์
 /deploy/
 
+# ไฟล์สำรองข้อมูล มีชื่อร้านและรายการเงินอยู่ข้างใน ไม่ควรขึ้น git
+backup*.json
+ledger-*.json
+ledger-*.csv
+
 # log ของ pm2 ตอนรันบน VPS
 /logs/
 

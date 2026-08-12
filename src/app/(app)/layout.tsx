@@ -1,9 +1,7 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { Nav } from "@/components/nav";
-import { getTotalBalance } from "@/db/queries";
 import { hasSession } from "@/lib/auth";
-import { bahtShort } from "@/lib/money";
 import { getSelectedShop } from "@/lib/shop";
 
 // ทุกหน้าในกลุ่มนี้อ่าน cookie และข้อมูลสด จึงต้อง render ตอนมีคำขอเสมอ
@@ -20,9 +18,15 @@ export const runtime = "nodejs";
  * การ์ดนี้กันคนเข้าหน้าเว็บ ส่วนการเขียนข้อมูลมีการ์ดของตัวเองอีกชั้น
  * อยู่ในทุก server action เพราะ action ยิงตรงได้โดยไม่ผ่าน layout นี้
  *
- * เดิมมีแถบการ์ดยอดแต่ละบัญชีอยู่ตรงนี้ เอาออกไปแล้วเพื่อให้ v1 เบาลง
- * เหลือแค่ยอดรวมบนแถบบน ส่วนการแยกดูรายบัญชีจะกลับมาในรูปแบบการจัดกลุ่ม
- * ที่หน้าสรุปกับรายวันแทน
+ * แถบบนเหลือแค่ชื่อร้านอย่างเดียว
+ *
+ * เดิมมีการ์ดยอดแต่ละบัญชีและยอดรวมทุกบัญชี เอาออกทั้งคู่แล้ว
+ * เพราะยอดรวมจะถูกก็ต่อเมื่อตั้งยอดตั้งต้นของทุกบัญชีไว้ตรงกับความจริง
+ * ถ้ายังไม่ได้ตั้ง มันจะโชว์ติดลบทั้งที่เงินจริงไม่ได้ติดลบ
+ * ตัวเลขที่ผิดแย่กว่าไม่มีตัวเลข เพราะคนจะเชื่อแล้วตัดสินใจผิด
+ *
+ * ยอดรายบัญชียังดูได้ที่หน้าตั้งค่า ส่วนการแยกดูแบบจัดกลุ่มจะกลับมา
+ * ที่หน้าสรุปกับรายวันทีหลัง
  */
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
   if (!(await hasSession())) redirect("/login");
@@ -33,16 +37,14 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   // เด้งไปให้เลือกใหม่ ไม่เดาร้านให้เอง
   if (!shop) redirect("/shops");
 
-  const total = await getTotalBalance(shop.id);
-
   return (
     <div className="min-h-dvh">
       {/**
-       * แถบบนติดหนึบตอนเลื่อน เพราะชื่อร้านกับยอดรวมคือบริบทที่ต้องเห็น
-       * ตลอดเวลา ไม่งั้นพอเลื่อนดูรายการยาวๆ แล้วลืมว่ากำลังดูร้านไหนอยู่
+       * แถบบนติดหนึบตอนเลื่อน เพราะชื่อร้านคือบริบทที่ต้องเห็นตลอดเวลา
+       * ไม่งั้นพอเลื่อนดูรายการยาวๆ แล้วลืมว่ากำลังดูร้านไหนอยู่
        */}
       <header className="sticky top-0 z-30 border-b border-line bg-surface/90 pt-[env(safe-area-inset-top)] backdrop-blur-md">
-        <div className="mx-auto flex max-w-2xl items-center justify-between gap-3 px-4 py-2">
+        <div className="mx-auto flex max-w-2xl items-center gap-3 px-4 py-2">
           {/* ชื่อร้านเป็นลิงก์กลับไปหน้าเลือกร้าน ซึ่งเป็นที่เดียวที่สลับร้านได้
               จงใจไม่ทำเป็นดรอปดาวน์ในแถบนี้ เพราะสลับร้านพลาดระหว่างกรอก
               จะทำให้บันทึกลงผิดร้านโดยไม่ทันสังเกต */}
@@ -65,14 +67,6 @@ export default async function AppLayout({ children }: { children: React.ReactNod
             </svg>
             <span className="sr-only">เปลี่ยนร้าน</span>
           </Link>
-
-          <div className="text-right">
-            <div className="text-[11px] leading-none text-ink-soft">เงินรวมทุกบัญชี</div>
-            <div className="num text-base leading-tight font-bold text-ink">
-              {bahtShort(total)}
-              <span className="ml-1 text-xs font-normal text-ink-soft">บาท</span>
-            </div>
-          </div>
         </div>
       </header>
 
