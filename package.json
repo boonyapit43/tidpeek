@@ -2,6 +2,10 @@
   "name": "tidpeek",
   "version": "0.1.0",
   "private": true,
+  "comment:engines": "Next.js 16 ต้องการ Node 20 ขึ้นไป ระบุไว้เพื่อให้โฮสต์เลือกเวอร์ชันถูก และให้ npm เตือนตั้งแต่ตอนติดตั้งถ้าเวอร์ชันต่ำไป",
+  "engines": {
+    "node": ">=20.9.0"
+  },
   "scripts": {
     "dev": "next dev",
     "build": "next build",

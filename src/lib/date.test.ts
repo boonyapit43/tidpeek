@@ -12,6 +12,7 @@ import {
   thaiDateLong,
   thaiMonth,
   thaiMonthShort,
+  thaiTimestamp,
   thaiYear,
   today,
   yearOf,
@@ -169,6 +170,35 @@ describe("แสดงผลเป็นพุทธศักราช", () => {
 
   it("thaiYear", () => {
     expect(thaiYear("2026")).toBe("2569");
+  });
+});
+
+describe("thaiTimestamp — เวลาสำหรับไฟล์ที่ส่งออก", () => {
+  /**
+   * คุมบั๊กที่เคยเกิดจริง
+   *
+   * เดิมไฟล์ CSV เขียนเวลาด้วย String(date) ตรงๆ ได้ออกมาเป็น
+   * "Tue Aug 11 2026 23:46:15 GMT+0700 (เวลาอินโดจีน)"
+   * ซึ่ง Excel อ่านเป็นวันที่ไม่ออก และเปลี่ยนหน้าตาตามภาษาของเครื่อง
+   */
+  it("แปลงเป็นรูปแบบที่ Excel อ่านออก ตามเวลาไทย", () => {
+    // 2026-08-11 16:46 UTC = 2026-08-11 23:46 ไทย
+    expect(thaiTimestamp(new Date("2026-08-11T16:46:15Z"))).toBe("2026-08-11 23:46");
+  });
+
+  it("ข้ามเที่ยงคืนของไทยแล้วเป็นวันใหม่", () => {
+    // 2026-08-11 17:30 UTC = 2026-08-12 00:30 ไทย
+    expect(thaiTimestamp(new Date("2026-08-11T17:30:00Z"))).toBe("2026-08-12 00:30");
+  });
+
+  it("ไม่มีคอมมาปนมา ไม่งั้นจะทำให้คอลัมน์ใน CSV เพี้ยน", () => {
+    expect(thaiTimestamp(new Date("2026-08-11T16:46:15Z"))).not.toContain(",");
+  });
+
+  it("ค่าว่างหรือไม่ถูกต้องคืนช่องว่าง ไม่ใช่ Invalid Date", () => {
+    expect(thaiTimestamp(null)).toBe("");
+    expect(thaiTimestamp(undefined)).toBe("");
+    expect(thaiTimestamp(new Date("ไม่ใช่วันที่"))).toBe("");
   });
 });
 

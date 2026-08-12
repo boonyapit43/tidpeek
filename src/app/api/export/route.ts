@@ -1,6 +1,6 @@
 import { exportAll, exportTransactionsFlat } from "@/db/queries";
 import { hasSession } from "@/lib/auth";
-import { today } from "@/lib/date";
+import { thaiTimestamp, today } from "@/lib/date";
 
 // Edge runtime รันบนโฮสต์ที่ใช้ Phusion Passenger ไม่ได้ จึงบังคับ Node ไว้
 export const runtime = "nodejs";
@@ -56,6 +56,7 @@ const HEADERS = [
   ["amount", "จำนวนเงิน"],
   ["accountName", "บัญชี"],
   ["note", "หมายเหตุ"],
+  ["createdAt", "เวลาที่บันทึก"],
 ] as const;
 
 type FlatRow = Awaited<ReturnType<typeof exportTransactionsFlat>>[number];
@@ -71,6 +72,16 @@ function toCsv(rows: FlatRow[]): string {
         if (value === null || value === undefined) return "";
         if (typeof value === "boolean") return value ? "ใช่" : "ไม่";
         if (key === "direction") return value === "in" ? "รับเข้า" : "จ่ายออก";
+
+        /**
+         * คอลัมน์เวลาต้องแปลงเอง
+         *
+         * ไดรเวอร์คืน timestamptz มาเป็น Date object ถ้าปล่อยให้ String()
+         * จัดการจะได้ "Tue Aug 11 2026 23:46:15 GMT+0700 (เวลาอินโดจีน)"
+         * ซึ่ง Excel อ่านเป็นวันที่ไม่ออก และหน้าตายังเปลี่ยนตามภาษาของ
+         * เครื่องที่รันเซิร์ฟเวอร์ด้วย
+         */
+        if (value instanceof Date) return thaiTimestamp(value);
 
         return escapeCsv(String(value));
       }).join(","),

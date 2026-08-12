@@ -116,6 +116,36 @@ export function thaiYear(year: string): string {
   return String(Number(year) + 543);
 }
 
+const stampFormatter = new Intl.DateTimeFormat("en-CA", {
+  timeZone: TIME_ZONE,
+  year: "numeric",
+  month: "2-digit",
+  day: "2-digit",
+  hour: "2-digit",
+  minute: "2-digit",
+  hour12: false,
+});
+
+/**
+ * เวลาจริงที่บันทึก แปลงเป็น "2026-08-11 23:46" ตามเวลาไทย
+ *
+ * ใช้กับไฟล์ที่ส่งออก ไม่ใช่บนหน้าจอ
+ *
+ * ห้ามใช้ String(date) ตรงๆ เพราะจะได้
+ *   "Tue Aug 11 2026 23:46:15 GMT+0700 (เวลาอินโดจีน)"
+ * ซึ่ง Excel อ่านเป็นวันที่ไม่ออก กลายเป็นข้อความยาวๆ ในช่อง
+ * แถมหน้าตายังเปลี่ยนตามภาษาของเครื่องที่รันเซิร์ฟเวอร์ด้วย
+ */
+export function thaiTimestamp(value: Date | string | null | undefined): string {
+  if (!value) return "";
+
+  const date = value instanceof Date ? value : new Date(value);
+  if (Number.isNaN(date.getTime())) return "";
+
+  // en-CA ให้ "2026-08-11, 23:46" — เปลี่ยนจุลภาคเป็นช่องว่างให้ Excel อ่านง่าย
+  return stampFormatter.format(date).replace(",", "");
+}
+
 /** ป้ายกำกับสั้นๆ ที่คนอ่านแล้วเข้าใจทันทีว่าใกล้แค่ไหน */
 export function relativeDayLabel(date: string): string | null {
   const now = today();
