@@ -136,6 +136,46 @@ export const rowRefSchema = z.object({
 export const deleteTransactionSchema = rowRefSchema;
 
 /* ------------------------------------------------------------------ */
+/*  การโอนเงินระหว่างบัญชี                                             */
+/* ------------------------------------------------------------------ */
+
+/**
+ * ต่างจากรายการปกติตรงที่ไม่มีประเภทและไม่มีชื่อรายการ
+ *
+ * ไม่มีประเภทเพราะการโอนไม่ใช่รายรับและไม่ใช่รายจ่าย จึงไม่มีอะไรให้จัดหมวด
+ * ส่วนบัญชีเป็นช่องบังคับทั้งคู่ ต่างจากรายการปกติที่เว้นว่างได้ —
+ * การโอนที่ไม่รู้ว่าเงินมาจากไหนหรือไปไหน ไม่มีความหมายเลย
+ */
+export const createTransferSchema = z
+  .object({
+    shopId: z.uuid(),
+    fromAccountId: z.uuid("เลือกบัญชีต้นทางด้วย"),
+    toAccountId: z.uuid("เลือกบัญชีปลายทางด้วย"),
+    txnDate: dateSchema,
+    amount: amountSchema,
+    note: optionalText(500),
+  })
+  .refine((v) => v.fromAccountId !== v.toAccountId, {
+    message: "โอนเข้าบัญชีเดียวกันไม่ได้ เลือกบัญชีปลายทางใหม่",
+    path: ["toAccountId"],
+  });
+
+export const updateTransferSchema = z
+  .object({
+    shopId: z.uuid(),
+    id: z.uuid("ไม่พบรายการโอนที่จะแก้ไข"),
+    fromAccountId: z.uuid("เลือกบัญชีต้นทางด้วย"),
+    toAccountId: z.uuid("เลือกบัญชีปลายทางด้วย"),
+    txnDate: dateSchema,
+    amount: amountSchema,
+    note: optionalText(500),
+  })
+  .refine((v) => v.fromAccountId !== v.toAccountId, {
+    message: "โอนเข้าบัญชีเดียวกันไม่ได้ เลือกบัญชีปลายทางใหม่",
+    path: ["toAccountId"],
+  });
+
+/* ------------------------------------------------------------------ */
 /*  ประเภท                                                             */
 /* ------------------------------------------------------------------ */
 

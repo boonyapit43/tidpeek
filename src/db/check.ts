@@ -56,6 +56,10 @@ const EXPECTED: Record<string, string[]> = {
     "id", "shop_id", "txn_date", "direction", "category_id", "account_id",
     "title", "amount", "note", "is_deleted", "created_at", "updated_at",
   ],
+  transfers: [
+    "id", "shop_id", "from_account_id", "to_account_id",
+    "txn_date", "amount", "note", "is_deleted", "created_at", "updated_at",
+  ],
 };
 
 const EXPECTED_CONSTRAINTS = [
@@ -68,6 +72,12 @@ const EXPECTED_CONSTRAINTS = [
   "transactions_shop_id_shops_id_fk",
   "transactions_category_id_categories_id_fk",
   "transactions_account_id_accounts_id_fk",
+  "transfers_amount_check",
+  // กันโอนเข้าบัญชีตัวเอง บังคับที่ระดับฐานข้อมูล ไม่ได้เชื่อฝั่งแอปอย่างเดียว
+  "transfers_accounts_differ_check",
+  "transfers_shop_id_shops_id_fk",
+  "transfers_from_account_id_accounts_id_fk",
+  "transfers_to_account_id_accounts_id_fk",
 ];
 
 let failed = false;
@@ -167,7 +177,9 @@ async function main() {
     bad(`RLS ยังไม่เปิดที่: ${unprotected.map((r) => r.relname).join(", ")}`);
     warn("ตารางเหล่านี้อ่านได้จากภายนอกด้วย publishable key — รัน drizzle/0001_enable_rls.sql");
   } else {
-    ok("RLS เปิดครบ 4 ตาราง");
+    // นับจากที่ตรวจจริง ไม่เขียนตัวเลขตายไว้ ไม่งั้นวันที่เพิ่มตารางแล้วลืมแก้
+    // ข้อความจะบอกจำนวนผิดทั้งที่ตรวจถูก
+    ok(`RLS เปิดครบ ${rls.length} ตาราง`);
   }
 
   if (withPolicies.length > 0) {

@@ -177,6 +177,68 @@ export const transactions = pgTable(
 );
 
 /* ------------------------------------------------------------------ */
+/*  การโอนเงินระหว่างบัญชี                                             */
+/* ------------------------------------------------------------------ */
+
+/**
+ * โอนเงินจากบัญชีหนึ่งไปอีกบัญชี — เก็บเป็น "แถวเดียว" ไม่ใช่สองรายการ
+ *
+ * ทำไมไม่เก็บเป็น transactions สองแถว (ออกจากบัญชีหนึ่ง เข้าอีกบัญชีหนึ่ง)
+ *
+ *   1) การโอนไม่ใช่รายรับและไม่ใช่รายจ่าย เงินไม่ได้เพิ่มหรือลด แค่ย้ายที่
+ *      ถ้าเก็บปนใน transactions มันต้องแกล้งเป็นรายรับก้อนหนึ่งกับรายจ่าย
+ *      อีกก้อนที่หักล้างกันพอดี แล้วต้องพึ่งธง counts ให้ถูกต้องตลอดไป
+ *      เพื่อไม่ให้ยอดขายกับยอดรายจ่ายพองขึ้นทั้งคู่
+ *
+ *   2) สองแถวแยกกันทำให้เกิดสถานะที่ "ไม่ควรมีอยู่ได้" — ลบขาเดียว
+ *      หรือแก้จำนวนขาเดียว แล้วเงินจะงอกหรือหายจากอากาศโดยไม่มีอะไรฟ้อง
+ *      แถวเดียวมีจำนวนเงินตัวเดียว จึงไม่มีคำว่า "สองขาไม่ตรงกัน"
+ *
+ * ผลที่ตามมาซึ่งเป็นสิ่งที่ต้องการ: query ที่คิดกำไรไม่รู้จักตารางนี้เลย
+ * การโอนจึงไม่มีทางไปโผล่ในกำไรได้ ไม่ว่าใครจะเผลอตั้งค่าอะไรผิด
+ *
+ * ⚠️ ตรงกันข้าม ตอนคิด "ยอดคงเหลือของบัญชี" ต้องรวมตารางนี้เสมอ
+ *    ลืมเมื่อไหร่ยอดในแอปจะไม่ตรงกับยอดในแอปธนาคารทันที
+ *    ดู balanceExpr ใน src/db/queries.ts
+ */
+export const transfers = pgTable(
+  "transfers",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    /** ร้านที่เป็นคนสั่งโอน ใช้จำกัดสิทธิ์การมองเห็นและแก้ไข */
+    shopId: uuid("shop_id")
+      .notNull()
+      .references(() => shops.id, { onDelete: "cascade" }),
+    fromAccountId: uuid("from_account_id")
+      .notNull()
+      .references(() => accounts.id, { onDelete: "restrict" }),
+    toAccountId: uuid("to_account_id")
+      .notNull()
+      .references(() => accounts.id, { onDelete: "restrict" }),
+    txnDate: date("txn_date", { mode: "string" }).notNull(),
+    amount: money("amount").notNull(),
+    /**
+     * หมายเหตุสำคัญกว่าของรายการปกติมาก
+     *
+     * รายการปกติมีประเภทกับชื่อรายการบอกว่าเงินก้อนนี้คืออะไร แต่การโอน
+     * ไม่มีทั้งคู่ เหลือแค่ จาก → ไป → จำนวน ผ่านไปสองเดือนแล้วเห็น
+     * "SCB → กรุงไทย 20,000" จะไม่มีทางรู้เลยว่าโอนไปทำไม
+     */
+    note: text("note"),
+    ...auditColumns,
+  },
+  (t) => [
+    check("transfers_amount_check", sql`${t.amount} > 0`),
+    // กันโอนเข้าบัญชีตัวเองซึ่งไม่มีความหมายและทำให้ยอดดูเหมือนขยับทั้งที่ไม่ขยับ
+    // บังคับที่ระดับฐานข้อมูลด้วย ไม่ได้เชื่อฝั่งแอปอย่างเดียว
+    check("transfers_accounts_differ_check", sql`${t.fromAccountId} <> ${t.toAccountId}`),
+    index("idx_transfers_shop_date").on(t.shopId, t.isDeleted, t.txnDate.desc()),
+    index("idx_transfers_from").on(t.fromAccountId, t.isDeleted),
+    index("idx_transfers_to").on(t.toAccountId, t.isDeleted),
+  ],
+);
+
+/* ------------------------------------------------------------------ */
 /*  ชนิดที่อนุมานจาก schema — อย่าประกาศ type ของแถวซ้ำที่อื่น          */
 /* ------------------------------------------------------------------ */
 
@@ -184,8 +246,10 @@ export type Shop = typeof shops.$inferSelect;
 export type Account = typeof accounts.$inferSelect;
 export type Category = typeof categories.$inferSelect;
 export type Transaction = typeof transactions.$inferSelect;
+export type Transfer = typeof transfers.$inferSelect;
 
 export type NewShop = typeof shops.$inferInsert;
 export type NewAccount = typeof accounts.$inferInsert;
 export type NewCategory = typeof categories.$inferInsert;
 export type NewTransaction = typeof transactions.$inferInsert;
+export type NewTransfer = typeof transfers.$inferInsert;

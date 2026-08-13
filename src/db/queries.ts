@@ -13,9 +13,10 @@ import {
   or,
   sql,
 } from "drizzle-orm";
+import { alias } from "drizzle-orm/pg-core";
 import { db } from "./index";
-import { accounts, categories, shops, transactions } from "./schema";
-import type { Account, Category, Direction, Shop } from "./schema";
+import { accounts, categories, shops, transactions, transfers } from "./schema";
+import type { Account, Category, Direction, Shop, Transfer } from "./schema";
 import { monthRange, yearRange } from "@/lib/date";
 
 /**
@@ -99,7 +100,33 @@ const accountMovement = () => sql`coalesce((
      and tx.is_deleted = false
 ), 0)`;
 
-const balanceExpr = sql<string>`(${accounts.openingBalance} + ${accountMovement()})`;
+/**
+ * เงินที่การโอนทำให้บัญชีนี้เปลี่ยนไป — เข้าเป็นบวก ออกเป็นลบ
+ *
+ * ⚠️ ขาดตรงนี้ไม่ได้เด็ดขาด การโอนเป็นเงินที่ย้ายที่จริง ถ้าคิดยอดคงเหลือ
+ *    โดยไม่รวมตาราง transfers ยอดในแอปจะไม่ตรงกับยอดในแอปธนาคารทันที
+ *    และเป็นความผิดที่หายากมาก เพราะผิดเฉพาะบัญชีที่เคยมีการโอน
+ *
+ * เขียนเป็นก้อนเดียวที่รวมทั้งขาเข้าและขาออก เพื่อไม่ให้มีโอกาสที่ใคร
+ * เผลอใส่แค่ขาใดขาหนึ่งแล้วยอดเพี้ยนไปทางเดียว
+ */
+const transferMovement = () => sql`coalesce((
+  select sum(case when tf.to_account_id = ${accounts.id} then tf.amount else -tf.amount end)
+    from transfers tf
+   where (tf.to_account_id = ${accounts.id} or tf.from_account_id = ${accounts.id})
+     and tf.is_deleted = false
+), 0)`;
+
+/**
+ * ยอดคงเหลือจริงของบัญชี = ยอดตั้งต้น + รายการที่ผ่านบัญชี + การโอน
+ *
+ * ⚠️ ต้องห่อ subquery ไว้ในบล็อก sql ชั้นนอกแบบนี้เสมอ
+ *    drizzle ตัดชื่อตารางออกจากคอลัมน์เมื่อ query ดึงจากตารางเดียวไม่มี join
+ *    ${accounts.id} จะกลายเป็น "id" เปล่าๆ แล้วไปจับคู่กับคอลัมน์ของ
+ *    subquery เอง ได้เงื่อนไขที่ไม่มีทางจริง ผลคือได้ 0 เงียบๆ ไม่มี error
+ *    เทสยอดใน queries.itest.ts เป็นตัวจับถ้าหลุด
+ */
+const balanceExpr = sql<string>`(${accounts.openingBalance} + ${accountMovement()} + ${transferMovement()})`;
 
 /* ------------------------------------------------------------------ */
 /*  ร้าน                                                               */
@@ -555,6 +582,194 @@ export async function lastUsedAccountId(shopId: string): Promise<string | null> 
 }
 
 /* ------------------------------------------------------------------ */
+/*  การโอนเงินระหว่างบัญชี                                             */
+/* ------------------------------------------------------------------ */
+
+export type TransferRow = Transfer & {
+  fromName: string;
+  toName: string;
+};
+
+const fromAccount = alias(accounts, "from_account");
+const toAccount = alias(accounts, "to_account");
+
+const transferSelection = {
+  id: transfers.id,
+  shopId: transfers.shopId,
+  fromAccountId: transfers.fromAccountId,
+  toAccountId: transfers.toAccountId,
+  txnDate: transfers.txnDate,
+  amount: transfers.amount,
+  note: transfers.note,
+  isDeleted: transfers.isDeleted,
+  createdAt: transfers.createdAt,
+  updatedAt: transfers.updatedAt,
+  fromName: fromAccount.name,
+  toName: toAccount.name,
+};
+
+/** การโอนหนึ่งรายการ ใช้ตอนเปิดฟอร์มแก้ไข */
+export async function getTransfer(shopId: string, id: string): Promise<TransferRow | null> {
+  const [row] = await db
+    .select(transferSelection)
+    .from(transfers)
+    .innerJoin(fromAccount, eq(fromAccount.id, transfers.fromAccountId))
+    .innerJoin(toAccount, eq(toAccount.id, transfers.toAccountId))
+    .where(
+      and(eq(transfers.id, id), eq(transfers.shopId, shopId), eq(transfers.isDeleted, false)),
+    )
+    .limit(1);
+
+  return row ?? null;
+}
+
+/** การโอนของร้านนี้ เรียงใหม่สุดขึ้นก่อน ใช้ที่หน้าบัญชี */
+export async function listTransfers(shopId: string, limit = 30): Promise<TransferRow[]> {
+  return db
+    .select(transferSelection)
+    .from(transfers)
+    .innerJoin(fromAccount, eq(fromAccount.id, transfers.fromAccountId))
+    .innerJoin(toAccount, eq(toAccount.id, transfers.toAccountId))
+    .where(and(eq(transfers.shopId, shopId), eq(transfers.isDeleted, false)))
+    .orderBy(desc(transfers.txnDate), desc(transfers.createdAt))
+    .limit(limit);
+}
+
+/* ------------------------------------------------------------------ */
+/*  ความเคลื่อนไหวรายบัญชี                                             */
+/* ------------------------------------------------------------------ */
+
+/**
+ * หนึ่งบรรทัดในหน้า "เงินเข้าออกบัญชีนี้"
+ *
+ * signed คือผลต่อบัญชีที่กำลังดู บวกคือเข้า ลบคือออก คิดมาแล้วจากฝั่ง
+ * เซิร์ฟเวอร์ ฝั่ง React ไม่ต้องรู้ว่าแถวนี้มาจากตารางไหนถึงจะแสดงถูก
+ */
+export type MovementRow = {
+  kind: "txn" | "transfer";
+  id: string;
+  txnDate: string;
+  /** ผลต่อบัญชีนี้ — บวกคือเงินเข้า ลบคือเงินออก */
+  signed: string;
+  /** ชื่อรายการ หรือชื่อบัญชีอีกฝั่งของการโอน */
+  label: string;
+  /** ประเภท (รายการ) — การโอนไม่มี */
+  categoryName: string | null;
+  note: string | null;
+  createdAt: Date;
+  /**
+   * ข้อมูลที่ฟอร์มแก้ไขการโอนต้องใช้ มีเฉพาะแถวที่เป็นการโอน
+   *
+   * ส่ง id ของทั้งสองฝั่งมาตรงๆ ไม่ให้ฝั่ง React ต้องเดาย้อนจากชื่อบัญชี
+   * เพราะชื่อซ้ำกันได้ (เช่นมีบัญชีชื่อ "เงินสด" ทั้งของร้านและของกลาง)
+   * แล้วจะเดาผิดเป็นคนละบัญชีโดยไม่มีอะไรฟ้อง
+   */
+  transfer: { fromAccountId: string; toAccountId: string } | null;
+};
+
+/**
+ * เงินเข้าออกของบัญชีหนึ่ง รวมทั้งรายการปกติและการโอน เรียงวันใหม่สุดขึ้นก่อน
+ *
+ * ดึงสองตารางแยกกันแล้วมาเรียงรวมใน JavaScript ไม่ได้ใช้ union ใน SQL
+ * เพราะ union ต้องบังคับให้สองฝั่งมีคอลัมน์เหมือนกันเป๊ะ ซึ่งต้องเขียน SQL
+ * ดิบยาวๆ ที่ TypeScript ตรวจให้ไม่ได้ — และ SQL ดิบคือที่ที่เพิ่งเจอบั๊ก
+ * คอลัมน์ผูกผิดตารางแบบเงียบๆ มาแล้ว
+ *
+ * ที่เรียงใน JS ได้โดยไม่ผิด เพราะไม่มีการบวกลบเงินเกิดขึ้นเลย แค่จัดลำดับ
+ * ส่วนยอดคงเหลือยังคิดใน SQL เหมือนเดิม
+ *
+ * ดึงมาเผื่อสองเท่าของ limit จากแต่ละฝั่ง เพื่อให้หลังเรียงรวมแล้วยังได้
+ * บรรทัดใหม่สุดครบตามจำนวนที่ขอ ไม่ว่าฝั่งไหนจะมีเยอะกว่ากัน
+ */
+export async function listAccountMovements(
+  accountId: string,
+  limit = 60,
+): Promise<MovementRow[]> {
+  const [txnRows, transferRows] = await Promise.all([
+    db
+      .select({
+        id: transactions.id,
+        txnDate: transactions.txnDate,
+        direction: transactions.direction,
+        amount: transactions.amount,
+        title: transactions.title,
+        note: transactions.note,
+        createdAt: transactions.createdAt,
+        categoryName: categories.name,
+      })
+      .from(transactions)
+      .leftJoin(categories, eq(categories.id, transactions.categoryId))
+      .where(and(eq(transactions.accountId, accountId), eq(transactions.isDeleted, false)))
+      .orderBy(desc(transactions.txnDate), desc(transactions.createdAt))
+      .limit(limit),
+
+    db
+      .select({
+        id: transfers.id,
+        txnDate: transfers.txnDate,
+        amount: transfers.amount,
+        note: transfers.note,
+        createdAt: transfers.createdAt,
+        fromAccountId: transfers.fromAccountId,
+        toAccountId: transfers.toAccountId,
+        fromName: fromAccount.name,
+        toName: toAccount.name,
+      })
+      .from(transfers)
+      .innerJoin(fromAccount, eq(fromAccount.id, transfers.fromAccountId))
+      .innerJoin(toAccount, eq(toAccount.id, transfers.toAccountId))
+      .where(
+        and(
+          or(eq(transfers.fromAccountId, accountId), eq(transfers.toAccountId, accountId)),
+          eq(transfers.isDeleted, false),
+        ),
+      )
+      .orderBy(desc(transfers.txnDate), desc(transfers.createdAt))
+      .limit(limit),
+  ]);
+
+  const merged: MovementRow[] = [
+    ...txnRows.map((r) => ({
+      kind: "txn" as const,
+      id: r.id,
+      txnDate: r.txnDate,
+      // ติดลบด้วยการเติมเครื่องหมายหน้า string ไม่ได้แปลงเป็น number
+      signed: r.direction === "in" ? r.amount : `-${r.amount}`,
+      label: r.title,
+      categoryName: r.categoryName,
+      note: r.note,
+      createdAt: r.createdAt,
+      transfer: null,
+    })),
+    ...transferRows.map((r) => {
+      const outgoing = r.fromAccountId === accountId;
+      return {
+        kind: "transfer" as const,
+        id: r.id,
+        txnDate: r.txnDate,
+        signed: outgoing ? `-${r.amount}` : r.amount,
+        // ชื่อบัญชีอีกฝั่ง — ฝั่ง React เติมคำว่า "ไป" หรือ "จาก" ให้เอง
+        label: outgoing ? r.toName : r.fromName,
+        categoryName: null,
+        note: r.note,
+        createdAt: r.createdAt,
+        transfer: { fromAccountId: r.fromAccountId, toAccountId: r.toAccountId },
+      };
+    }),
+  ];
+
+  merged.sort((a, b) =>
+    a.txnDate === b.txnDate
+      ? b.createdAt.getTime() - a.createdAt.getTime()
+      : a.txnDate < b.txnDate
+        ? 1
+        : -1,
+  );
+
+  return merged.slice(0, limit);
+}
+
+/* ------------------------------------------------------------------ */
 /*  สรุปยอด                                                            */
 /* ------------------------------------------------------------------ */
 
@@ -700,7 +915,7 @@ export async function listCategoryTotals(
  * ถ้าต้องการสำเนาที่รวมของที่ลบไปแล้วด้วย ให้ใช้ pg_dump ซึ่งได้ทุกแถวจริงๆ
  */
 export async function exportAll() {
-  const [shopRows, accountRows, categoryRows, txnRows] = await Promise.all([
+  const [shopRows, accountRows, categoryRows, txnRows, transferRows] = await Promise.all([
     db.select().from(shops).where(eq(shops.isDeleted, false)).orderBy(asc(shops.sortOrder)),
     db.select().from(accounts).where(eq(accounts.isDeleted, false)).orderBy(asc(accounts.sortOrder)),
     db
@@ -713,6 +928,13 @@ export async function exportAll() {
       .from(transactions)
       .where(eq(transactions.isDeleted, false))
       .orderBy(asc(transactions.txnDate), asc(transactions.createdAt)),
+    // การโอนอยู่คนละตารางกับรายการ ถ้าไม่ใส่ตรงนี้ด้วย สำเนาที่ส่งออกไป
+    // จะอธิบายยอดคงเหลือของบัญชีไม่ได้ เพราะขาดเงินที่ย้ายไปมา
+    db
+      .select()
+      .from(transfers)
+      .where(eq(transfers.isDeleted, false))
+      .orderBy(asc(transfers.txnDate), asc(transfers.createdAt)),
   ]);
 
   return {
@@ -721,7 +943,28 @@ export async function exportAll() {
     accounts: accountRows,
     categories: categoryRows,
     transactions: txnRows,
+    transfers: transferRows,
   };
+}
+
+/** การโอนพร้อมชื่อร้านและชื่อบัญชี สำหรับส่งออกเป็น CSV */
+export async function exportTransfersFlat() {
+  return db
+    .select({
+      txnDate: transfers.txnDate,
+      shopName: shops.name,
+      fromName: fromAccount.name,
+      toName: toAccount.name,
+      amount: transfers.amount,
+      note: transfers.note,
+      createdAt: transfers.createdAt,
+    })
+    .from(transfers)
+    .innerJoin(shops, eq(shops.id, transfers.shopId))
+    .innerJoin(fromAccount, eq(fromAccount.id, transfers.fromAccountId))
+    .innerJoin(toAccount, eq(toAccount.id, transfers.toAccountId))
+    .where(eq(transfers.isDeleted, false))
+    .orderBy(asc(transfers.txnDate), asc(transfers.createdAt));
 }
 
 /** รายการทั้งหมดพร้อมชื่อประเภทและบัญชี สำหรับส่งออกเป็น CSV เปิดใน Excel */

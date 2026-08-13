@@ -1,4 +1,4 @@
-import { exportAll, exportTransactionsFlat } from "@/db/queries";
+import { exportAll, exportTransactionsFlat, exportTransfersFlat } from "@/db/queries";
 import { hasSession } from "@/lib/auth";
 import { thaiTimestamp, today } from "@/lib/date";
 
@@ -30,6 +30,25 @@ export async function GET(request: Request) {
       headers: {
         "Content-Type": "text/csv; charset=utf-8",
         "Content-Disposition": `attachment; filename="ledger-${stamp}.csv"`,
+        "Cache-Control": "no-store",
+      },
+    });
+  }
+
+  /**
+   * การโอนเป็นไฟล์แยก ไม่ได้ต่อท้ายไฟล์รายการ
+   *
+   * เพราะคอลัมน์คนละชุดกันคนละเรื่อง รายการมีประเภทกับทิศทาง ส่วนการโอน
+   * มีบัญชีต้นทางกับปลายทาง ถ้ายัดรวมไฟล์เดียวจะได้ตารางที่ครึ่งหนึ่งของ
+   * ช่องว่างเปล่าในทุกแถว ซึ่งเปิดใน Excel แล้วอ่านไม่รู้เรื่อง
+   */
+  if (format === "transfers") {
+    const rows = await exportTransfersFlat();
+
+    return new Response(transfersToCsv(rows), {
+      headers: {
+        "Content-Type": "text/csv; charset=utf-8",
+        "Content-Disposition": `attachment; filename="transfers-${stamp}.csv"`,
         "Cache-Control": "no-store",
       },
     });
@@ -95,6 +114,37 @@ function toCsv(rows: FlatRow[]): string {
    * จะกลายเป็นตัวอักษรมั่วทั้งไฟล์ ตัวอักษรสามไบต์นี้คือสิ่งที่บอก Excel
    * ว่าให้อ่านเป็น UTF-8
    */
+  return `﻿${lines.join("\r\n")}`;
+}
+
+const TRANSFER_HEADERS = [
+  ["txnDate", "วันที่"],
+  ["shopName", "ร้าน"],
+  ["fromName", "จากบัญชี"],
+  ["toName", "ไปบัญชี"],
+  ["amount", "จำนวนเงิน"],
+  ["note", "หมายเหตุ"],
+  ["createdAt", "เวลาที่บันทึก"],
+] as const;
+
+type TransferFlatRow = Awaited<ReturnType<typeof exportTransfersFlat>>[number];
+
+function transfersToCsv(rows: TransferFlatRow[]): string {
+  const lines = [TRANSFER_HEADERS.map(([, label]) => label).join(",")];
+
+  for (const row of rows) {
+    lines.push(
+      TRANSFER_HEADERS.map(([key]) => {
+        const value = row[key as keyof TransferFlatRow];
+
+        if (value === null || value === undefined) return "";
+        if (value instanceof Date) return thaiTimestamp(value);
+
+        return escapeCsv(String(value));
+      }).join(","),
+    );
+  }
+
   return `﻿${lines.join("\r\n")}`;
 }
 

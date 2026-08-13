@@ -65,7 +65,8 @@ function ExportSection() {
 
       <div className="divide-y divide-line">
         <ExportLink href="/api/export" label="ทั้งฐานข้อมูล (JSON)" />
-        <ExportLink href="/api/export?f=csv" label="รายการเคลื่อนไหว (CSV)" />
+        <ExportLink href="/api/export?f=csv" label="รายการรับจ่าย (CSV)" />
+        <ExportLink href="/api/export?f=transfers" label="การโอนระหว่างบัญชี (CSV)" />
       </div>
     </section>
   );

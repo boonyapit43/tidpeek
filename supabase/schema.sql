@@ -135,6 +135,43 @@ create table if not exists transactions (
     foreign key (account_id) references accounts(id) on delete set null
 );
 
+-- ---------- การโอนเงินระหว่างบัญชี ----------
+-- เก็บเป็น "แถวเดียวต่อการโอนหนึ่งครั้ง" ไม่ใช่รายการสองแถว
+--
+-- เหตุผล การโอนไม่ใช่รายรับและไม่ใช่รายจ่าย เงินไม่ได้เพิ่มหรือลด แค่ย้ายที่
+-- ถ้าเก็บปนใน transactions มันต้องแกล้งเป็นรายรับก้อนหนึ่งกับรายจ่ายอีกก้อน
+-- ที่หักล้างกันพอดี ซึ่งทำให้ยอดขายและยอดรายจ่ายพองขึ้นทั้งคู่
+-- และเปิดช่องให้ลบหรือแก้ขาเดียวจนเงินงอกจากอากาศ
+--
+-- แถวเดียวมีจำนวนเงินตัวเดียว จึงไม่มีสิ่งที่เรียกว่า "สองขาไม่ตรงกัน"
+--
+-- ⚠️ query ที่คิดกำไรต้องไม่แตะตารางนี้ ส่วน query ที่คิดยอดคงเหลือ
+--    ต้องรวมตารางนี้เสมอ ลืมเมื่อไหร่ยอดจะไม่ตรงกับแอปธนาคาร
+--
+-- on delete restrict ที่ foreign key ของบัญชี ไม่ใช่ set null
+-- เพราะการโอนที่ไม่รู้ว่าเงินมาจากไหนหรือไปไหน ไม่มีความหมายเลย
+-- (การลบบัญชีในแอปเป็นการตั้งธง is_deleted ไม่ได้ลบแถวจริง จึงไม่ติดข้อนี้)
+create table if not exists transfers (
+  id              uuid primary key default gen_random_uuid(),
+  shop_id         uuid not null,
+  from_account_id uuid not null,
+  to_account_id   uuid not null,
+  txn_date        date not null,
+  amount          numeric(12, 2) not null,
+  note            text,
+  is_deleted      boolean not null default false,
+  created_at      timestamp with time zone not null default now(),
+  updated_at      timestamp with time zone not null default now(),
+  constraint transfers_amount_check          check (amount > 0),
+  constraint transfers_accounts_differ_check check (from_account_id <> to_account_id),
+  constraint transfers_shop_id_shops_id_fk
+    foreign key (shop_id) references shops(id) on delete cascade,
+  constraint transfers_from_account_id_accounts_id_fk
+    foreign key (from_account_id) references accounts(id) on delete restrict,
+  constraint transfers_to_account_id_accounts_id_fk
+    foreign key (to_account_id) references accounts(id) on delete restrict
+);
+
 -- ============================================================
 --  ดัชนี
 -- ============================================================
@@ -150,6 +187,12 @@ create index if not exists idx_shops_live      on shops      using btree (is_del
 create index if not exists idx_txn_shop_date on transactions using btree (shop_id, is_deleted, txn_date desc nulls last);
 create index if not exists idx_txn_account   on transactions using btree (account_id, is_deleted);
 create index if not exists idx_txn_category  on transactions using btree (category_id, is_deleted);
+
+-- การโอนถูกอ่านสองแบบ คือทั้งร้าน (หน้ารายการโอน) และรายบัญชี (หน้าเคลื่อนไหว)
+-- จึงต้องมีดัชนีของทั้งขาต้นทางและขาปลายทางแยกกัน
+create index if not exists idx_transfers_shop_date on transfers using btree (shop_id, is_deleted, txn_date desc nulls last);
+create index if not exists idx_transfers_from      on transfers using btree (from_account_id, is_deleted);
+create index if not exists idx_transfers_to        on transfers using btree (to_account_id, is_deleted);
 
 -- ============================================================
 --  ปิด REST API อัตโนมัติของ Supabase
@@ -171,53 +214,20 @@ alter table shops        enable row level security;
 alter table accounts     enable row level security;
 alter table categories   enable row level security;
 alter table transactions enable row level security;
+alter table transfers    enable row level security;
 
 -- ============================================================
---  ข้อมูลตั้งต้น
+--  ข้อมูลตั้งต้น — ไม่มีในไฟล์นี้โดยตั้งใจ
 -- ============================================================
---  ทั้งบล็อกทำงานเฉพาะตอนที่ยังไม่มีร้านในระบบ รันซ้ำจึงไม่เกิดข้อมูลซ้ำ
+--
+--  แอปใส่ให้เองตอนเพิ่มร้านแรกจากหน้าเลือกร้าน (ดู createShop)
+--  โดยอ่านจาก src/db/defaults.ts ซึ่งเป็นแหล่งความจริงแหล่งเดียว
+--
+--  เดิมไฟล์นี้มีบล็อกใส่ข้อมูลตั้งต้นของตัวเอง แล้วมันค่อยๆ ไม่ตรงกับ
+--  defaults.ts จนกลายเป็นคนละชุดกัน (2 บัญชี 15 ประเภท เทียบกับ
+--  1 บัญชี 31 ประเภท) ร้านที่ตั้งจากไฟล์นี้กับร้านที่ตั้งจากในแอป
+--  จึงได้ของไม่เท่ากันโดยไม่มีใครสังเกต — ตัดทิ้งแล้วให้เหลือทางเดียว
 -- ============================================================
-
-do $$
-begin
-  if exists (select 1 from shops) then
-    raise notice 'มีข้อมูลอยู่แล้ว ข้ามการใส่ข้อมูลตั้งต้น';
-    return;
-  end if;
-
-  insert into shops (name, sort_order) values ('ร้านหลัก', 1);
-
-  -- บัญชีกลาง shop_id เป็น null จึงใช้ได้ทุกร้าน
-  -- ยอดตั้งต้นเป็น 0 ไว้ก่อน ไปแก้ให้ตรงกับยอดจริงที่หน้าตั้งค่าในแอป
-  insert into accounts (shop_id, name, kind, opening_balance, sort_order) values
-    (null, 'เงินสดหน้าร้าน', 'cash', 0, 1),
-    (null, 'บัญชีธนาคาร',   'bank', 0, 2);
-
-  -- ประเภทชุดกลาง shop_id เป็น null จึงเห็นเหมือนกันทุกร้าน
-  insert into categories (shop_id, direction, name, counts, sort_order) values
-    -- ฝั่งรับ ที่นับเป็นรายได้
-    (null, 'in',  'ขายหน้าร้าน',            true,  1),
-    (null, 'in',  'ขายออนไลน์',             true,  2),
-    (null, 'in',  'ค่าส่งที่เก็บจากลูกค้า', true,  3),
-    (null, 'in',  'รายได้อื่น',             true,  4),
-    -- ฝั่งรับ ที่เงินเข้าจริงแต่ไม่ใช่กำไร
-    (null, 'in',  'เติมทุน',                false, 5),
-    (null, 'in',  'เงินกู้',                false, 6),
-    (null, 'in',  'รับเงินคืน',             false, 7),
-
-    -- ฝั่งจ่าย ที่นับเป็นรายจ่าย
-    (null, 'out', 'ซื้อของเข้าร้าน',        true,  1),
-    (null, 'out', 'ค่าแรง',                 true,  2),
-    (null, 'out', 'ค่าส่ง',                 true,  3),
-    (null, 'out', 'ค่าน้ำค่าไฟ',            true,  4),
-    (null, 'out', 'ของใช้ในร้าน',           true,  5),
-    -- ฝั่งจ่าย ที่เงินออกจริงแต่ไม่ใช่ขาดทุน
-    (null, 'out', 'ถอนใช้ส่วนตัว',          false, 6),
-    (null, 'out', 'โอนย้ายบัญชี',           false, 7),
-    (null, 'out', 'ยืมข้ามร้าน',            false, 8);
-
-  raise notice 'ใส่ข้อมูลตั้งต้นแล้ว: 1 ร้าน, 2 บัญชี, 15 ประเภท';
-end $$;
 
 -- ============================================================
 --  กู้ของที่ลบไปแล้ว
