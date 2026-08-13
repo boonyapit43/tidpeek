@@ -1,0 +1,1 @@
+CREATE INDEX "idx_txn_shop_created" ON "transactions" USING btree ("shop_id","is_deleted","created_at" DESC NULLS LAST);

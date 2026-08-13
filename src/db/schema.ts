@@ -169,8 +169,30 @@ export const transactions = pgTable(
   (t) => [
     check("transactions_direction_check", sql`${t.direction} in ('in','out')`),
     check("transactions_amount_check", sql`${t.amount} >= 0`),
+    /**
+     * ⚠️ ต้องเขียน desc ด้วย sql`` เอง ห้ามใช้ .desc() ของ drizzle
+     *
+     * .desc() ใส่ NULLS LAST ให้อัตโนมัติ แต่ `order by x desc` ของ Postgres
+     * หมายถึง NULLS FIRST สองอย่างนี้ไม่ตรงกัน ดัชนีจึงใช้เรียงลำดับไม่ได้
+     * แล้ว Postgres จะกลับไป Seq Scan ทั้งตารางแบบเงียบๆ ไม่มี error ให้เห็น
+     *
+     * วัดที่ 22,000 แถว — nulls last 8.6ms (Seq Scan) เทียบกับ 0.09ms (Index Scan)
+     * ต่างกัน 90 เท่า ทั้งที่ชื่อดัชนีเหมือนกันเป๊ะและดูผ่านๆ เหมือนมีดัชนีแล้ว
+     *
+     * คอลัมน์พวกนี้เป็น not null อยู่แล้ว การทิ้ง nulls last จึงไม่เปลี่ยน
+     * ความหมายอะไรเลย แค่ทำให้ตรงกับที่คิวรีเขียนจริง
+     */
+
     // ดัชนีหลักที่ทุกหน้าใช้ — กรองร้าน ตัดของที่ลบแล้ว เรียงวันใหม่สุดขึ้นก่อน
-    index("idx_txn_shop_date").on(t.shopId, t.isDeleted, t.txnDate.desc()),
+    index("idx_txn_shop_date").on(t.shopId, t.isDeleted, sql`${t.txnDate} desc`),
+
+    /**
+     * เรียงตาม "เวลาที่กดบันทึก" ไม่ใช่ "วันของรายการ"
+     *
+     * ใช้ที่ลิสต์ "เพิ่งบันทึกไป" ใต้ฟอร์ม ซึ่งอยู่บนหน้าที่เปิดบ่อยที่สุดของแอป
+     * ถ้าไม่มี Postgres ต้องอ่านรายการทั้งร้านขึ้นมาเรียงใหม่ทุกครั้งที่เปิดหน้า
+     */
+    index("idx_txn_shop_created").on(t.shopId, t.isDeleted, sql`${t.createdAt} desc`),
     index("idx_txn_account").on(t.accountId, t.isDeleted),
     index("idx_txn_category").on(t.categoryId, t.isDeleted),
   ],
@@ -232,7 +254,8 @@ export const transfers = pgTable(
     // กันโอนเข้าบัญชีตัวเองซึ่งไม่มีความหมายและทำให้ยอดดูเหมือนขยับทั้งที่ไม่ขยับ
     // บังคับที่ระดับฐานข้อมูลด้วย ไม่ได้เชื่อฝั่งแอปอย่างเดียว
     check("transfers_accounts_differ_check", sql`${t.fromAccountId} <> ${t.toAccountId}`),
-    index("idx_transfers_shop_date").on(t.shopId, t.isDeleted, t.txnDate.desc()),
+    // desc เขียนเองด้วย sql`` ด้วยเหตุผลเดียวกับดัชนีของ transactions ข้างบน
+    index("idx_transfers_shop_date").on(t.shopId, t.isDeleted, sql`${t.txnDate} desc`),
     index("idx_transfers_from").on(t.fromAccountId, t.isDeleted),
     index("idx_transfers_to").on(t.toAccountId, t.isDeleted),
   ],

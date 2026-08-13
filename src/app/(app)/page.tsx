@@ -4,12 +4,14 @@ import {
   lastUsedAccountId,
   listAccountsWithBalance,
   listCategories,
+  listRecentEntries,
   listRecentTitles,
 } from "@/db/queries";
 import { today } from "@/lib/date";
 import { bahtShort } from "@/lib/money";
 import { getShopContext } from "@/lib/shop";
 import { EntryForm } from "./entry-form";
+import { RecentEntries } from "./recent-entries";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -26,14 +28,16 @@ export default async function EntryPage() {
 
   // ดึงพร้อมกันทั้งหมด ไม่ไล่ await ทีละอัน ไม่งั้นเวลารอจะบวกกันเป็นทอดๆ
   // ซึ่งรู้สึกได้ชัดบนเน็ตมือถือ
-  const [accounts, categories, hintsOut, hintsIn, summary, lastAccountId] = await Promise.all([
-    listAccountsWithBalance(shopId),
-    listCategories(shopId),
-    listRecentTitles(shopId, "out"),
-    listRecentTitles(shopId, "in"),
-    getSummary(shopId, { day }),
-    lastUsedAccountId(shopId),
-  ]);
+  const [accounts, categories, hintsOut, hintsIn, summary, lastAccountId, recent] =
+    await Promise.all([
+      listAccountsWithBalance(shopId),
+      listCategories(shopId),
+      listRecentTitles(shopId, "out"),
+      listRecentTitles(shopId, "in"),
+      getSummary(shopId, { day }),
+      lastUsedAccountId(shopId),
+      listRecentEntries(shopId),
+    ]);
 
   return (
     <div className="space-y-3">
@@ -53,6 +57,10 @@ export default async function EntryPage() {
           out: hintsOut.map(({ title, categoryId }) => ({ title, categoryId })),
         }}
       />
+
+      {/* อยู่ใต้ฟอร์ม ไม่ได้อยู่บน เพราะสิ่งที่ต้องเห็นก่อนคือช่องกรอก
+          ส่วนลิสต์นี้ดูตอนหลังกดบันทึกเสร็จแล้ว */}
+      <RecentEntries items={recent} />
     </div>
   );
 }

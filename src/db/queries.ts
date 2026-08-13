@@ -435,6 +435,26 @@ export async function listTransactionsByDate(shopId: string, date: string): Prom
     .orderBy(asc(transactions.direction), desc(transactions.createdAt));
 }
 
+/**
+ * รายการที่เพิ่งบันทึกล่าสุด ไม่ว่าจะเป็นของวันไหน
+ *
+ * เรียงด้วย created_at ไม่ใช่ txn_date โดยตั้งใจ — คำถามที่ลิสต์นี้ตอบคือ
+ * "เมื่อกี้ที่กดบันทึกไป ลงถูกไหม" ซึ่งเป็นเรื่องของเวลาที่กด ไม่ใช่วันของรายการ
+ *
+ * ถ้าเรียงด้วย txn_date รายการที่เพิ่งลงย้อนหลังให้เมื่อวาน จะไม่โผล่ขึ้นมา
+ * ให้เห็น แล้วคนจะนึกว่าบันทึกไม่ติดทั้งที่ติดแล้ว
+ */
+export async function listRecentEntries(shopId: string, limit = 3): Promise<TxnRow[]> {
+  return db
+    .select(txnSelection)
+    .from(transactions)
+    .leftJoin(categories, eq(categories.id, transactions.categoryId))
+    .leftJoin(accounts, eq(accounts.id, transactions.accountId))
+    .where(and(eq(transactions.shopId, shopId), eq(transactions.isDeleted, false)))
+    .orderBy(desc(transactions.createdAt))
+    .limit(limit);
+}
+
 export type SearchFilters = {
   /** คำค้น หาจากชื่อรายการและหมายเหตุ */
   q: string;
