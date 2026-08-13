@@ -3,7 +3,14 @@
 import { useActionState, useEffect, useId } from "react";
 import { createCategory } from "@/actions/settings";
 import { IDLE } from "@/actions/shared";
-import { Field, Input, StatusMessage, SubmitButton } from "@/components/form-parts";
+import {
+  Field,
+  Input,
+  StatusMessage,
+  SubmitButton,
+  useKeptChecked,
+  useKeptValue,
+} from "@/components/form-parts";
 import { Sheet } from "@/components/sheet";
 import type { Direction } from "@/db/schema";
 
@@ -58,6 +65,8 @@ function AddCategoryForm({
 }) {
   const [state, formAction] = useActionState(createCategory, IDLE);
   const nameId = useId();
+  const name = useKeptValue();
+  const counts = useKeptChecked(true);
 
   useEffect(() => {
     if (state.status !== "ok") return;
@@ -81,6 +90,7 @@ function AddCategoryForm({
         htmlFor={nameId}
       >
         <Input
+          {...name}
           id={nameId}
           name="name"
           required
@@ -93,9 +103,9 @@ function AddCategoryForm({
 
       <label className="flex min-h-touch cursor-pointer items-start gap-3 rounded-xl border border-line p-3">
         <input
+          {...counts}
           type="checkbox"
           name="counts"
-          defaultChecked
           className="mt-0.5 size-5 shrink-0 accent-[var(--color-brand)]"
         />
         <span className="text-sm text-ink">

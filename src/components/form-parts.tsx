@@ -1,8 +1,43 @@
 "use client";
 
+import { useState } from "react";
 import { useFormStatus } from "react-dom";
 import type { ActionState } from "@/actions/shared";
 import { cn } from "@/lib/cn";
+
+/**
+ * ช่องที่จำสิ่งที่พิมพ์ไว้ แม้บันทึกไม่สำเร็จ
+ *
+ * React 19 ล้างฟอร์มให้อัตโนมัติทุกครั้งที่ action ทำงานจบ ไม่ว่าจะสำเร็จ
+ * หรือพลาด ซึ่งใช้ไม่ได้กับแอปนี้ — ร้านใช้เน็ตมือถือที่สะดุดเป็นเรื่องปกติ
+ * ถ้ากรอกบัญชีครบห้าช่องแล้วเน็ตหลุด ทุกอย่างหายหมดต้องพิมพ์ใหม่ทั้งชุด
+ *
+ * ทางแก้คือทำให้ช่องเป็น controlled ค่าจึงอยู่ใน state ของ React
+ * ไม่ได้อยู่ใน DOM ที่ถูกล้าง
+ *
+ * ⚠️ ช่องไหนอยู่ในฟอร์มที่ยิง server action ให้ใช้ตัวนี้เสมอ อย่าใช้
+ *    defaultValue เปล่าๆ ไม่งั้นสิ่งที่พิมพ์จะหายตอนบันทึกพลาด
+ *    ซึ่งเป็นอาการที่โทษเน็ตแล้วจบ ไม่มีใครเอะใจว่าเป็นบั๊ก
+ */
+export function useKeptValue(initial = "") {
+  const [value, setValue] = useState(initial);
+
+  return {
+    value,
+    onChange: (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) =>
+      setValue(e.target.value),
+  };
+}
+
+/** เหมือนข้างบน แต่สำหรับ checkbox ซึ่งถูกล้างกลับเป็นค่าตั้งต้นเหมือนกัน */
+export function useKeptChecked(initial: boolean) {
+  const [checked, setChecked] = useState(initial);
+
+  return {
+    checked,
+    onChange: (e: React.ChangeEvent<HTMLInputElement>) => setChecked(e.target.checked),
+  };
+}
 
 /**
  * ชิ้นส่วนฟอร์มที่ใช้ซ้ำทั้งแอป

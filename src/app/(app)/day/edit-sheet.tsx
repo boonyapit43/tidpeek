@@ -13,6 +13,7 @@ import {
   StatusMessage,
   SubmitButton,
   fieldError,
+  useKeptValue,
 } from "@/components/form-parts";
 import { AccountOptions, CategoryOptions } from "@/components/pickers";
 import { Sheet } from "@/components/sheet";
@@ -81,6 +82,26 @@ function EditTxnForm({
   const [direction, setDirection] = useState<Direction>(txn.direction);
   const [confirmingDelete, setConfirmingDelete] = useState(false);
 
+  // controlled ทุกช่อง ไม่งั้นแก้ไปแล้วบันทึกพลาด สิ่งที่แก้จะหายหมด
+  const amount = useKeptValue(txn.amount);
+  const title = useKeptValue(txn.title);
+  const note = useKeptValue(txn.note ?? "");
+  const date = useKeptValue(txn.txnDate);
+  // บัญชีเดิมอาจถูกลบหรือปิดไปแล้ว ถ้าตั้งค่าที่ไม่มีในตัวเลือก
+  // เบราว์เซอร์จะเด้งไปตัวแรกเงียบๆ แล้วแก้รายการทีไรบัญชีก็เปลี่ยนตาม
+  const account = useKeptValue(
+    accounts.some((a) => a.id === txn.accountId) ? (txn.accountId ?? "") : "",
+  );
+
+  /**
+   * ประเภทมีสามสถานะเหมือนในฟอร์มบันทึก null คือยังไม่ได้เลือกเอง
+   *
+   * ต่างจากช่องอื่นตรงที่ตัวเลือกเปลี่ยนตามฝั่งที่เลือกอยู่ ประเภทเดิม
+   * ของรายการอาจอยู่คนละฝั่งกับที่กำลังดู ต้องล้างเป็นไม่ระบุ ไม่งั้น
+   * ส่งประเภทที่เซิร์ฟเวอร์จะปฏิเสธไป
+   */
+  const [categoryId, setCategoryId] = useState<string | null>(null);
+
   // ลบไม่สำเร็จแล้วถอยกลับไปปุ่มปกติ ไม่ค้างอยู่ที่ "ยืนยันลบถาวร"
   const [seenDelete, setSeenDelete] = useState(deleteState);
 
@@ -97,6 +118,17 @@ function EditTxnForm({
   const visibleCategories = categories.filter((c) => c.direction === direction);
   const isIncome = direction === "in";
 
+  const originalStillFits = visibleCategories.some((c) => c.id === txn.categoryId);
+  const chosenStillFits =
+    categoryId === "" || visibleCategories.some((c) => c.id === categoryId);
+
+  const effectiveCategoryId =
+    categoryId !== null && chosenStillFits
+      ? categoryId
+      : originalStillFits
+        ? (txn.categoryId ?? "")
+        : "";
+
   return (
     <>
       <form action={formAction} className="space-y-4">
@@ -108,9 +140,9 @@ function EditTxnForm({
 
         <Field label="จำนวนเงิน" htmlFor="edit-amount" error={fieldError(state, "amount")}>
           <MoneyInput
+            {...amount}
             id="edit-amount"
             name="amount"
-            defaultValue={txn.amount}
             required
             enterKeyHint="next"
           />
@@ -118,9 +150,9 @@ function EditTxnForm({
 
         <Field label="รายการ" htmlFor="edit-title" error={fieldError(state, "title")}>
           <Input
+            {...title}
             id="edit-title"
             name="title"
-            defaultValue={txn.title}
             required
             maxLength={200}
             enterKeyHint="next"
@@ -131,31 +163,25 @@ function EditTxnForm({
           <Select
             id="edit-category"
             name="categoryId"
-            // ประเภทเดิมอาจอยู่คนละฝั่งกับที่เลือกอยู่ ถ้าเพิ่งสลับฝั่ง
-            // จึงต้องล้างค่าเพื่อไม่ให้ส่งประเภทที่เซิร์ฟเวอร์จะปฏิเสธ
-            key={direction}
-            defaultValue={
-              visibleCategories.some((c) => c.id === txn.categoryId)
-                ? (txn.categoryId ?? "")
-                : ""
-            }
+            value={effectiveCategoryId}
+            onChange={(e) => setCategoryId(e.target.value)}
           >
             <CategoryOptions categories={visibleCategories} />
           </Select>
         </Field>
 
         <Field label={isIncome ? "เงินเข้าบัญชี" : "จ่ายจากบัญชี"} htmlFor="edit-account">
-          <Select id="edit-account" name="accountId" defaultValue={txn.accountId ?? ""}>
+          <Select {...account} id="edit-account" name="accountId">
             <AccountOptions accounts={accounts} />
           </Select>
         </Field>
 
         <Field label="วันที่" htmlFor="edit-date" error={fieldError(state, "txnDate")}>
-          <Input id="edit-date" name="txnDate" type="date" defaultValue={txn.txnDate} required />
+          <Input {...date} id="edit-date" name="txnDate" type="date" required />
         </Field>
 
         <Field label="หมายเหตุ (ไม่บังคับ)" htmlFor="edit-note">
-          <Input id="edit-note" name="note" defaultValue={txn.note ?? ""} maxLength={500} />
+          <Input {...note} id="edit-note" name="note" maxLength={500} />
         </Field>
 
         <StatusMessage state={state} />

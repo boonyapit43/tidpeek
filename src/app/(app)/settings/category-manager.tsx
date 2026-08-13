@@ -10,7 +10,14 @@ import {
 } from "@/actions/settings";
 import { IDLE } from "@/actions/shared";
 import { DangerActions } from "@/components/danger-actions";
-import { Field, Input, StatusMessage, SubmitButton } from "@/components/form-parts";
+import {
+  Field,
+  Input,
+  StatusMessage,
+  SubmitButton,
+  useKeptChecked,
+  useKeptValue,
+} from "@/components/form-parts";
 import { Sheet } from "@/components/sheet";
 import type { Category, Direction } from "@/db/schema";
 import { cn } from "@/lib/cn";
@@ -184,6 +191,7 @@ function AddCategoryForm({
 }) {
   const [state, formAction] = useActionState(createCategory, IDLE);
   const id = useId();
+  const name = useKeptValue();
 
   useEffect(() => {
     if (state.status === "ok") onDone();
@@ -196,7 +204,7 @@ function AddCategoryForm({
       <input type="hidden" name="direction" value={direction} />
 
       <Field label="ชื่อประเภท" htmlFor={id}>
-        <Input id={id} name="name" required maxLength={120} autoFocus />
+        <Input {...name} id={id} name="name" required maxLength={120} autoFocus />
       </Field>
 
       <CountsToggle direction={direction} defaultChecked />
@@ -243,6 +251,7 @@ function EditCategoryForm({
 }) {
   const [state, formAction] = useActionState(updateCategory, IDLE);
   const id = useId();
+  const name = useKeptValue(category.name);
 
   useEffect(() => {
     if (state.status === "ok") onDone();
@@ -256,7 +265,7 @@ function EditCategoryForm({
         <input type="hidden" name="id" value={category.id} />
 
         <Field label="ชื่อประเภท" htmlFor={id}>
-          <Input id={id} name="name" defaultValue={category.name} required maxLength={120} />
+          <Input {...name} id={id} name="name" required maxLength={120} />
         </Field>
 
         <CountsToggle direction={category.direction} defaultChecked={category.counts} />
@@ -286,12 +295,14 @@ function CountsToggle({
   direction: Direction;
   defaultChecked: boolean;
 }) {
+  const counts = useKeptChecked(defaultChecked);
+
   return (
     <label className="flex min-h-touch cursor-pointer items-start gap-3 rounded-xl border border-line p-3">
       <input
+        {...counts}
         type="checkbox"
         name="counts"
-        defaultChecked={defaultChecked}
         className="mt-0.5 size-5 shrink-0 accent-[var(--color-brand)]"
       />
       <span className="text-sm text-ink">

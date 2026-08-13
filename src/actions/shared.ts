@@ -111,6 +111,11 @@ function describe(error: unknown): string {
  *
  * พอคืนเป็น ActionState ปกติแทน ฟอร์มจะยังอยู่ครบ คนแค่กดบันทึกซ้ำได้เลย
  * ซึ่งสำคัญมากกับการใช้งานหน้าร้านผ่านเน็ตมือถือที่สะดุดเป็นเรื่องปกติ
+ *
+ * ⚠️ ครึ่งหลังของประโยคข้างบนเป็นจริงได้ก็ต่อเมื่อช่องกรอกเป็น controlled
+ *    React 19 สั่งล้างฟอร์มให้เองหลัง action ทำงานจบ ไม่ว่าจะสำเร็จหรือพลาด
+ *    ช่องที่ใช้ defaultValue เปล่าๆ จะโดนล้างทิ้งทั้งที่บันทึกไม่สำเร็จ
+ *    ดู useKeptValue ใน src/components/form-parts.tsx
  */
 export async function runAction(fn: () => Promise<ActionState>): Promise<ActionState> {
   try {

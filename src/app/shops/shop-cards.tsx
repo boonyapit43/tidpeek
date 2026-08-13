@@ -4,7 +4,14 @@ import { useActionState, useEffect, useState } from "react";
 import { useFormStatus } from "react-dom";
 import { deleteShop, switchShop, updateShop } from "@/actions/settings";
 import { IDLE } from "@/actions/shared";
-import { Button, Field, Input, StatusMessage, SubmitButton } from "@/components/form-parts";
+import {
+  Button,
+  Field,
+  Input,
+  StatusMessage,
+  SubmitButton,
+  useKeptValue,
+} from "@/components/form-parts";
 import { Sheet } from "@/components/sheet";
 import { cn } from "@/lib/cn";
 
@@ -155,6 +162,7 @@ function EditShopForm({ shop, onDone }: { shop: ShopCardData; onDone: () => void
   const [renameState, rename] = useActionState(updateShop, IDLE);
   const [deleteState, remove] = useActionState(deleteShop, IDLE);
   const [confirming, setConfirming] = useState(false);
+  const name = useKeptValue(shop.name);
 
   // ลบไม่สำเร็จแล้วต้องถอยกลับไปหน้าปุ่มปกติ ไม่ค้างที่ "ยืนยันลบ"
   // ซึ่งกดซ้ำแล้วจะพยายามลบวนอยู่อย่างนั้นโดยไม่ได้อ่านว่าพลาดเพราะอะไร
@@ -177,9 +185,9 @@ function EditShopForm({ shop, onDone }: { shop: ShopCardData; onDone: () => void
 
         <Field label="ชื่อร้าน" htmlFor="shop-name">
           <Input
+            {...name}
             id="shop-name"
             name="name"
-            defaultValue={shop.name}
             required
             maxLength={120}
             enterKeyHint="done"

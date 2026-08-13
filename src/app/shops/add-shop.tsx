@@ -3,7 +3,13 @@
 import { useActionState, useEffect, useState } from "react";
 import { createShop } from "@/actions/settings";
 import { IDLE } from "@/actions/shared";
-import { Field, Input, StatusMessage, SubmitButton } from "@/components/form-parts";
+import {
+  Field,
+  Input,
+  StatusMessage,
+  SubmitButton,
+  useKeptValue,
+} from "@/components/form-parts";
 import { Sheet } from "@/components/sheet";
 
 /**
@@ -70,6 +76,7 @@ function AddShopSheet({
 
 function AddShopForm({ onDone, autoFocus }: { onDone: () => void; autoFocus: boolean }) {
   const [state, formAction] = useActionState(createShop, IDLE);
+  const name = useKeptValue();
 
   useEffect(() => {
     if (state.status === "ok") onDone();
@@ -80,6 +87,7 @@ function AddShopForm({ onDone, autoFocus }: { onDone: () => void; autoFocus: boo
     <form action={formAction} className="space-y-4">
       <Field label="ชื่อร้าน" htmlFor="new-shop-name">
         <Input
+          {...name}
           id="new-shop-name"
           name="name"
           required

@@ -4,7 +4,15 @@ import { fileURLToPath } from "node:url";
 export default defineConfig({
   test: {
     environment: "node",
-    include: ["src/**/*.test.ts"],
+
+    /**
+     * .tsx = เทสคอมโพเนนต์ ต้องมี DOM จึงประกาศ environment ไว้หัวไฟล์
+     * ด้วย `// @vitest-environment happy-dom` เป็นรายไฟล์
+     *
+     * รวมไว้กับเทสหน่วยชุดเดียวกันเพราะไม่ต้องใช้ Docker เหมือนกัน
+     * `npm test` จึงยังรันได้ทุกที่โดยไม่ต้องเตรียมอะไร
+     */
+    include: ["src/**/*.test.{ts,tsx}"],
 
     /**
      * ตรึงเขตเวลาของเครื่องที่รันเทสไว้ที่ UTC โดยตั้งใจ

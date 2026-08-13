@@ -16,6 +16,8 @@ import {
   Select,
   StatusMessage,
   SubmitButton,
+  useKeptChecked,
+  useKeptValue,
 } from "@/components/form-parts";
 import { Sheet } from "@/components/sheet";
 import type { AccountWithBalance } from "@/db/queries";
@@ -238,13 +240,21 @@ function EditAccountForm({
 function AccountFields({ account }: { account?: AccountWithBalance }) {
   const id = useId();
 
+  // ทุกช่องเป็น controlled เพื่อไม่ให้สิ่งที่พิมพ์หายตอนบันทึกไม่สำเร็จ
+  // บัญชีมีห้าช่อง เป็นฟอร์มที่เจ็บที่สุดถ้าต้องกรอกใหม่ทั้งชุด
+  const name = useKeptValue(account?.name ?? "");
+  const kind = useKeptValue(account?.kind ?? "bank");
+  const bank = useKeptValue(account?.bank ?? "");
+  const accountNo = useKeptValue(account?.accountNo ?? "");
+  const opening = useKeptValue(account?.openingBalance ?? "0");
+
   return (
     <>
       <Field label="ชื่อบัญชี" htmlFor={`${id}-name`}>
         <Input
+          {...name}
           id={`${id}-name`}
           name="name"
-          defaultValue={account?.name}
           required
           maxLength={120}
           placeholder="เช่น กสิกรไทย, ไทยพลัส, เงินสด"
@@ -252,7 +262,7 @@ function AccountFields({ account }: { account?: AccountWithBalance }) {
       </Field>
 
       <Field label="ประเภทบัญชี" htmlFor={`${id}-kind`}>
-        <Select id={`${id}-kind`} name="kind" defaultValue={account?.kind ?? "bank"}>
+        <Select {...kind} id={`${id}-kind`} name="kind">
           {KIND_OPTIONS.map(([value, label]) => (
             <option key={value} value={value}>
               {label}
@@ -262,14 +272,14 @@ function AccountFields({ account }: { account?: AccountWithBalance }) {
       </Field>
 
       <Field label="ธนาคาร (ไม่บังคับ)" htmlFor={`${id}-bank`}>
-        <Input id={`${id}-bank`} name="bank" defaultValue={account?.bank ?? ""} maxLength={80} />
+        <Input {...bank} id={`${id}-bank`} name="bank" maxLength={80} />
       </Field>
 
       <Field label="เลขบัญชี (ไม่บังคับ)" htmlFor={`${id}-no`}>
         <Input
+          {...accountNo}
           id={`${id}-no`}
           name="accountNo"
-          defaultValue={account?.accountNo ?? ""}
           maxLength={40}
           inputMode="numeric"
         />
@@ -279,9 +289,9 @@ function AccountFields({ account }: { account?: AccountWithBalance }) {
           ยอดคงเหลือที่เห็นจะเป็นแค่ "เดินไปเท่าไหร่" ไม่ใช่ "มีอยู่เท่าไหร่" */}
       <Field label="ยอดตั้งต้น" htmlFor={`${id}-opening`}>
         <MoneyInput
+          {...opening}
           id={`${id}-opening`}
           name="openingBalance"
-          defaultValue={account?.openingBalance ?? "0"}
           placeholder="0.00"
         />
       </Field>
@@ -290,12 +300,14 @@ function AccountFields({ account }: { account?: AccountWithBalance }) {
 }
 
 function SharedToggle({ defaultChecked }: { defaultChecked: boolean }) {
+  const shared = useKeptChecked(defaultChecked);
+
   return (
     <label className="flex min-h-touch cursor-pointer items-start gap-3 rounded-xl border border-line p-3">
       <input
+        {...shared}
         type="checkbox"
         name="shared"
-        defaultChecked={defaultChecked}
         className="mt-0.5 size-5 shrink-0 accent-[var(--color-brand)]"
       />
       <span className="text-sm text-ink">ใช้ร่วมกันทุกร้าน</span>
