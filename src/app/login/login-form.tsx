@@ -28,7 +28,25 @@ export function LoginForm() {
   const [state, formAction] = useActionState(login, IDLE);
   const [pin, setPin] = useState("");
 
-  const errorText = state.status === "error" ? state.message : null;
+  /**
+   * ข้อความผิดพลาดผูกกับรหัสที่ส่งไปครั้งนั้น ไม่ได้ค้างไว้จนกว่าจะส่งใหม่
+   *
+   * ถ้าปล่อยค้าง พอกดล้างแล้วพิมพ์รหัสใหม่ จุดจะยังแดงและยังขึ้นว่า
+   * "รหัสไม่ถูกต้อง" อยู่ ทั้งที่ยังไม่ได้ส่งอะไรไปเลย ดูเหมือนแอปกำลัง
+   * ปฏิเสธสิ่งที่กำลังพิมพ์อยู่ ซึ่งไม่จริง
+   *
+   * จำรหัสตอนที่ได้ error มา แล้วโชว์ต่อเมื่อยังเป็นรหัสเดิม พิมพ์แก้เมื่อไหร่
+   * ข้อความหายทันที และถ้าพิมพ์รหัสเดิมกลับมาก็ขึ้นอีก ซึ่งถูกแล้ว
+   */
+  const [rejectedPin, setRejectedPin] = useState<string | null>(null);
+  const [seenState, setSeenState] = useState(state);
+
+  if (seenState !== state) {
+    setSeenState(state);
+    setRejectedPin(state.status === "error" ? pin : null);
+  }
+
+  const errorText = state.status === "error" && pin === rejectedPin ? state.message : null;
 
   function press(key: (typeof KEYS)[number]) {
     if (key === "back") setPin((p) => p.slice(0, -1));
