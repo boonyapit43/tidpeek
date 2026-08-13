@@ -2,17 +2,12 @@
 
 import Link from "next/link";
 import { useState } from "react";
+import { KIND_LABEL } from "@/components/account-sheet";
 import { Button } from "@/components/form-parts";
 import type { AccountWithBalance } from "@/db/queries";
 import { bahtShort } from "@/lib/money";
 import { cn } from "@/lib/cn";
 import { TransferSheet } from "./transfer-sheet";
-
-const KIND_LABEL = {
-  cash: "เงินสด",
-  bank: "บัญชีธนาคาร",
-  ewallet: "วอลเล็ต",
-} as const;
 
 /**
  * รายชื่อบัญชีพร้อมยอดคงเหลือ
@@ -123,16 +118,9 @@ export function AccountBoard({
         </ul>
       </section>
 
-      {neverSetOpening && (
-        <p className="rounded-2xl bg-surface px-4 py-3 text-xs text-ink-soft shadow-sm">
-          ยอดที่เห็นคือเงินที่เดินไปตั้งแต่เริ่มใช้แอป ยังไม่ใช่เงินที่มีอยู่จริง{" "}
-          <Link href="/settings" className="font-semibold text-brand">
-            ตั้งยอดตั้งต้นของแต่ละบัญชี
-          </Link>{" "}
-          ครั้งเดียว แล้วยอดจะตรงตลอดไป
-        </p>
-      )}
-
+      {/* ปุ่มอยู่ติดกับรายการบัญชีเลย ไม่ได้ไปต่อท้ายคำเตือน
+          เพราะคำเตือนยาวสามบรรทัด ถ้าวางไว้หลังมันปุ่มจะตกไปอยู่ล่างสุดของหน้า
+          ซึ่งเป็นที่ที่ไม่มีใครมองหาปุ่มทำอะไร */}
       <Button
         type="button"
         variant="ghost"
@@ -142,6 +130,14 @@ export function AccountBoard({
       >
         โอนเงินระหว่างบัญชี
       </Button>
+
+      {neverSetOpening && (
+        <p className="rounded-2xl bg-surface px-4 py-3 text-xs text-ink-soft shadow-sm">
+          ยอดที่เห็นคือเงินที่เดินไปตั้งแต่เริ่มใช้แอป ยังไม่ใช่เงินที่มีอยู่จริง —
+          แตะบัญชีแล้วตั้ง <span className="font-semibold text-brand">ยอดตั้งต้น</span>{" "}
+          ครั้งเดียว แล้วยอดจะตรงตลอดไป
+        </p>
+      )}
 
       <TransferSheet
         open={transferring}

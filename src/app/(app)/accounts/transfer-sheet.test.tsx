@@ -178,6 +178,25 @@ describe("โอนเงินใหม่", () => {
     expect(sent.get("toAccountId")).toBe("acc-cash");
   });
 
+  /**
+   * กดโอนจากหน้าของบัญชีใดบัญชีหนึ่ง
+   *
+   * คนกดตั้งใจจะโอน "ออกจากบัญชีนี้" อยู่แล้ว ไม่ควรต้องเลือกซ้ำว่าเงินออกจากไหน
+   * เทสข้อนี้กันไม่ให้ปุ่มนั้นหลุดกลับไปเป็นฟอร์มเปล่าที่เลือกบัญชีแรกให้เสมอ
+   */
+  it("เปิดจากหน้าบัญชีไหน ต้นทางต้องเป็นบัญชีนั้น", () => {
+    const { from, to } = setup({ defaultFromId: "acc-cash" });
+
+    expect(from.value).toBe("acc-cash");
+    expect(to.value).not.toBe("acc-cash");
+  });
+
+  it("ส่ง defaultFromId ที่ไม่มีในรายการมา ให้ตกกลับไปบัญชีแรก", () => {
+    const { from } = setup({ defaultFromId: "acc-ที่ถูกลบไปแล้ว" });
+
+    expect(from.value).toBe("acc-scb");
+  });
+
   it("มีบัญชีเดียว โอนไม่ได้ และบอกว่าต้องทำอะไรต่อ", () => {
     render(
       <TransferSheet

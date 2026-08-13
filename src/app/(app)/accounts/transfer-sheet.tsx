@@ -52,6 +52,7 @@ export function TransferSheet({
   shopId,
   accounts,
   editing,
+  defaultFromId,
 }: {
   open: boolean;
   onClose: () => void;
@@ -59,6 +60,13 @@ export function TransferSheet({
   accounts: AccountWithBalance[];
   /** ถ้ามี = โหมดแก้ไข ถ้าไม่มี = โหมดสร้างใหม่ */
   editing?: EditableTransfer | null;
+  /**
+   * บัญชีต้นทางที่เลือกไว้ให้ล่วงหน้า
+   *
+   * ใช้ตอนกดโอนจากหน้าของบัญชีใดบัญชีหนึ่ง คนกดตั้งใจจะโอน "ออกจากบัญชีนี้"
+   * อยู่แล้ว ไม่ควรต้องมาเลือกซ้ำอีกรอบว่าเงินออกจากไหน
+   */
+  defaultFromId?: string;
 }) {
   return (
     <Sheet open={open} onClose={onClose} title={editing ? "แก้ไขการโอน" : "โอนเงินระหว่างบัญชี"}>
@@ -69,6 +77,7 @@ export function TransferSheet({
           shopId={shopId}
           accounts={accounts}
           editing={editing ?? null}
+          defaultFromId={defaultFromId}
           onDone={onClose}
         />
       )}
@@ -80,11 +89,13 @@ function TransferForm({
   shopId,
   accounts,
   editing,
+  defaultFromId,
   onDone,
 }: {
   shopId: string;
   accounts: AccountWithBalance[];
   editing: EditableTransfer | null;
+  defaultFromId?: string;
   onDone: () => void;
 }) {
   const [state, formAction] = useActionState(editing ? updateTransfer : createTransfer, IDLE);
@@ -102,9 +113,15 @@ function TransferForm({
    * เลือกให้ล่วงหน้าเป็นสองบัญชีแรกที่ไม่ใช่ตัวเดียวกัน คนใช้จึงกดโอนได้เลย
    * โดยไม่ต้องเลือกครบสองช่องก่อน
    */
-  const [from, setFrom] = useState(editing?.fromAccountId ?? accounts[0]?.id ?? "");
+  const initialFrom =
+    editing?.fromAccountId ??
+    (defaultFromId && accounts.some((a) => a.id === defaultFromId)
+      ? defaultFromId
+      : (accounts[0]?.id ?? ""));
+
+  const [from, setFrom] = useState(initialFrom);
   const [to, setTo] = useState(
-    editing?.toAccountId ?? accounts.find((a) => a.id !== accounts[0]?.id)?.id ?? "",
+    editing?.toAccountId ?? accounts.find((a) => a.id !== initialFrom)?.id ?? "",
   );
 
   /**

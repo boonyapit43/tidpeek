@@ -1,6 +1,8 @@
 "use client";
 
 import { useState } from "react";
+import { EditAccountSheet } from "@/components/account-sheet";
+import { Button } from "@/components/form-parts";
 import type { AccountWithBalance, MovementRow } from "@/db/queries";
 import { baht, bahtShort } from "@/lib/money";
 import { thaiDate } from "@/lib/date";
@@ -29,9 +31,12 @@ export function AccountDetail({
   accounts: AccountWithBalance[];
   movements: MovementRow[];
 }) {
-  const [editing, setEditing] = useState<EditableTransfer | null>(null);
+  const [editingTransfer, setEditingTransfer] = useState<EditableTransfer | null>(null);
+  const [transferring, setTransferring] = useState(false);
+  const [editingAccount, setEditingAccount] = useState(false);
 
   const balance = Number.parseFloat(account.balance);
+  const openingNotSet = Number.parseFloat(account.openingBalance) === 0;
 
   return (
     <div className="space-y-3">
@@ -55,10 +60,54 @@ export function AccountDetail({
             {baht(account.balance)}
           </div>
 
-          <div className="mt-1 text-xs text-ink-soft">
-            ยอดตั้งต้น <span className="num">{bahtShort(account.openingBalance)}</span>
-            {account.accountNo && ` · ${account.accountNo}`}
-          </div>
+          {/**
+           * ยอดตั้งต้นแตะแก้ได้ตรงนี้เลย ไม่ต้องเดินไปหน้าตั้งค่าแล้วไล่หา
+           * บัญชีเดิมอีกรอบ — คนที่กำลังดูยอดของบัญชีนี้อยู่ คือคนที่รู้ว่า
+           * เลขมันผิดและอยากแก้เดี๋ยวนั้น
+           */}
+          <button
+            type="button"
+            onClick={() => setEditingAccount(true)}
+            className={cn(
+              "mt-1 flex min-h-touch items-center gap-1.5 text-xs transition",
+              openingNotSet ? "font-semibold text-brand" : "text-ink-soft hover:text-ink",
+            )}
+          >
+            {openingNotSet ? (
+              <>ยังไม่ได้ตั้งยอดตั้งต้น — แตะเพื่อใส่เงินที่มีอยู่จริง</>
+            ) : (
+              <>
+                ยอดตั้งต้น <span className="num">{bahtShort(account.openingBalance)}</span>
+                {account.accountNo && ` · ${account.accountNo}`}
+              </>
+            )}
+            <svg
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth={1.75}
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              className="size-3.5 shrink-0"
+              aria-hidden
+            >
+              <path d="M12 20h9M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z" />
+            </svg>
+          </button>
+        </div>
+
+        {/* ปุ่มโอนอยู่ในกล่องเดียวกับยอด เพราะคนที่คิดจะโอน คือคนที่เพิ่งดูยอด
+            แล้วเห็นว่าบัญชีนี้มีเงินพอ (หรือไม่พอ) อยู่ตรงหน้าพอดี */}
+        <div className="border-t border-line p-3">
+          <Button
+            type="button"
+            variant="ghost"
+            className="w-full"
+            onClick={() => setTransferring(true)}
+            disabled={accounts.length < 2}
+          >
+            โอนเงินออกจากบัญชีนี้
+          </Button>
         </div>
       </section>
 
@@ -77,19 +126,31 @@ export function AccountDetail({
               <MovementLine
                 key={`${row.kind}-${row.id}`}
                 row={row}
-                onEditTransfer={() => setEditing(toEditable(row))}
+                onEditTransfer={() => setEditingTransfer(toEditable(row))}
               />
             ))}
           </ul>
         )}
       </section>
 
+      {/* แผ่นโอน มีสองโหมดในตัวเดียว — สร้างใหม่จากปุ่มข้างบน
+          หรือแก้ของเดิมจากการแตะบรรทัดที่มีป้าย "โอน" */}
       <TransferSheet
-        open={editing !== null}
-        onClose={() => setEditing(null)}
+        open={transferring || editingTransfer !== null}
+        onClose={() => {
+          setTransferring(false);
+          setEditingTransfer(null);
+        }}
         shopId={shopId}
         accounts={accounts}
-        editing={editing}
+        editing={editingTransfer}
+        defaultFromId={account.id}
+      />
+
+      <EditAccountSheet
+        account={editingAccount ? account : null}
+        onClose={() => setEditingAccount(false)}
+        shopId={shopId}
       />
     </div>
   );
