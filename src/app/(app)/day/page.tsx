@@ -89,7 +89,9 @@ export default async function DayPage({
         </Link>
       </div>
 
-      <SummaryCard summary={summary} title={`สรุปวันที่ ${date}`} />
+      {/* หัวข้อนี้มีไว้ให้โปรแกรมอ่านหน้าจอ จึงต้องเป็นวันแบบไทยเหมือนที่ตาเห็น
+          ไม่ใช่ 2026-08-13 ซึ่งจะถูกอ่านออกมาเป็นตัวเลขเรียงกันรัวๆ */}
+      <SummaryCard summary={summary} title={`สรุป${thaiDateLong(date)}`} />
 
       <TxnList items={items} shopId={shopId} accounts={accounts} categories={categories} />
     </div>

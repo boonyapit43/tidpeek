@@ -80,20 +80,26 @@ const sumExcludedTotal = sql<string>`coalesce(sum(case when not ${countsFlag} th
  *    เป็นกำไรหรือไม่ ถ้าเติมเงื่อนไข counts เข้าไป ยอดในแอปจะไม่ตรงกับ
  *    ยอดในแอปธนาคารทันที
  *
- * @param extra เงื่อนไขเพิ่ม เช่นจำกัดเฉพาะร้านเดียว
+ * ⚠️ ห้ามเอา fragment นี้ไปใส่เป็นช่องใน select ตรงๆ ต้องห่อในบล็อก sql
+ *    อีกชั้นเสมอ อย่างที่ balanceExpr ทำ
+ *
+ *    เหตุผล: drizzle ตัดชื่อตารางออกจากคอลัมน์ที่อ้างในบล็อก sql เมื่อ query
+ *    นั้นดึงจากตารางเดียวไม่มี join เพราะถือว่าไม่กำกวม ${accounts.id}
+ *    จึงกลายเป็น "id" เปล่าๆ แล้ว Postgres ไปจับคู่กับ tx.id ของ subquery แทน
+ *    ได้เงื่อนไข tx.account_id = tx.id ซึ่งไม่มีทางจริง ผลคือได้ 0 เสมอ
+ *    โดยไม่มี error ให้เห็นสักตัว
+ *
+ *    พอห่ออีกชั้น คอลัมน์จะถูกเขียนเต็มเป็น "accounts"."id" ตามที่ต้องการ
+ *    เทสยอดคงเหลือใน queries.itest.ts เป็นตัวจับถ้าวันหนึ่งมันหลุดอีก
  */
-const accountMovement = (extra = sql``) => sql<string>`coalesce((
+const accountMovement = () => sql`coalesce((
   select sum(case when tx.direction = 'in' then tx.amount else -tx.amount end)
     from transactions tx
    where tx.account_id = ${accounts.id}
      and tx.is_deleted = false
-     ${extra}
 ), 0)`;
 
 const balanceExpr = sql<string>`(${accounts.openingBalance} + ${accountMovement()})`;
-
-const shopDeltaExpr = (shopId: string) =>
-  accountMovement(sql`and tx.shop_id = ${shopId}`);
 
 /* ------------------------------------------------------------------ */
 /*  ร้าน                                                               */
@@ -175,11 +181,9 @@ export async function getShop(shopId: string): Promise<Shop | null> {
 export type AccountWithBalance = Account & {
   /** ยอดคงเหลือจริงของบัญชี ตัวเลขนี้ต้องตรงกับแอปธนาคาร */
   balance: string;
-  /** ร้านนี้ทำให้เงินในบัญชีเปลี่ยนไปเท่าไหร่ ไม่ใช่ "ร้านนี้เหลือเท่าไหร่" */
-  shopDelta: string;
 };
 
-const accountSelection = (shopId: string) => ({
+const accountSelection = () => ({
   id: accounts.id,
   shopId: accounts.shopId,
   name: accounts.name,
@@ -193,7 +197,6 @@ const accountSelection = (shopId: string) => ({
   createdAt: accounts.createdAt,
   updatedAt: accounts.updatedAt,
   balance: balanceExpr,
-  shopDelta: shopDeltaExpr(shopId),
 });
 
 /** บัญชีกลาง (shop_id ว่าง) ทุกร้านเห็น ส่วนบัญชีที่ผูกร้านเห็นเฉพาะร้านนั้น */
@@ -208,7 +211,7 @@ const visibleToShop = (shopId: string) =>
  */
 export async function listAccountsWithBalance(shopId: string): Promise<AccountWithBalance[]> {
   return db
-    .select(accountSelection(shopId))
+    .select(accountSelection())
     .from(accounts)
     .where(and(visibleToShop(shopId), eq(accounts.isActive, true)))
     .orderBy(asc(accounts.sortOrder), asc(accounts.name));
@@ -217,7 +220,7 @@ export async function listAccountsWithBalance(shopId: string): Promise<AccountWi
 /** เหมือนข้างบน แต่รวมบัญชีที่ปิดใช้งานไว้ด้วย ใช้เฉพาะหน้าตั้งค่า */
 export async function listAllAccountsForShop(shopId: string): Promise<AccountWithBalance[]> {
   return db
-    .select(accountSelection(shopId))
+    .select(accountSelection())
     .from(accounts)
     .where(visibleToShop(shopId))
     .orderBy(desc(accounts.isActive), asc(accounts.sortOrder), asc(accounts.name));

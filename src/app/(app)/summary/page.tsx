@@ -189,7 +189,7 @@ async function DayView({ shopId, day }: { shopId: string; day: string }) {
         nextHref={`/summary?p=day&d=${addDays(day, 1)}`}
       />
 
-      <SummaryCard summary={summary} title={`สรุปวันที่ ${day}`} />
+      <SummaryCard summary={summary} title={`สรุป${thaiDateLong(day)}`} />
 
       <div className="rounded-2xl bg-surface p-3 shadow-sm">
         <Link
@@ -224,7 +224,7 @@ async function MonthView({ shopId, month }: { shopId: string; month: string }) {
         nextHref={`/summary?p=month&m=${addMonths(month, 1)}`}
       />
 
-      <SummaryCard summary={summary} title={`สรุปเดือน ${month}`} />
+      <SummaryCard summary={summary} title={`สรุปเดือน${thaiMonth(month)}`} />
 
       <BreakdownTable
         heading="แยกรายวัน"
@@ -266,7 +266,7 @@ async function YearView({ shopId, year }: { shopId: string; year: string }) {
         nextHref={`/summary?p=year&y=${addYears(year, 1)}`}
       />
 
-      <SummaryCard summary={summary} title={`สรุปปี ${year}`} />
+      <SummaryCard summary={summary} title={`สรุปปี ${thaiYear(year)}`} />
 
       <BreakdownTable
         heading="แยกรายเดือน"
