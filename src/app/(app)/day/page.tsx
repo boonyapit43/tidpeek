@@ -21,18 +21,27 @@ export const metadata: Metadata = { title: "รายวัน" };
 export default async function DayPage({
   searchParams,
 }: {
-  searchParams: Promise<{ d?: string }>;
+  searchParams: Promise<{ d?: string; t?: string }>;
 }) {
   const context = await getShopContext();
   if (!context) return null;
 
   const shopId = context.shop.id;
 
+  const params = await searchParams;
+
   // วันที่มาจาก URL ซึ่งคนแก้เองได้ ต้องตรวจก่อนใช้เสมอ
   // ถ้าไม่ผ่านให้ตกกลับมาเป็นวันนี้ ดีกว่าโชว์หน้า error
-  const raw = (await searchParams).d;
-  const parsed = raw ? dateSchema.safeParse(raw) : null;
+  const parsed = params.d ? dateSchema.safeParse(params.d) : null;
   const date = parsed?.success ? parsed.data : today();
+
+  /**
+   * ?t= คือรายการที่ให้เปิดหน้าแก้ไขให้เลย มาจากหน้าเคลื่อนไหวของบัญชี
+   *
+   * ไม่ต้องตรวจว่าเป็น uuid จริงไหม เพราะมันถูกเอาไปเทียบกับรายการของวันนี้
+   * ที่ผูกร้านมาแล้วเท่านั้น ค่ามั่วจะไม่ตรงกับอะไรเลยแล้วเงียบไปเอง
+   */
+  const openTxnId = params.t;
 
   const [items, summary, accounts, categories] = await Promise.all([
     listTransactionsByDate(shopId, date),
@@ -93,7 +102,13 @@ export default async function DayPage({
           ไม่ใช่ 2026-08-13 ซึ่งจะถูกอ่านออกมาเป็นตัวเลขเรียงกันรัวๆ */}
       <SummaryCard summary={summary} title={`สรุป${thaiDateLong(date)}`} />
 
-      <TxnList items={items} shopId={shopId} accounts={accounts} categories={categories} />
+      <TxnList
+        items={items}
+        shopId={shopId}
+        accounts={accounts}
+        categories={categories}
+        openTxnId={openTxnId}
+      />
     </div>
   );
 }

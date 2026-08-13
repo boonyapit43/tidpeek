@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useState } from "react";
 import { EditAccountSheet } from "@/components/account-sheet";
 import { Button } from "@/components/form-parts";
@@ -218,8 +219,21 @@ function MovementLine({
           {body}
         </button>
       ) : (
-        // รายการปกติแก้ที่หน้ารายวัน ตรงนี้แสดงอย่างเดียว
-        <div className="flex items-center gap-3 px-3 py-3">{body}</div>
+        /**
+         * รายการปกติพาไปแก้ที่หน้ารายวัน ซึ่งเป็นที่แก้ของมันที่เดียว
+         *
+         * ?t= พาไปถึงหน้าแก้ไขของรายการนั้นเลย ไม่ใช่แค่พาไปถึงวัน แล้วปล่อย
+         * ให้ไล่หาเองในลิสต์ทั้งวัน ซึ่งวันที่ลงสามสิบรายการคือการหาของ
+         *
+         * ตั้งใจไม่ทำหน้าแก้ไขซ้ำอีกอันตรงนี้ เพราะสองที่ที่แก้ของเดียวกันได้
+         * แปลว่าต้องคอยดูแลให้เหมือนกันตลอดไป แล้ววันหนึ่งมันจะไม่เหมือน
+         */
+        <Link
+          href={`/day?d=${row.txnDate}&t=${row.id}`}
+          className="flex items-center gap-3 px-3 py-3 transition active:bg-surface-2"
+        >
+          {body}
+        </Link>
       )}
     </li>
   );

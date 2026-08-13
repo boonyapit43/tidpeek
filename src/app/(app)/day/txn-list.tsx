@@ -21,13 +21,33 @@ export function TxnList({
   shopId,
   accounts,
   categories,
+  openTxnId,
 }: {
   items: TxnRow[];
   shopId: string;
   accounts: AccountWithBalance[];
   categories: Category[];
+  /**
+   * id ของรายการที่ให้เปิดหน้าแก้ไขทันทีที่โหลดหน้า
+   *
+   * มาจาก ?t= ใน URL ซึ่งหน้าเคลื่อนไหวของบัญชีลิงก์มา — คนแตะรายการที่นั่น
+   * เพราะอยากแก้รายการนั้น ถ้าพามาถึงหน้ารายวันแล้วปล่อยให้ไล่หาเองในลิสต์
+   * ทั้งวัน ก็เท่ากับไม่ได้พามา
+   */
+  openTxnId?: string;
 }) {
-  const [editing, setEditing] = useState<TxnRow | null>(null);
+  /**
+   * ตั้งค่าเริ่มต้นครั้งเดียวตอน mount ไม่ได้ผูกกับ openTxnId ตลอดเวลา
+   *
+   * ถ้าผูกไว้ พอปิดแผ่นแล้วมันจะเด้งกลับมาเปิดใหม่ทันที เพราะ URL ยังมี ?t=
+   * อยู่เหมือนเดิม ปิดไม่ลงจนกว่าจะเปลี่ยนหน้า
+   *
+   * id ที่ไม่ตรงกับรายการไหนในวันนี้ (เช่นวันผิด หรือถูกลบไปแล้ว) จะได้ null
+   * คือเปิดหน้ารายวันตามปกติ ไม่ต้องมี error ให้ตกใจ
+   */
+  const [editing, setEditing] = useState<TxnRow | null>(
+    () => items.find((t) => t.id === openTxnId) ?? null,
+  );
 
   if (items.length === 0) {
     return (
