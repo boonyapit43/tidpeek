@@ -14,6 +14,7 @@ import {
   SubmitButton,
   fieldError,
 } from "@/components/form-parts";
+import { AccountOptions, CategoryOptions } from "@/components/pickers";
 import { Sheet } from "@/components/sheet";
 import type { AccountWithBalance, TxnRow } from "@/db/queries";
 import type { Category, Direction } from "@/db/schema";
@@ -40,29 +41,56 @@ export function EditSheet({
   accounts: AccountWithBalance[];
   categories: Category[];
 }) {
+  return (
+    <Sheet open={txn !== null} onClose={onClose} title="แก้ไขรายการ">
+      {/**
+       * key ผูกกับรายการ ทุกอย่างข้างในจึงเริ่มใหม่เมื่อเปลี่ยนรายการ —
+       * ค่าในช่อง ฝั่งที่เลือก ข้อความผลลัพธ์ และที่สำคัญที่สุดคือปุ่ม
+       * "ยืนยันลบ" ที่ค้างอยู่ ถ้าเลื่อนมาจากรายการก่อนหน้าแล้วกดพลาด
+       * รายการที่ไม่ได้ตั้งใจจะหายไปทันที
+       */}
+      {txn && (
+        <EditTxnForm
+          key={txn.id}
+          txn={txn}
+          shopId={shopId}
+          accounts={accounts}
+          categories={categories}
+          onDone={onClose}
+        />
+      )}
+    </Sheet>
+  );
+}
+
+function EditTxnForm({
+  txn,
+  shopId,
+  accounts,
+  categories,
+  onDone,
+}: {
+  txn: TxnRow;
+  shopId: string;
+  accounts: AccountWithBalance[];
+  categories: Category[];
+  onDone: () => void;
+}) {
   const [state, formAction] = useActionState(updateTransaction, IDLE);
   const [deleteState, deleteAction] = useActionState(deleteTransaction, IDLE);
-  const [direction, setDirection] = useState<Direction>("out");
+  const [direction, setDirection] = useState<Direction>(txn.direction);
   const [confirmingDelete, setConfirmingDelete] = useState(false);
 
-  /**
-   * ทุกครั้งที่เปิดรายการใหม่ ตั้งค่าฝั่งตามรายการนั้น และยกเลิกการยืนยันลบ
-   * ที่ค้างจากรายการก่อนหน้า ไม่งั้นเปิดรายการถัดมาแล้วเจอปุ่ม "ยืนยันลบ" รออยู่
-   * ซึ่งอันตรายมาก เพราะกดพลาดครั้งเดียวรายการหายถาวร
-   *
-   * ปรับตอน render โดยเทียบ id ที่เห็นล่าสุด ไม่ใช่ทำใน effect
-   * เพราะ effect ทำงานหลังวาดจอไปแล้ว จะเห็นสถานะเก่าแวบหนึ่งก่อนเปลี่ยน
-   */
-  const [seenTxnId, setSeenTxnId] = useState<string | null>(null);
+  // ลบไม่สำเร็จแล้วถอยกลับไปปุ่มปกติ ไม่ค้างอยู่ที่ "ยืนยันลบถาวร"
+  const [seenDelete, setSeenDelete] = useState(deleteState);
 
-  if (txn && txn.id !== seenTxnId) {
-    setSeenTxnId(txn.id);
-    setDirection(txn.direction);
-    setConfirmingDelete(false);
+  if (seenDelete !== deleteState) {
+    setSeenDelete(deleteState);
+    if (deleteState.status === "error") setConfirmingDelete(false);
   }
 
   useEffect(() => {
-    if (state.status === "ok" || deleteState.status === "ok") onClose();
+    if (state.status === "ok" || deleteState.status === "ok") onDone();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [state, deleteState]);
 
@@ -70,122 +98,104 @@ export function EditSheet({
   const isIncome = direction === "in";
 
   return (
-    <Sheet open={txn !== null} onClose={onClose} title="แก้ไขรายการ">
-      {txn && (
-        <>
-          {/* key บังคับให้ React สร้างฟอร์มใหม่เมื่อเปลี่ยนรายการ
-              ไม่งั้นค่าใน input จะค้างจากรายการก่อนหน้า */}
-          <form key={txn.id} action={formAction} className="space-y-4">
-            <input type="hidden" name="shopId" value={shopId} />
-            <input type="hidden" name="id" value={txn.id} />
-            <input type="hidden" name="direction" value={direction} />
+    <>
+      <form action={formAction} className="space-y-4">
+        <input type="hidden" name="shopId" value={shopId} />
+        <input type="hidden" name="id" value={txn.id} />
+        <input type="hidden" name="direction" value={direction} />
 
-            <DirectionToggle direction={direction} onChange={setDirection} />
+        <DirectionToggle direction={direction} onChange={setDirection} />
 
-            <Field label="จำนวนเงิน" htmlFor="edit-amount" error={fieldError(state, "amount")}>
-              <MoneyInput
-                id="edit-amount"
-                name="amount"
-                defaultValue={txn.amount}
-                required
-                enterKeyHint="next"
-              />
-            </Field>
+        <Field label="จำนวนเงิน" htmlFor="edit-amount" error={fieldError(state, "amount")}>
+          <MoneyInput
+            id="edit-amount"
+            name="amount"
+            defaultValue={txn.amount}
+            required
+            enterKeyHint="next"
+          />
+        </Field>
 
-            <Field label="รายการ" htmlFor="edit-title" error={fieldError(state, "title")}>
-              <Input
-                id="edit-title"
-                name="title"
-                defaultValue={txn.title}
-                required
-                maxLength={200}
-                enterKeyHint="next"
-              />
-            </Field>
+        <Field label="รายการ" htmlFor="edit-title" error={fieldError(state, "title")}>
+          <Input
+            id="edit-title"
+            name="title"
+            defaultValue={txn.title}
+            required
+            maxLength={200}
+            enterKeyHint="next"
+          />
+        </Field>
 
-            <Field label="ประเภท" htmlFor="edit-category">
-              <Select
-                id="edit-category"
-                name="categoryId"
-                // ประเภทเดิมอาจอยู่คนละฝั่งกับที่เลือกอยู่ ถ้าเพิ่งสลับฝั่ง
-                // จึงต้องล้างค่าเพื่อไม่ให้ส่งประเภทที่เซิร์ฟเวอร์จะปฏิเสธ
-                key={direction}
-                defaultValue={
-                  visibleCategories.some((c) => c.id === txn.categoryId)
-                    ? (txn.categoryId ?? "")
-                    : ""
-                }
-              >
-                <option value="">— ไม่ระบุ —</option>
-                {visibleCategories.map((c) => (
-                  <option key={c.id} value={c.id}>
-                    {c.name}
-                    {c.counts ? "" : "  (ไม่นับเป็นกำไร)"}
-                  </option>
-                ))}
-              </Select>
-            </Field>
+        <Field label="ประเภท" htmlFor="edit-category">
+          <Select
+            id="edit-category"
+            name="categoryId"
+            // ประเภทเดิมอาจอยู่คนละฝั่งกับที่เลือกอยู่ ถ้าเพิ่งสลับฝั่ง
+            // จึงต้องล้างค่าเพื่อไม่ให้ส่งประเภทที่เซิร์ฟเวอร์จะปฏิเสธ
+            key={direction}
+            defaultValue={
+              visibleCategories.some((c) => c.id === txn.categoryId)
+                ? (txn.categoryId ?? "")
+                : ""
+            }
+          >
+            <CategoryOptions categories={visibleCategories} />
+          </Select>
+        </Field>
 
-            <Field label={isIncome ? "เงินเข้าบัญชี" : "จ่ายจากบัญชี"} htmlFor="edit-account">
-              <Select id="edit-account" name="accountId" defaultValue={txn.accountId ?? ""}>
-                <option value="">— ไม่ระบุ —</option>
-                {accounts.map((a) => (
-                  <option key={a.id} value={a.id}>
-                    {a.name}
-                    {a.shopId === null ? "  (ใช้ร่วม)" : ""}
-                  </option>
-                ))}
-              </Select>
-            </Field>
+        <Field label={isIncome ? "เงินเข้าบัญชี" : "จ่ายจากบัญชี"} htmlFor="edit-account">
+          <Select id="edit-account" name="accountId" defaultValue={txn.accountId ?? ""}>
+            <AccountOptions accounts={accounts} />
+          </Select>
+        </Field>
 
-            <Field label="วันที่" htmlFor="edit-date" error={fieldError(state, "txnDate")}>
-              <Input id="edit-date" name="txnDate" type="date" defaultValue={txn.txnDate} required />
-            </Field>
+        <Field label="วันที่" htmlFor="edit-date" error={fieldError(state, "txnDate")}>
+          <Input id="edit-date" name="txnDate" type="date" defaultValue={txn.txnDate} required />
+        </Field>
 
-            <Field label="หมายเหตุ (ไม่บังคับ)" htmlFor="edit-note">
-              <Input id="edit-note" name="note" defaultValue={txn.note ?? ""} maxLength={500} />
-            </Field>
+        <Field label="หมายเหตุ (ไม่บังคับ)" htmlFor="edit-note">
+          <Input id="edit-note" name="note" defaultValue={txn.note ?? ""} maxLength={500} />
+        </Field>
 
-            <StatusMessage state={state} />
+        <StatusMessage state={state} />
 
-            <SubmitButton className="w-full">บันทึกการแก้ไข</SubmitButton>
-          </form>
+        <SubmitButton className="w-full">บันทึกการแก้ไข</SubmitButton>
+      </form>
 
-          {/* ฟอร์มลบแยกต่างหาก เพราะปุ่มสองปุ่มในฟอร์มเดียวกัน
-              จะส่งข้อมูลชุดเดียวกันไปให้ action คนละตัว */}
-          <form action={deleteAction} className="mt-3 border-t border-line pt-3">
-            <input type="hidden" name="shopId" value={shopId} />
-            <input type="hidden" name="id" value={txn.id} />
+      {/* ฟอร์มลบแยกต่างหาก เพราะปุ่มสองปุ่มในฟอร์มเดียวกัน
+          จะส่งข้อมูลชุดเดียวกันไปให้ action คนละตัว */}
+      <form action={deleteAction} className="mt-3 border-t border-line pt-3">
+        <input type="hidden" name="shopId" value={shopId} />
+        <input type="hidden" name="id" value={txn.id} />
 
-            <StatusMessage state={deleteState} />
+        <StatusMessage state={deleteState} />
 
-            {confirmingDelete ? (
-              <div className="flex gap-2">
-                <Button
-                  type="button"
-                  variant="ghost"
-                  className="flex-1"
-                  onClick={() => setConfirmingDelete(false)}
-                >
-                  ยกเลิก
-                </Button>
-                <SubmitButton variant="danger" className="flex-1" pendingLabel="กำลังลบ">
-                  ยืนยันลบถาวร
-                </SubmitButton>
-              </div>
-            ) : (
-              <Button
-                type="button"
-                variant="danger"
-                className="w-full"
-                onClick={() => setConfirmingDelete(true)}
-              >
-                ลบรายการนี้
-              </Button>
-            )}
-          </form>
-        </>
-      )}
-    </Sheet>
+        {confirmingDelete ? (
+          <div className="flex gap-2">
+            <Button
+              type="button"
+              variant="ghost"
+              className="flex-1"
+              onClick={() => setConfirmingDelete(false)}
+            >
+              ยกเลิก
+            </Button>
+            <SubmitButton variant="danger" className="flex-1" pendingLabel="กำลังลบ">
+              ยืนยันลบถาวร
+            </SubmitButton>
+          </div>
+        ) : (
+          <Button
+            type="button"
+            variant="danger"
+            className="w-full"
+            onClick={() => setConfirmingDelete(true)}
+          >
+            ลบรายการนี้
+          </Button>
+        )}
+      </form>
+    </>
   );
 }

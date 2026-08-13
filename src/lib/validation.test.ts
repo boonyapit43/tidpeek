@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { formObject } from "@/actions/shared";
 import {
   amountSchema,
   createTransactionSchema,
@@ -111,6 +112,58 @@ describe("createTransactionSchema", () => {
     const r = createTransactionSchema.parse(valid);
     expect(r.accountId).toBeNull();
     expect(r.note).toBeNull();
+  });
+
+  /**
+   * ฟอร์มจริงส่งมาไม่ครบทุกช่องเสมอไป
+   *
+   * ช่องหมายเหตุถูกยุบไว้จนกว่าจะกดเปิด ตอนยุบอยู่ <input name="note"> ไม่ได้
+   * อยู่ในหน้าเลย FormData จึงไม่มีคีย์ note ติดมาด้วย ไม่ใช่มีแล้วเป็นค่าว่าง
+   *
+   * เทสชุดเดิมส่ง note: "" มาตลอด เลยไม่เคยเจอกรณีนี้ ทั้งที่เป็นสถานะตั้งต้น
+   * ของฟอร์ม แปลว่าการบันทึกแบบปกติที่สุดคือเส้นทางที่ไม่เคยถูกทดสอบ
+   */
+  /**
+   * ชุดคีย์นี้คัดลอกมาจาก FormData จริงของฟอร์มบันทึกรายการ อ่านจากเบราว์เซอร์
+   * ด้วย new FormData(form) ตอนที่ช่องหมายเหตุยังยุบอยู่ ซึ่งเป็นสถานะตั้งต้น
+   *
+   * สังเกตว่าไม่มีคีย์ note เลย ไม่ใช่มีแล้วเป็นค่าว่าง เพราะ <input name="note">
+   * ไม่ได้ถูก render ลงหน้า FormData เก็บเฉพาะ input ที่มีอยู่จริงตอนกดส่ง
+   *
+   * เทสผ่าน formObject ตัวเดียวกับที่ server action ใช้ ไม่ได้เขียน object
+   * ขึ้นมาเอง จะได้ไม่พลาดเพราะเดาผิดว่าฟอร์มส่งอะไรมา ซึ่งเป็นสาเหตุที่
+   * เทสชุดเดิมมองไม่เห็นบั๊กนี้ทั้งที่ครอบคลุมช่องอื่นครบหมด
+   */
+  const formDataFromEntryForm = () => {
+    const fd = new FormData();
+    fd.set("shopId", SHOP);
+    fd.set("direction", "out");
+    fd.set("txnDate", "2026-08-11");
+    fd.set("amount", "480.25");
+    fd.set("title", "ค่าไฟ");
+    fd.set("categoryId", CATEGORY);
+    fd.set("accountId", "");
+    return fd;
+  };
+
+  it("ฟอร์มที่ยังไม่ได้กดเปิดช่องหมายเหตุ ต้องบันทึกได้", () => {
+    const r = createTransactionSchema.safeParse(formObject(formDataFromEntryForm()));
+
+    expect(r.success).toBe(true);
+    expect(r.data?.note).toBeNull();
+    expect(r.data?.accountId).toBeNull();
+  });
+
+  it("ช่องเลือกที่ไม่ได้ถูก render ก็ต้องผ่านเหมือนกัน", () => {
+    const fd = formDataFromEntryForm();
+    fd.delete("categoryId");
+    fd.delete("accountId");
+
+    const r = createTransactionSchema.safeParse(formObject(fd));
+
+    expect(r.success).toBe(true);
+    expect(r.data?.categoryId).toBeNull();
+    expect(r.data?.accountId).toBeNull();
   });
 
   it("ปฏิเสธชื่อรายการที่มีแต่ช่องว่าง", () => {

@@ -13,6 +13,7 @@ import {
   SubmitButton,
   fieldError,
 } from "@/components/form-parts";
+import { AccountOptions, CategoryOptions } from "@/components/pickers";
 import type { AccountWithBalance } from "@/db/queries";
 import type { Category, Direction } from "@/db/schema";
 import { addDays, thaiDate, today } from "@/lib/date";
@@ -36,11 +37,14 @@ export function EntryForm({
   shopId,
   accounts,
   categories,
+  lastAccountId,
   titleHints,
 }: {
   shopId: string;
   accounts: AccountWithBalance[];
   categories: Category[];
+  /** บัญชีที่ร้านนี้ใช้ลงรายการล่าสุด — ใช้เป็นค่าตั้งต้นของช่องบัญชี */
+  lastAccountId: string | null;
   titleHints: Record<Direction, TitleHint[]>;
 }) {
   const [state, formAction] = useActionState(createTransaction, IDLE);
@@ -61,7 +65,8 @@ export function EntryForm({
    * ตอนคนเลือก "ไม่ระบุ" ระบบจะนึกว่ายังไม่ได้เลือกแล้วเด้งกลับไปตัวแรกทันที
    */
   const [categoryId, setCategoryId] = useState<string | null>(null);
-  const [accountId, setAccountId] = useState("");
+  /** สามสถานะเหมือนประเภทข้างบน null = ยังไม่ได้เลือกเอง "" = เลือกไม่ระบุไว้ */
+  const [accountId, setAccountId] = useState<string | null>(null);
   const [title, setTitle] = useState("");
   const [amount, setAmount] = useState("");
   const [note, setNote] = useState("");
@@ -91,6 +96,27 @@ export function EntryForm({
 
   const effectiveCategoryId =
     chosen && stillUsable ? categoryId : (visibleCategories[0]?.id ?? "");
+
+  /**
+   * บัญชีตั้งต้น เรียงตามลำดับนี้ — ที่เลือกเอง → ที่ใช้ล่าสุด → ตัวแรกในรายการ
+   *
+   * เดิมตั้งต้นเป็น "ไม่ระบุ" ซึ่งดูเป็นกลางดี แต่ผลจริงคือรายการที่ลงเร็วๆ
+   * ไม่ผูกกับบัญชีไหนเลย ยอดคงเหลือเลยไม่ขยับทั้งที่เงินเข้าออกจริง
+   * เดาบัญชีให้แล้วเลือกผิดยังเห็นและแก้ได้ แต่ไม่เลือกให้เลยแล้วยอดนิ่ง
+   * ไม่มีอะไรบอกว่าผิด กว่าจะรู้ก็ต้องไล่แก้ย้อนหลังทีละรายการ
+   *
+   * เช็คว่ายังอยู่ในรายการไหมด้วย เพราะบัญชีที่ใช้ล่าสุดอาจถูกปิดไปแล้ว
+   * ถ้าไม่เช็คแล้วส่งค่าที่ไม่มีในตัวเลือก เบราว์เซอร์จะเด้งไปตัวแรกเงียบๆ
+   */
+  const accountChosen = accountId !== null;
+  const accountUsable = accountId === "" || accounts.some((a) => a.id === accountId);
+  const fallbackAccountId =
+    (lastAccountId && accounts.some((a) => a.id === lastAccountId) ? lastAccountId : null) ??
+    accounts[0]?.id ??
+    "";
+
+  const effectiveAccountId =
+    accountChosen && accountUsable ? accountId : fallbackAccountId;
 
   /**
    * ล้างช่องที่ต้องกรอกใหม่ทุกครั้ง หลังบันทึกสำเร็จ
@@ -187,13 +213,7 @@ export function EntryForm({
               onChange={(e) => setCategoryId(e.target.value)}
               className="flex-1"
             >
-              <option value="">— ไม่ระบุ —</option>
-              {visibleCategories.map((c) => (
-                <option key={c.id} value={c.id}>
-                  {c.name}
-                  {c.counts ? "" : "  (ไม่นับเป็นกำไร)"}
-                </option>
-              ))}
+              <CategoryOptions categories={visibleCategories} />
             </Select>
             <button
               type="button"
@@ -220,16 +240,10 @@ export function EntryForm({
           <Select
             id="account"
             name="accountId"
-            value={accountId}
+            value={effectiveAccountId}
             onChange={(e) => setAccountId(e.target.value)}
           >
-            <option value="">— ไม่ระบุ —</option>
-            {accounts.map((a) => (
-              <option key={a.id} value={a.id}>
-                {a.name}
-                {a.shopId === null ? "  (ใช้ร่วม)" : ""}
-              </option>
-            ))}
+            <AccountOptions accounts={accounts} />
           </Select>
         </Field>
 
@@ -277,31 +291,18 @@ export function EntryForm({
         <StatusMessage state={state} />
 
         {/**
-         * ปุ่มบันทึกลอยติดอยู่เหนือแถบเมนู ไม่ไหลไปตามฟอร์ม
+         * ปุ่มบันทึกไหลไปตามฟอร์มตามปกติ ไม่ได้ลอยติดขอบจอ
          *
-         * วัดแล้วว่าถ้าปล่อยให้ไหลตามปกติ ปุ่มจะอยู่ต่ำกว่าขอบจอ 126px
-         * บนจอ 375x750 และราว 209px บนจอเล็กอย่าง iPhone SE
-         * แปลว่าต้องเลื่อนก่อนกดทุกครั้งที่ลงรายการ ซึ่งวันหนึ่งลงหลายสิบครั้ง
+         * เคยทำเป็นปุ่มลอย (sticky) เพื่อไม่ต้องเลื่อนก่อนกด แต่แลกมาด้วย
+         * ปุ่มที่ทับเนื้อหาอยู่ตลอดเวลา ต้องมีแถบไล่สีมากลบรอยต่อ และมีกฎ
+         * แยกสำหรับจอใหญ่อีกชุด ทั้งหมดเพื่อประหยัดการเลื่อนนิ้วครั้งเดียว
          *
-         * แค่ยุบหมายเหตุกับสลับลำดับช่วยได้ราว 139px ซึ่งพอสำหรับจอใหญ่
-         * แต่ไม่พอสำหรับจอเล็ก ปุ่มลอยจึงเป็นทางเดียวที่แก้ได้ทุกขนาดจอ
-         *
-         * บนจอ md ขึ้นไปไม่ต้องลอย เพราะฟอร์มพอดีจออยู่แล้ว
+         * ปุ่มธรรมดาที่อยู่ท้ายฟอร์มอ่านง่ายกว่าและเดาตำแหน่งได้ — ฟอร์มจบตรงไหน
+         * ปุ่มอยู่ตรงนั้น ไม่ต้องมีอะไรพิเศษให้พังทีหลัง
          */}
-        <div
-          className={cn(
-            "sticky bottom-[calc(4.75rem+env(safe-area-inset-bottom))] z-20",
-            // แถบไล่สีบางๆ ใต้ปุ่ม ทำให้เนื้อหาที่เลื่อนลอดใต้ปุ่มค่อยๆ จางหาย
-            // แทนที่จะโผล่มาชนขอบปุ่มตรงๆ ซึ่งดูเหมือนของวางทับกันผิดที่
-            "before:pointer-events-none before:absolute before:inset-x-0 before:-bottom-4",
-            "before:h-8 before:bg-gradient-to-b before:from-transparent before:to-surface",
-            "md:static md:bottom-auto md:before:hidden",
-          )}
-        >
-          <SubmitButton className="relative w-full shadow-lg" disabled={!canSubmit}>
-            บันทึกรายการ
-          </SubmitButton>
-        </div>
+        <SubmitButton className="w-full" disabled={!canSubmit}>
+          บันทึกรายการ
+        </SubmitButton>
       </form>
 
       {/* ต้องอยู่นอก <form> ข้างบน เพราะ HTML ไม่อนุญาตให้ form ซ้อน form */}
@@ -310,7 +311,8 @@ export function EntryForm({
         onClose={() => setSheetOpen(false)}
         shopId={shopId}
         direction={direction}
-        onCreated={() => undefined}
+        // เลือกประเภทที่เพิ่งสร้างไว้ให้เลย คนกดเพิ่มตอนกำลังจะใช้มันพอดี
+        onCreated={setCategoryId}
       />
     </>
   );

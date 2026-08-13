@@ -46,21 +46,22 @@ export function DangerActions({
   const [confirming, setConfirming] = useState(false);
 
   /**
-   * ยกเลิกการยืนยันลบที่ค้างอยู่ เมื่อเปลี่ยนไปแก้อันอื่น หรือเมื่อการลบล้มเหลว
-   *
-   * ถ้าไม่ล้าง เปิดอันถัดมาแล้วจะเจอปุ่ม "ยืนยันลบ" รออยู่ ซึ่งกดพลาดได้ทันที
+   * ลบไม่สำเร็จแล้วถอยกลับไปหน้าปุ่มปกติ ไม่ค้างอยู่ที่ "ยืนยันลบ"
+   * ซึ่งกดซ้ำแล้วจะพยายามลบวนอยู่อย่างนั้นโดยไม่ทันได้อ่านว่าพลาดเพราะอะไร
    *
    * ปรับ state ตอน render โดยเทียบกับค่าที่เห็นล่าสุด เป็นวิธีที่ React แนะนำ
    * สำหรับ "แก้ state เมื่อค่าที่รับเข้ามาเปลี่ยน" React จะทิ้งผลของ render
    * รอบนี้แล้วเริ่มใหม่ทันทีโดยยังไม่วาดลงจอ ต่างจากการทำใน effect
    * ที่วาดสถานะเก่าลงจอไปแล้วรอบหนึ่งก่อน
+   *
+   * ไม่ต้องเช็คว่า id เปลี่ยนไหม เพราะแผ่นที่เรียกใช้ผูก key ไว้กับ id อยู่แล้ว
+   * เปลี่ยนของที่กำลังแก้เมื่อไหร่ คอมโพเนนต์นี้ถูกสร้างใหม่ทั้งตัว
    */
-  const [seen, setSeen] = useState({ id, deleteState });
+  const [seenDelete, setSeenDelete] = useState(deleteState);
 
-  if (seen.id !== id || seen.deleteState !== deleteState) {
-    setSeen({ id, deleteState });
-
-    if (seen.id !== id || deleteState.status === "error") setConfirming(false);
+  if (seenDelete !== deleteState) {
+    setSeenDelete(deleteState);
+    if (deleteState.status === "error") setConfirming(false);
   }
 
   // ปิดแผ่นเมื่อทำสำเร็จ ไม่งั้นจะค้างอยู่หน้าที่แสดงของที่เพิ่งลบไป

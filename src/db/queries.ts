@@ -1,5 +1,18 @@
 import "server-only";
-import { and, asc, count, desc, eq, gte, ilike, isNull, lte, or, sql } from "drizzle-orm";
+import {
+  and,
+  asc,
+  count,
+  desc,
+  eq,
+  gte,
+  ilike,
+  isNotNull,
+  isNull,
+  lte,
+  or,
+  sql,
+} from "drizzle-orm";
 import { db } from "./index";
 import { accounts, categories, shops, transactions } from "./schema";
 import type { Account, Category, Direction, Shop } from "./schema";
@@ -232,6 +245,26 @@ export async function listCategories(shopId: string): Promise<Category[]> {
       asc(categories.sortOrder),
       asc(categories.name),
     );
+}
+
+/**
+ * ชุดประเภทตั้งต้นเคยถูกใส่เข้าระบบแล้วหรือยัง
+ *
+ * ดูจากการมีประเภท "ของกลาง" (shop_id ว่าง) อยู่สักตัว เพราะชุดตั้งต้นถูกใส่
+ * เป็นของกลางเสมอ ส่วนประเภทที่คนใช้สร้างเองจากหน้าตั้งค่าจะผูกกับร้านเสมอ
+ * เงื่อนไขนี้จึงแยกสองอย่างนี้ออกจากกันได้โดยไม่ต้องไล่เทียบชื่อทีละตัว
+ *
+ * ใช้ตัดสินว่าจะโชว์ปุ่ม "เพิ่มชุดตั้งต้น" ในหน้าตั้งค่าไหม กดครั้งเดียวแล้ว
+ * ปุ่มจะหายไปเอง ไม่ค้างเป็นปุ่มที่กดแล้วไม่เกิดอะไรขึ้น
+ */
+export async function hasDefaultCategories(): Promise<boolean> {
+  const [row] = await db
+    .select({ id: categories.id })
+    .from(categories)
+    .where(and(isNull(categories.shopId), eq(categories.isDeleted, false)))
+    .limit(1);
+
+  return Boolean(row);
 }
 
 /** รวมประเภทที่ปิดใช้งานไว้ด้วย ใช้เฉพาะหน้าตั้งค่า */
@@ -486,6 +519,36 @@ export async function listRecentTitles(
     .groupBy(transactions.title)
     .orderBy(desc(count()), desc(sql`max(${transactions.createdAt})`))
     .limit(40);
+}
+
+/**
+ * บัญชีที่ร้านนี้ใช้ลงรายการล่าสุด ใช้เป็นค่าตั้งต้นของช่องบัญชีในฟอร์ม
+ *
+ * ที่ต้องมีเพราะเดิมช่องบัญชีตั้งต้นเป็น "ไม่ระบุ" รายการที่ลงเร็วๆ จึงไม่ผูก
+ * กับบัญชีไหนเลย แล้วยอดคงเหลือไม่ขยับทั้งที่เงินเข้าออกจริง กว่าจะรู้ตัว
+ * ก็ต้องไล่แก้ย้อนหลังทีละรายการ
+ *
+ * เลือก "ล่าสุดที่ใช้" แทน "ตัวแรกในรายการ" เพราะร้านมักรับเงินเข้าทางเดิม
+ * ติดกันหลายรายการ ส่วนตัวแรกในรายการเป็นแค่ลำดับที่ตั้งไว้ ไม่ได้บอกอะไร
+ *
+ * เรียงด้วย created_at ไม่ใช่ txn_date เพราะอยากได้ "ที่เพิ่งพิมพ์ไป"
+ * ไม่ใช่ "ของวันที่ใหม่ที่สุด" — คนลงรายการย้อนหลังของเมื่อวานได้ตลอด
+ */
+export async function lastUsedAccountId(shopId: string): Promise<string | null> {
+  const [row] = await db
+    .select({ accountId: transactions.accountId })
+    .from(transactions)
+    .where(
+      and(
+        eq(transactions.shopId, shopId),
+        eq(transactions.isDeleted, false),
+        isNotNull(transactions.accountId),
+      ),
+    )
+    .orderBy(desc(transactions.createdAt))
+    .limit(1);
+
+  return row?.accountId ?? null;
 }
 
 /* ------------------------------------------------------------------ */

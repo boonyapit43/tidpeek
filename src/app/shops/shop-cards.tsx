@@ -142,89 +142,94 @@ function EnterShopButton({ shop }: { shop: ShopCardData }) {
  * ที่อ่านผ่านไป
  */
 function EditShopSheet({ shop, onClose }: { shop: ShopCardData | null; onClose: () => void }) {
+  return (
+    <Sheet open={shop !== null} onClose={onClose} title="แก้ไขร้าน">
+      {/* key ผูกกับร้าน ทั้งฟอร์มและสถานะจึงเริ่มใหม่ทุกครั้งที่เปลี่ยนร้าน
+          ไม่มีข้อความผลลัพธ์หรือปุ่ม "ยืนยันลบ" ของร้านก่อนหน้าค้างมา */}
+      {shop && <EditShopForm key={shop.id} shop={shop} onDone={onClose} />}
+    </Sheet>
+  );
+}
+
+function EditShopForm({ shop, onDone }: { shop: ShopCardData; onDone: () => void }) {
   const [renameState, rename] = useActionState(updateShop, IDLE);
   const [deleteState, remove] = useActionState(deleteShop, IDLE);
   const [confirming, setConfirming] = useState(false);
 
-  // เปลี่ยนร้านที่กำลังแก้แล้วต้องยกเลิกการยืนยันลบที่ค้างอยู่
-  // ไม่งั้นเปิดร้านถัดมาแล้วเจอปุ่ม "ยืนยันลบ" รออยู่ ซึ่งกดพลาดได้ทันที
-  const [seen, setSeen] = useState({ id: shop?.id ?? null, deleteState });
+  // ลบไม่สำเร็จแล้วต้องถอยกลับไปหน้าปุ่มปกติ ไม่ค้างที่ "ยืนยันลบ"
+  // ซึ่งกดซ้ำแล้วจะพยายามลบวนอยู่อย่างนั้นโดยไม่ได้อ่านว่าพลาดเพราะอะไร
+  const [seenDelete, setSeenDelete] = useState(deleteState);
 
-  if (seen.id !== (shop?.id ?? null) || seen.deleteState !== deleteState) {
-    setSeen({ id: shop?.id ?? null, deleteState });
-
-    if (seen.id !== (shop?.id ?? null) || deleteState.status === "error") setConfirming(false);
+  if (seenDelete !== deleteState) {
+    setSeenDelete(deleteState);
+    if (deleteState.status === "error") setConfirming(false);
   }
 
   useEffect(() => {
-    if (renameState.status === "ok" || deleteState.status === "ok") onClose();
+    if (renameState.status === "ok" || deleteState.status === "ok") onDone();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [renameState, deleteState]);
 
   return (
-    <Sheet open={shop !== null} onClose={onClose} title="แก้ไขร้าน">
-      {shop && (
-        <>
-          <form key={shop.id} action={rename} className="space-y-4">
-            <input type="hidden" name="id" value={shop.id} />
+    <>
+      <form action={rename} className="space-y-4">
+        <input type="hidden" name="id" value={shop.id} />
 
-            <Field label="ชื่อร้าน" htmlFor="shop-name">
-              <Input
-                id="shop-name"
-                name="name"
-                defaultValue={shop.name}
-                required
-                maxLength={120}
-                enterKeyHint="done"
-              />
-            </Field>
+        <Field label="ชื่อร้าน" htmlFor="shop-name">
+          <Input
+            id="shop-name"
+            name="name"
+            defaultValue={shop.name}
+            required
+            maxLength={120}
+            enterKeyHint="done"
+          />
+        </Field>
 
-            <StatusMessage state={renameState} />
-            <SubmitButton className="w-full">บันทึกชื่อใหม่</SubmitButton>
-          </form>
+        <StatusMessage state={renameState} />
+        <SubmitButton className="w-full">บันทึกชื่อใหม่</SubmitButton>
+      </form>
 
-          <div className="mt-3 space-y-2 border-t border-line pt-3">
-            <StatusMessage state={deleteState} />
+      <div className="mt-3 space-y-2 border-t border-line pt-3">
+        <StatusMessage state={deleteState} />
 
-            {confirming ? (
-              <>
-                {/* เหลือแต่จำนวนรายการที่จะหายไป ซึ่งเป็นตัวเลขที่ทำให้คนหยุดคิด
-                    คำอธิบายอื่นตัดออก เพราะยาวแล้วคนอ่านผ่านอยู่ดี */}
-                <p className="rounded-xl bg-expense-soft px-3 py-2 text-xs text-expense">
-                  {shop.totalCount === 0
-                    ? "ลบร้านนี้"
-                    : `ลบร้านนี้ พร้อมรายการทั้งหมด ${shop.totalCount} รายการ`}
-                </p>
+        {confirming ? (
+          <>
+            {/* เหลือแต่จำนวนรายการที่จะหายไป ซึ่งเป็นตัวเลขที่ทำให้คนหยุดคิด
+                คำอธิบายอื่นตัดออก เพราะยาวแล้วคนอ่านผ่านอยู่ดี */}
+            <p className="rounded-xl bg-expense-soft px-3 py-2 text-xs text-expense">
+              {shop.totalCount === 0
+                ? "ลบร้านนี้"
+                : `ลบร้านนี้ พร้อมรายการทั้งหมด ${shop.totalCount} รายการ`}
+            </p>
 
-                <form action={remove} className="flex gap-2">
-                  <input type="hidden" name="id" value={shop.id} />
+            <form action={remove} className="flex gap-2">
+              <input type="hidden" name="id" value={shop.id} />
 
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    className="flex-1"
-                    onClick={() => setConfirming(false)}
-                  >
-                    ยกเลิก
-                  </Button>
-                  <SubmitButton variant="danger" className="flex-1" pendingLabel="กำลังลบ">
-                    ยืนยันลบ
-                  </SubmitButton>
-                </form>
-              </>
-            ) : (
               <Button
                 type="button"
-                variant="danger"
-                className="w-full"
-                onClick={() => setConfirming(true)}
+                variant="ghost"
+                className="flex-1"
+                onClick={() => setConfirming(false)}
               >
-                ลบร้าน
+                ยกเลิก
               </Button>
-            )}
-          </div>
-        </>
-      )}
-    </Sheet>
+              <SubmitButton variant="danger" className="flex-1" pendingLabel="กำลังลบ">
+                ยืนยันลบ
+              </SubmitButton>
+            </form>
+          </>
+        ) : (
+          <Button
+            type="button"
+            variant="danger"
+            className="w-full"
+            onClick={() => setConfirming(true)}
+          >
+            ลบร้าน
+          </Button>
+        )}
+      </div>
+    </>
   );
 }

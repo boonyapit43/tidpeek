@@ -74,19 +74,36 @@ export const accountKindSchema = z.enum(ACCOUNT_KINDS);
 
 const nameSchema = z.string().trim().min(1, "ใส่ชื่อด้วย").max(120, "ชื่อยาวเกินไป");
 
-/** ช่องที่ไม่บังคับ — ฟอร์ม HTML ส่ง "" มาเสมอ ต้องแปลงเป็น null เอง */
+/**
+ * ช่องที่ไม่บังคับ
+ *
+ * ต้องรับได้ทั้งสามแบบ ไม่ใช่แค่สองแบบ
+ *   "ค่าที่กรอก"  ปกติ
+ *   ""            ช่องอยู่ในหน้าแต่ปล่อยว่างไว้
+ *   undefined     ช่องไม่ได้อยู่ในหน้าเลย
+ *
+ * แบบที่สามคือแบบที่พลาดกันบ่อยที่สุด FormData เก็บเฉพาะ input ที่มีอยู่จริง
+ * ในหน้า ณ ตอนกดส่ง ช่องที่ถูกยุบไว้ ถูกซ่อน หรือ checkbox ที่ไม่ได้ติ๊ก
+ * จะไม่มีคีย์ติดมาเลย ไม่ใช่มีแล้วเป็นค่าว่าง
+ *
+ * ก่อนหน้านี้เขียน .nullable() ไว้ซึ่งรับได้แค่ null กับ string พอช่อง
+ * หมายเหตุถูกยุบไว้ (ซึ่งเป็นสถานะตั้งต้น) Zod จึงปฏิเสธทั้งฟอร์มด้วย
+ * ข้อความภาษาอังกฤษว่า expected string, received undefined — ทั้งที่ป้าย
+ * บอกว่าช่องนี้ไม่บังคับ
+ */
 const optionalText = (max: number) =>
   z
     .string()
     .trim()
     .max(max, "ข้อความยาวเกินไป")
-    .transform((v) => (v === "" ? null : v))
-    .nullable();
+    .nullish()
+    .transform((v) => v || null);
 
-/** id ที่ไม่บังคับ — ฟอร์มส่ง "" มาเมื่อไม่ได้เลือกอะไร */
+/** id ที่ไม่บังคับ — ไม่ได้เลือกจะได้ "" ส่วนช่องที่ไม่มีในหน้าจะไม่มีคีย์เลย */
 const optionalId = z
   .union([z.uuid("รหัสอ้างอิงไม่ถูกต้อง"), z.literal("")])
-  .transform((v) => (v === "" ? null : v));
+  .nullish()
+  .transform((v) => v || null);
 
 /* ------------------------------------------------------------------ */
 /*  รายการเคลื่อนไหว                                                   */
@@ -106,6 +123,9 @@ export const createTransactionSchema = z.object({
 export const updateTransactionSchema = createTransactionSchema.extend({
   id: z.uuid("ไม่พบรายการที่จะแก้ไข"),
 });
+
+/** ใช้กับ action ที่ทำกับทั้งร้าน ไม่ได้เจาะจงแถวไหน */
+export const shopRefSchema = z.object({ shopId: z.uuid() });
 
 /** ใช้กับทุก action ที่อ้างถึงแถวเดียวในร้านหนึ่ง เช่นลบหรือปิดใช้งาน */
 export const rowRefSchema = z.object({

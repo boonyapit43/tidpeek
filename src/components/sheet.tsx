@@ -1,7 +1,20 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useEffect, useLayoutEffect, useRef } from "react";
 import { cn } from "@/lib/cn";
+
+/**
+ * บนเบราว์เซอร์ใช้ useLayoutEffect บนเซิร์ฟเวอร์ใช้ useEffect
+ *
+ * ต้องเป็น layout effect เพราะการเปิดปิด <dialog> ต้องเกิด "ก่อน" เบราว์เซอร์
+ * วาดเฟรมถัดไป เนื้อหาข้างในแผ่นถูก unmount พร้อมกับที่สั่งปิด ถ้าใช้
+ * useEffect ธรรมดาซึ่งทำงานหลังวาดจอ จะเห็นแผ่นเปล่าแวบหนึ่งก่อนหายไป
+ *
+ * ที่ต้องสลับเป็น useEffect บนเซิร์ฟเวอร์ เพราะ React เตือนว่า useLayoutEffect
+ * ไม่มีความหมายตอน render ฝั่งเซิร์ฟเวอร์ ซึ่ง Next.js ทำกับ client component
+ * ทุกตัวอยู่แล้ว
+ */
+const useDialogEffect = typeof window === "undefined" ? useEffect : useLayoutEffect;
 
 /**
  * แผ่นเลื่อนขึ้นจากขอบล่าง ใช้แทน modal กลางจอ
@@ -31,7 +44,7 @@ export function Sheet({
 }) {
   const ref = useRef<HTMLDialogElement>(null);
 
-  useEffect(() => {
+  useDialogEffect(() => {
     const dialog = ref.current;
     if (!dialog) return;
 

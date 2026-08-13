@@ -4,6 +4,7 @@ import { and, eq, isNull, or } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { db } from "@/db";
+import { defaultAccountRows, defaultCategoryRows } from "@/db/defaults";
 import { accounts, categories, shops, transactions } from "@/db/schema";
 import {
   getShop,
@@ -19,6 +20,7 @@ import {
   createShopSchema,
   deleteShopSchema,
   rowRefSchema,
+  shopRefSchema,
   toggleActiveSchema,
   updateAccountSchema,
   updateCategorySchema,
@@ -96,6 +98,24 @@ export async function switchShop(formData: FormData): Promise<void> {
   redirect("/");
 }
 
+/**
+ * เพิ่มร้าน พร้อมของที่ต้องมีถึงจะเริ่มลงรายการได้จริง
+ *
+ * ร้านเปล่าๆ ใช้งานไม่ได้ ทั้งช่องประเภทและช่องบัญชีจะเหลือแค่ "— ไม่ระบุ —"
+ * แล้วคนใช้ต้องไปสร้างเองทีละตัวก่อนถึงจะบันทึกรายการแรกได้ ซึ่งเป็นกำแพง
+ * ที่ไม่มีเหตุผลจะมี ในเมื่อรู้อยู่แล้วว่าทุกร้านต้องใช้อะไรบ้าง
+ *
+ * ทำไมบัญชีผูกกับร้าน แต่ประเภทเป็นของกลาง
+ *   บัญชี   เงินสดของสองร้านคือคนละลิ้นชัก ถ้าใส่เป็นของกลางแล้วเปิดร้านที่สอง
+ *           ยอดเงินสดจะปนกันทันทีและแยกกลับไม่ได้ ถ้าจริงๆ มีบัญชีธนาคารใบเดียว
+ *           ที่ใช้สองร้าน ค่อยติ๊ก "ใช้ร่วมกันทุกร้าน" ตอนเพิ่มบัญชีนั้น
+ *   ประเภท  "ขายหน้าร้าน" ของสองร้านคือความหมายเดียวกัน ถ้าแยกเป็นของใครของมัน
+ *           จะได้ประเภทซ้ำสองชุดโดยไม่ได้อะไรเพิ่ม จึงใส่ครั้งเดียวแล้วใช้ร่วมกัน
+ *           ร้านที่สองขึ้นไปเลยไม่ต้องใส่ซ้ำ
+ *
+ * ทั้งหมดอยู่ใน transaction เดียว ถ้าใส่ประเภทไม่สำเร็จ ร้านต้องไม่ถูกสร้าง
+ * ค้างไว้แบบใช้งานไม่ได้ ให้ล้มทั้งก้อนแล้วกดใหม่ดีกว่า
+ */
 export async function createShop(_prev: ActionState, formData: FormData): Promise<ActionState> {
   return runAction(async () => {
     if (!(await hasSession())) return UNAUTHORIZED;
@@ -103,13 +123,27 @@ export async function createShop(_prev: ActionState, formData: FormData): Promis
     const parsed = createShopSchema.safeParse(formObject(formData));
     if (!parsed.success) return invalid(parsed.error);
 
-    await db.insert(shops).values({
-      name: parsed.data.name,
-      sortOrder: await nextShopSortOrder(),
+    const sortOrder = await nextShopSortOrder();
+
+    await db.transaction(async (tx) => {
+      const [shop] = await tx
+        .insert(shops)
+        .values({ name: parsed.data.name, sortOrder })
+        .returning({ id: shops.id });
+
+      await tx.insert(accounts).values(defaultAccountRows(shop.id));
+
+      const [sharedCategory] = await tx
+        .select({ id: categories.id })
+        .from(categories)
+        .where(and(isNull(categories.shopId), eq(categories.isDeleted, false)))
+        .limit(1);
+
+      if (!sharedCategory) await tx.insert(categories).values(defaultCategoryRows(null));
     });
 
     revalidateAll();
-    return succeeded("เพิ่มร้านแล้ว");
+    return succeeded("เพิ่มร้านแล้ว พร้อมบัญชีเงินสดและประเภทตั้งต้น");
   });
 }
 
@@ -326,16 +360,80 @@ export async function createCategory(
     const input = parsed.data;
     if (!(await getShop(input.shopId))) return SHOP_NOT_FOUND;
 
-    await db.insert(categories).values({
-      shopId: input.shopId,
-      direction: input.direction,
-      name: input.name,
-      counts: input.counts,
-      sortOrder: await nextCategorySortOrder(input.shopId, input.direction),
-    });
+    const [created] = await db
+      .insert(categories)
+      .values({
+        shopId: input.shopId,
+        direction: input.direction,
+        name: input.name,
+        counts: input.counts,
+        sortOrder: await nextCategorySortOrder(input.shopId, input.direction),
+      })
+      .returning({ id: categories.id });
 
     revalidateAll();
-    return succeeded("เพิ่มประเภทแล้ว");
+    // คืน id กลับไปด้วย ฟอร์มบันทึกรายการจะได้เลือกประเภทที่เพิ่งสร้างให้เลย
+    // ไม่ต้องให้คนไปหาเองในดรอปดาวน์ที่เพิ่งยาวขึ้นอีกหนึ่งบรรทัด
+    return succeeded("เพิ่มประเภทแล้ว", created.id);
+  });
+}
+
+/**
+ * เติมชุดประเภทตั้งต้นให้ร้านที่ยังไม่เคยได้
+ *
+ * มีไว้สำหรับร้านที่ถูกสร้างก่อนที่ createShop จะใส่ชุดตั้งต้นให้ ซึ่งเจอ
+ * ของจริงมาแล้ว คือร้านที่มีประเภทอยู่แค่สามสี่ตัวที่พิมพ์เองตอนรีบลงรายการ
+ *
+ * ข้ามชื่อที่มีอยู่แล้ว เทียบทั้งฝั่งและชื่อ กด(ซ้ำ)แล้วจะไม่ได้ของซ้ำ
+ * และวางต่อท้ายของเดิมเสมอ ประเภทที่คนใช้สร้างเองยังอยู่บนสุดของดรอปดาวน์
+ * เพราะเป็นตัวที่เลือกบ่อยกว่า
+ */
+export async function addDefaultCategories(
+  _prev: ActionState,
+  formData: FormData,
+): Promise<ActionState> {
+  return runAction(async () => {
+    if (!(await hasSession())) return UNAUTHORIZED;
+
+    const parsed = shopRefSchema.safeParse(formObject(formData));
+    if (!parsed.success) return invalid(parsed.error);
+
+    const { shopId } = parsed.data;
+    if (!(await getShop(shopId))) return SHOP_NOT_FOUND;
+
+    const existing = await db
+      .select({ direction: categories.direction, name: categories.name })
+      .from(categories)
+      .where(
+        and(
+          eq(categories.isDeleted, false),
+          or(isNull(categories.shopId), eq(categories.shopId, shopId)),
+        ),
+      );
+
+    // " " กันชื่อที่มีขีดกลางไปชนกับตัวคั่นเอง เป็นอักขระที่ไม่มีในชื่อจริง
+    const key = (c: { direction: string; name: string }) => `${c.direction} ${c.name}`;
+    const taken = new Set(existing.map(key));
+
+    const [inBase, outBase] = await Promise.all([
+      nextCategorySortOrder(shopId, "in"),
+      nextCategorySortOrder(shopId, "out"),
+    ]);
+
+    const rows = defaultCategoryRows(null)
+      .filter((c) => !taken.has(key(c)))
+      // sortOrder ที่ติดมาคือลำดับภายในชุดตั้งต้น เลื่อนทั้งชุดไปต่อท้ายของเดิม
+      .map((c) => ({
+        ...c,
+        sortOrder: (c.direction === "in" ? inBase : outBase) + c.sortOrder - 1,
+      }));
+
+    if (rows.length === 0) return succeeded("มีประเภทตั้งต้นครบอยู่แล้ว");
+
+    await db.insert(categories).values(rows);
+
+    revalidateAll();
+    return succeeded(`เพิ่มประเภทตั้งต้น ${rows.length} รายการแล้ว`);
   });
 }
 

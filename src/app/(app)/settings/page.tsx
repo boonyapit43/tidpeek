@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { listAllAccountsForShop, listAllCategories } from "@/db/queries";
+import { hasDefaultCategories, listAllAccountsForShop, listAllCategories } from "@/db/queries";
 import { getShopContext } from "@/lib/shop";
 import { AccountManager } from "./account-manager";
 import { CategoryManager } from "./category-manager";
@@ -26,15 +26,22 @@ export default async function SettingsPage() {
   const { shop } = context;
 
   // ดึงรวมของที่ปิดใช้งานไว้ด้วย เพื่อให้เปิดกลับมาได้จากหน้านี้
-  const [accounts, categories] = await Promise.all([
+  const [accounts, categories, hasDefaults] = await Promise.all([
     listAllAccountsForShop(shop.id),
     listAllCategories(shop.id),
+    hasDefaultCategories(),
   ]);
 
   return (
     <div className="space-y-3">
       <AccountManager shopId={shop.id} accounts={accounts} />
-      <CategoryManager shopId={shop.id} categories={categories} />
+      <CategoryManager
+        shopId={shop.id}
+        categories={categories}
+        // ร้านที่สร้างก่อนที่ระบบจะใส่ชุดตั้งต้นให้อัตโนมัติ จะยังไม่มีของกลาง
+        // เลยสักตัว ปุ่มเติมชุดตั้งต้นจึงโผล่เฉพาะกรณีนั้น กดแล้วหายไปเอง
+        canAddDefaults={!hasDefaults}
+      />
       <ExportSection />
     </div>
   );

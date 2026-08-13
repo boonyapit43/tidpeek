@@ -201,8 +201,7 @@ export function StatusMessage({ state }: { state: ActionState }) {
   if (state.status === "idle") return null;
 
   const ok = state.status === "ok";
-  const text = ok ? state.message : state.message;
-  if (!text) return null;
+  if (!state.message) return null;
 
   return (
     <p
@@ -214,7 +213,7 @@ export function StatusMessage({ state }: { state: ActionState }) {
         ok ? "bg-income-soft text-income" : "bg-expense-soft text-expense",
       )}
     >
-      {text}
+      {state.message}
     </p>
   );
 }

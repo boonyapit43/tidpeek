@@ -44,6 +44,14 @@ export function AddShopButton({ autoFocus = false }: { autoFocus?: boolean }) {
   );
 }
 
+/**
+ * ฟอร์มถูกสร้างใหม่ทุกครั้งที่เปิดแผ่น ({open && ...})
+ *
+ * ถ้าปล่อยให้ค้างอยู่ตลอด ทั้งชื่อที่พิมพ์ไว้และข้อความผลลัพธ์ของครั้งก่อน
+ * จะยังอยู่ตอนเปิดใหม่ ผลคือเปิดแผ่น "เพิ่มร้าน" แล้วเจอข้อความ "เพิ่มร้านแล้ว"
+ * ทั้งที่ยังไม่ได้ทำอะไร และช่องชื่อมีชื่อร้านที่เพิ่งเพิ่มไปค้างอยู่
+ * ซึ่งกดต่อไปจะได้ร้านชื่อซ้ำ
+ */
 function AddShopSheet({
   open,
   onClose,
@@ -53,31 +61,37 @@ function AddShopSheet({
   onClose: () => void;
   autoFocus: boolean;
 }) {
+  return (
+    <Sheet open={open} onClose={onClose} title="เพิ่มร้าน">
+      {open && <AddShopForm onDone={onClose} autoFocus={autoFocus} />}
+    </Sheet>
+  );
+}
+
+function AddShopForm({ onDone, autoFocus }: { onDone: () => void; autoFocus: boolean }) {
   const [state, formAction] = useActionState(createShop, IDLE);
 
   useEffect(() => {
-    if (state.status === "ok") onClose();
+    if (state.status === "ok") onDone();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [state]);
 
   return (
-    <Sheet open={open} onClose={onClose} title="เพิ่มร้าน">
-      <form action={formAction} className="space-y-4">
-        <Field label="ชื่อร้าน" htmlFor="new-shop-name">
-          <Input
-            id="new-shop-name"
-            name="name"
-            required
-            maxLength={120}
-            autoFocus={autoFocus}
-            placeholder="เช่น ร้านหน้าบ้าน"
-            enterKeyHint="done"
-          />
-        </Field>
+    <form action={formAction} className="space-y-4">
+      <Field label="ชื่อร้าน" htmlFor="new-shop-name">
+        <Input
+          id="new-shop-name"
+          name="name"
+          required
+          maxLength={120}
+          autoFocus={autoFocus}
+          placeholder="เช่น ร้านหน้าบ้าน"
+          enterKeyHint="done"
+        />
+      </Field>
 
-        <StatusMessage state={state} />
-        <SubmitButton className="w-full">เพิ่มร้าน</SubmitButton>
-      </form>
-    </Sheet>
+      <StatusMessage state={state} />
+      <SubmitButton className="w-full">เพิ่มร้าน</SubmitButton>
+    </form>
   );
 }

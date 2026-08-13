@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import {
   getSummary,
+  lastUsedAccountId,
   listAccountsWithBalance,
   listCategories,
   listRecentTitles,
@@ -25,12 +26,13 @@ export default async function EntryPage() {
 
   // ดึงพร้อมกันทั้งหมด ไม่ไล่ await ทีละอัน ไม่งั้นเวลารอจะบวกกันเป็นทอดๆ
   // ซึ่งรู้สึกได้ชัดบนเน็ตมือถือ
-  const [accounts, categories, hintsOut, hintsIn, summary] = await Promise.all([
+  const [accounts, categories, hintsOut, hintsIn, summary, lastAccountId] = await Promise.all([
     listAccountsWithBalance(shopId),
     listCategories(shopId),
     listRecentTitles(shopId, "out"),
     listRecentTitles(shopId, "in"),
     getSummary(shopId, { day }),
+    lastUsedAccountId(shopId),
   ]);
 
   return (
@@ -45,6 +47,7 @@ export default async function EntryPage() {
         shopId={shopId}
         accounts={accounts}
         categories={categories}
+        lastAccountId={lastAccountId}
         titleHints={{
           in: hintsIn.map(({ title, categoryId }) => ({ title, categoryId })),
           out: hintsOut.map(({ title, categoryId }) => ({ title, categoryId })),

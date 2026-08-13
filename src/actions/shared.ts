@@ -8,7 +8,8 @@ import type { z } from "zod";
  */
 export type ActionState =
   | { status: "idle" }
-  | { status: "ok"; message?: string }
+  /** id ของแถวที่เพิ่งสร้าง มีเฉพาะ action ที่ฝั่งฟอร์มต้องเอาไปเลือกต่อทันที */
+  | { status: "ok"; message?: string; id?: string }
   | { status: "error"; message: string; fieldErrors?: Record<string, string[]> };
 
 export const IDLE: ActionState = { status: "idle" };
@@ -56,8 +57,8 @@ export function failed(message: string): ActionState {
   return { status: "error", message };
 }
 
-export function succeeded(message?: string): ActionState {
-  return { status: "ok", message };
+export function succeeded(message?: string, id?: string): ActionState {
+  return { status: "ok", message, id };
 }
 
 export const UNAUTHORIZED = failed("หมดเวลาใช้งานแล้ว กรุณาล็อกอินใหม่");
