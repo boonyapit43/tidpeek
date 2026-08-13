@@ -30,16 +30,30 @@ export default async function AccountsPage({
   if (!context) return null;
 
   const shopId = context.shop.id;
-  const accounts = await listAccountsWithBalance(shopId);
+  const selectedId = (await searchParams).a;
+
+  /**
+   * ยิงสอง query พร้อมกัน ไม่ไล่ await ทีละอัน
+   *
+   * ฐานข้อมูลอยู่ที่มุมไบ วัดแล้วไปกลับครั้งละ ~100ms ส่วนตัว query เองใช้
+   * เวลาแค่ 0.09ms แปลว่าเวลาทั้งหมดคือระยะทาง ไม่ใช่การคำนวณ
+   * ถ้าไล่ทีละอันหน้านี้จะช้าเป็นสองเท่าโดยไม่ได้อะไรเพิ่ม
+   *
+   * ⚠️ ดึงความเคลื่อนไหวก่อนที่จะรู้ว่า id ที่ส่งมาเป็นบัญชีของร้านนี้จริงไหม
+   *    ซึ่งปลอดภัย เพราะผลลัพธ์ถูกส่งต่อไปแสดงก็ต่อเมื่อ selected ไม่ใช่ null
+   *    (คือเจอในรายการบัญชีที่ร้านนี้มองเห็น) ถ้า id เป็นของร้านอื่นหรือมั่วมา
+   *    ข้อมูลที่ดึงมาจะถูกทิ้งไปเฉยๆ ไม่มีทางหลุดไปถึงเบราว์เซอร์
+   */
+  const [accounts, movements] = await Promise.all([
+    listAccountsWithBalance(shopId),
+    selectedId ? listAccountMovements(selectedId) : Promise.resolve([]),
+  ]);
 
   // id จาก URL แก้เองได้ ต้องเทียบกับบัญชีที่ร้านนี้เห็นจริงเสมอ
   // ไม่เจอก็ตกกลับมาหน้ารายการ ดีกว่าโชว์หน้า error
-  const selectedId = (await searchParams).a;
   const selected = accounts.find((a) => a.id === selectedId) ?? null;
 
   if (selected) {
-    const movements = await listAccountMovements(selected.id);
-
     return (
       <div className="space-y-3">
         <BackLink />

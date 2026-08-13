@@ -13,7 +13,12 @@ import { env } from "./env";
  *
  * ตั้งใจไม่ใช้ middleware.ts เพราะมันรันบน Edge runtime ซึ่งโฮสต์ที่ใช้
  * Phusion Passenger (DirectAdmin) รันไม่ได้ การ์ดทั้งหมดจึงอยู่ใน layout
- * และ server action แทน ดู requireSession()
+ * และใน server action ทุกตัว โดยเรียก hasSession() ที่บรรทัดแรก
+ *
+ * ⚠️ server action เป็น endpoint ที่ยิงตรงจากอินเทอร์เน็ตได้ ไม่ได้ถูกป้องกัน
+ *    โดยอัตโนมัติแค่เพราะปุ่มที่เรียกมันอยู่หลังหน้าล็อกอิน เพิ่ม action ใหม่
+ *    เมื่อไหร่ต้องเช็ค hasSession() เองทุกครั้ง — มีเทสใน session.itest.ts
+ *    ที่ยิง action โดยไม่ล็อกอินแล้วยืนยันว่าไม่มีอะไรถูกเขียนลงฐาน
  */
 
 const COOKIE_NAME = "ledger_session";
@@ -81,19 +86,6 @@ export async function hasSession(): Promise<boolean> {
   } catch {
     // ลายเซ็นผิด หมดอายุ หรือถูกแก้ — ทุกกรณีถือว่าไม่ได้ล็อกอิน
     return false;
-  }
-}
-
-/**
- * เรียกที่ต้นทางของทุกอย่างที่แตะข้อมูล — ทั้ง layout, route handler
- * และ server action ทุกตัว
- *
- * server action เป็น endpoint ที่ยิงตรงจากอินเทอร์เน็ตได้ ไม่ได้ถูกป้องกัน
- * โดยอัตโนมัติแค่เพราะปุ่มที่เรียกมันอยู่หลังหน้าล็อกอิน
- */
-export async function requireSession(): Promise<void> {
-  if (!(await hasSession())) {
-    throw new Error("UNAUTHORIZED");
   }
 }
 

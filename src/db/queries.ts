@@ -16,7 +16,7 @@ import {
 import { alias } from "drizzle-orm/pg-core";
 import { db } from "./index";
 import { accounts, categories, shops, transactions, transfers } from "./schema";
-import type { Account, Category, Direction, Shop, Transfer } from "./schema";
+import type { Account, Category, Direction, Shop } from "./schema";
 import { monthRange, yearRange } from "@/lib/date";
 
 /**
@@ -585,55 +585,13 @@ export async function lastUsedAccountId(shopId: string): Promise<string | null> 
 /*  การโอนเงินระหว่างบัญชี                                             */
 /* ------------------------------------------------------------------ */
 
-export type TransferRow = Transfer & {
-  fromName: string;
-  toName: string;
-};
-
+/**
+ * ชื่อบัญชีสองฝั่งของการโอน ต้อง join ตาราง accounts สองครั้ง
+ * จึงต้องตั้งชื่อเล่นให้แต่ละครั้ง ไม่งั้น SQL ไม่รู้ว่า accounts.name
+ * หมายถึงฝั่งไหน
+ */
 const fromAccount = alias(accounts, "from_account");
 const toAccount = alias(accounts, "to_account");
-
-const transferSelection = {
-  id: transfers.id,
-  shopId: transfers.shopId,
-  fromAccountId: transfers.fromAccountId,
-  toAccountId: transfers.toAccountId,
-  txnDate: transfers.txnDate,
-  amount: transfers.amount,
-  note: transfers.note,
-  isDeleted: transfers.isDeleted,
-  createdAt: transfers.createdAt,
-  updatedAt: transfers.updatedAt,
-  fromName: fromAccount.name,
-  toName: toAccount.name,
-};
-
-/** การโอนหนึ่งรายการ ใช้ตอนเปิดฟอร์มแก้ไข */
-export async function getTransfer(shopId: string, id: string): Promise<TransferRow | null> {
-  const [row] = await db
-    .select(transferSelection)
-    .from(transfers)
-    .innerJoin(fromAccount, eq(fromAccount.id, transfers.fromAccountId))
-    .innerJoin(toAccount, eq(toAccount.id, transfers.toAccountId))
-    .where(
-      and(eq(transfers.id, id), eq(transfers.shopId, shopId), eq(transfers.isDeleted, false)),
-    )
-    .limit(1);
-
-  return row ?? null;
-}
-
-/** การโอนของร้านนี้ เรียงใหม่สุดขึ้นก่อน ใช้ที่หน้าบัญชี */
-export async function listTransfers(shopId: string, limit = 30): Promise<TransferRow[]> {
-  return db
-    .select(transferSelection)
-    .from(transfers)
-    .innerJoin(fromAccount, eq(fromAccount.id, transfers.fromAccountId))
-    .innerJoin(toAccount, eq(toAccount.id, transfers.toAccountId))
-    .where(and(eq(transfers.shopId, shopId), eq(transfers.isDeleted, false)))
-    .orderBy(desc(transfers.txnDate), desc(transfers.createdAt))
-    .limit(limit);
-}
 
 /* ------------------------------------------------------------------ */
 /*  ความเคลื่อนไหวรายบัญชี                                             */

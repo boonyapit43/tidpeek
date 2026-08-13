@@ -245,11 +245,15 @@ export const transfers = pgTable(
 export type Shop = typeof shops.$inferSelect;
 export type Account = typeof accounts.$inferSelect;
 export type Category = typeof categories.$inferSelect;
-export type Transaction = typeof transactions.$inferSelect;
-export type Transfer = typeof transfers.$inferSelect;
 
-export type NewShop = typeof shops.$inferInsert;
-export type NewAccount = typeof accounts.$inferInsert;
-export type NewCategory = typeof categories.$inferInsert;
-export type NewTransaction = typeof transactions.$inferInsert;
-export type NewTransfer = typeof transfers.$inferInsert;
+/**
+ * ตั้งใจมีแค่สามตัวนี้ ไม่ได้ประกาศครบทุกตาราง
+ *
+ * เพราะรายการกับการโอนไม่เคยถูกส่งออกไปเป็นแถวดิบๆ — ฝั่งที่ใช้ต้องการชื่อ
+ * ประเภทกับชื่อบัญชีติดไปด้วยเสมอ จึงมี TxnRow กับ MovementRow ใน queries.ts
+ * ที่ตรงกับสิ่งที่หน้าจอใช้จริง ประกาศ type เผื่อไว้เฉยๆ มีแต่จะทำให้คนหยิบ
+ * ตัวที่ใกล้มือไปใช้แล้วต้องมา join ชื่อเพิ่มเองทีหลัง
+ *
+ * ส่วนชนิดสำหรับ insert ไม่ต้องมี เพราะทุกที่ที่เขียนข้อมูลใช้ค่าที่ผ่าน
+ * Zod มาแล้ว ซึ่งมีชนิดของตัวเองอยู่ที่ src/lib/validation.ts
+ */
