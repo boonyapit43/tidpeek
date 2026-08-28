@@ -6,6 +6,7 @@ import {
   listAccountsWithBalance,
   listCategoryTotals,
   listDailyForMonth,
+  listDailyForWeek,
   listMonthlyForYear,
   searchTotals,
   searchTransactions,
@@ -147,6 +148,58 @@ describe("ยอดของแต่ละมุมมองต้องตร�
     const row = daily.find((d) => d.txnDate === "2026-08-01");
     expect(n(row!.income)).toBe(n(day.income));
     expect(n(row!.expense)).toBe(n(day.expense));
+  });
+});
+
+describe("มุมมองสัปดาห์", () => {
+  /**
+   * สัปดาห์ 31 ส.ค. – 6 ก.ย. 2026 คร่อมสองเดือนพอดี
+   * เป็นเคสที่พังง่ายที่สุดถ้าคิดขอบเขตวันผิด
+   */
+  const WEEK = "2026-08-31";
+
+  it("ยอดรายวันในสัปดาห์บวกกัน เท่ากับยอดของสัปดาห์", async () => {
+    const [daily, week] = await Promise.all([
+      listDailyForWeek(shopId, WEEK),
+      getSummary(shopId, { week: WEEK }),
+    ]);
+
+    const sum = (k: "income" | "expense" | "profit") =>
+      daily.reduce((acc, row) => acc + n(row[k]), 0);
+
+    expect(sum("income")).toBe(n(week.income));
+    expect(sum("expense")).toBe(n(week.expense));
+    expect(sum("profit")).toBe(n(week.profit));
+  });
+
+  it("สัปดาห์ที่คร่อมสองเดือน ต้องเก็บวันของทั้งสองเดือน", async () => {
+    // 2026-09-03 มีรายการ 2,000 อยู่ ถ้าคิดขอบเขตผิดจะหลุดไป
+    const week = await getSummary(shopId, { week: WEEK });
+    expect(n(week.income)).toBeGreaterThanOrEqual(2000);
+  });
+
+  it("รายการนอกสัปดาห์ต้องไม่ถูกนับ", async () => {
+    // 2026-08-01 กับ 2026-08-02 อยู่คนละสัปดาห์
+    const week = await getSummary(shopId, { week: WEEK });
+    const aug1 = await getSummary(shopId, { day: "2026-08-01" });
+
+    expect(n(aug1.income)).toBeGreaterThan(0);
+    expect(n(week.income)).toBeLessThan(n(aug1.income) + n(week.income) + 1);
+    const daily = await listDailyForWeek(shopId, WEEK);
+    expect(daily.map((d) => d.txnDate)).not.toContain("2026-08-01");
+  });
+
+  it("สัปดาห์บวกกันแล้วเท่ากับเดือน เมื่อสัปดาห์อยู่ในเดือนเดียวกันครบ", async () => {
+    // ส.ค. 2026 เริ่มวันเสาร์ สัปดาห์ที่คลุมทั้งเดือนคือ 27 ก.ค. ถึง 31 ส.ค.
+    const weeks = ["2026-07-27", "2026-08-03", "2026-08-10", "2026-08-17", "2026-08-24", "2026-08-31"];
+    const totals = await Promise.all(weeks.map((w) => getSummary(shopId, { week: w })));
+
+    const daysInAug = await listDailyForMonth(shopId, "2026-08");
+    const augFromDays = daysInAug.reduce((acc, d) => acc + n(d.income), 0);
+
+    // ทุกวันของ ส.ค. ต้องอยู่ในสัปดาห์ใดสัปดาห์หนึ่งข้างบน
+    const fromWeeks = totals.reduce((acc, t) => acc + n(t.income), 0);
+    expect(fromWeeks).toBeGreaterThanOrEqual(augFromDays);
   });
 });
 

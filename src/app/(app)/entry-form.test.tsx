@@ -68,6 +68,7 @@ const CATEGORIES = [
   category("cat-sale", "ขายหน้าร้าน", "in"),
   category("cat-topup", "เติมทุน", "in", false),
   category("cat-cost", "ซื้อของเข้าร้าน", "out"),
+  category("cat-draw", "ถอนใช้ส่วนตัว", "out", false),
 ];
 
 function setup(props: Partial<React.ComponentProps<typeof EntryForm>> = {}) {
@@ -136,9 +137,17 @@ describe("สิ่งที่ฟอร์มส่งออกไปจริ�
 /* ------------------------------------------------------------------ */
 
 describe("ช่องประเภท", () => {
-  it("เลือกประเภทแรกของฝั่งนั้นไว้ให้ตั้งแต่เปิดหน้า", () => {
-    const { categorySelect } = setup();
-    expect(categorySelect.value).toBe("cat-sale");
+  /**
+   * ฟอร์มตั้งต้นที่ฝั่งจ่ายออก ไม่ใช่รับเข้า
+   *
+   * ของจริงร้านลงรายจ่ายทีละรายการตลอดวัน แล้วลงยอดขายครั้งเดียวตอนปิดร้าน
+   * เป็นจ่าย 6 ต่อรับ 1 — ตั้งผิดด้านเท่ากับกดสลับเพิ่มวันละหกครั้ง
+   */
+  it("เปิดหน้ามาอยู่ฝั่งจ่ายออก และเลือกประเภทแรกของฝั่งนั้นให้", () => {
+    const { categorySelect, form } = setup();
+
+    expect(valueSentBy(form, "direction")).toBe("out");
+    expect(categorySelect.value).toBe("cat-cost");
   });
 
   /**
@@ -157,23 +166,23 @@ describe("ช่องประเภท", () => {
     expect(valueSentBy(form, "categoryId")).toBe("");
   });
 
-  it("สลับไปฝั่งจ่าย แล้วเห็นเฉพาะประเภทของฝั่งจ่าย", async () => {
+  it("สลับไปฝั่งรับ แล้วเห็นเฉพาะประเภทของฝั่งรับ", async () => {
     const user = userEvent.setup();
     const { categorySelect } = setup();
 
-    await user.click(screen.getByRole("button", { name: "จ่ายออก" }));
+    await user.click(screen.getByRole("button", { name: "รับเข้า" }));
 
     const names = [...categorySelect.options].map((o) => o.textContent?.trim());
-    expect(names).toContain("ซื้อของเข้าร้าน");
-    expect(names).not.toContain("ขายหน้าร้าน");
-    expect(categorySelect.value).toBe("cat-cost");
+    expect(names).toContain("ขายหน้าร้าน");
+    expect(names).not.toContain("ซื้อของเข้าร้าน");
+    expect(categorySelect.value).toBe("cat-sale");
   });
 
   it("ประเภทที่ไม่นับเป็นกำไรมีวงเล็บกำกับ ไม่ได้ใช้สีบอกอย่างเดียว", () => {
     const { categorySelect } = setup();
-    const topUp = [...categorySelect.options].find((o) => o.value === "cat-topup");
+    const draw = [...categorySelect.options].find((o) => o.value === "cat-draw");
 
-    expect(topUp?.textContent).toContain("ไม่นับเป็นกำไร");
+    expect(draw?.textContent).toContain("ไม่นับเป็นกำไร");
   });
 });
 

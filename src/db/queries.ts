@@ -17,7 +17,7 @@ import { alias } from "drizzle-orm/pg-core";
 import { db } from "./index";
 import { accounts, categories, shops, transactions, transfers } from "./schema";
 import type { Account, Category, Direction, Shop } from "./schema";
-import { monthRange, yearRange } from "@/lib/date";
+import { monthRange, weekRange, yearRange } from "@/lib/date";
 
 /**
  * การอ่านข้อมูลทั้งหมดของแอปอยู่ในไฟล์นี้ไฟล์เดียว
@@ -780,7 +780,11 @@ const EMPTY_SUMMARY: Summary = {
   excluded: "0",
 };
 
-export type Period = { day: string } | { month: string } | { year: string };
+export type Period =
+  | { day: string }
+  | { week: string }
+  | { month: string }
+  | { year: string };
 
 /**
  * ช่วงวันของทุกมุมมอง — วัน เดือน ปี ต่างกันแค่ขอบเขต ไม่ใช่วิธีคิด
@@ -790,6 +794,7 @@ export type Period = { day: string } | { month: string } | { year: string };
  */
 function rangeOf(period: Period): [string, string] {
   if ("day" in period) return [period.day, period.day];
+  if ("week" in period) return weekRange(period.week);
   if ("month" in period) return monthRange(period.month);
   return yearRange(period.year);
 }
@@ -819,15 +824,30 @@ export async function getSummary(shopId: string, period: Period): Promise<Summar
 
 export type DailyRow = Summary & { txnDate: string; txnCount: number };
 
-/** ยอดรายวันของทั้งเดือน เรียงวันใหม่สุดขึ้นก่อน */
-export async function listDailyForMonth(shopId: string, month: string): Promise<DailyRow[]> {
+/**
+ * ยอดรายวันของช่วงใดก็ได้ เรียงวันใหม่สุดขึ้นก่อน
+ *
+ * ใช้ทั้งมุมมองสัปดาห์และมุมมองเดือน ต่างกันแค่ขอบเขตวันที่ส่งเข้ามา
+ * จึงไม่มีทางที่ยอดรายวันในสองมุมมองจะคิดกันคนละวิธี
+ */
+export async function listDailyIn(shopId: string, period: Period): Promise<DailyRow[]> {
   return db
     .select({ txnDate: transactions.txnDate, txnCount: count(), ...summarySelection })
     .from(transactions)
     .leftJoin(categories, eq(categories.id, transactions.categoryId))
-    .where(scopeOf(shopId, { month }))
+    .where(scopeOf(shopId, period))
     .groupBy(transactions.txnDate)
     .orderBy(desc(transactions.txnDate));
+}
+
+/** ยอดรายวันของทั้งเดือน เรียงวันใหม่สุดขึ้นก่อน */
+export async function listDailyForMonth(shopId: string, month: string): Promise<DailyRow[]> {
+  return listDailyIn(shopId, { month });
+}
+
+/** ยอดรายวันของสัปดาห์ — สัปดาห์แทนด้วยวันจันทร์ของสัปดาห์นั้น */
+export async function listDailyForWeek(shopId: string, week: string): Promise<DailyRow[]> {
+  return listDailyIn(shopId, { week });
 }
 
 export type MonthlyRow = Summary & { month: string; txnCount: number };

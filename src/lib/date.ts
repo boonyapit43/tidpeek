@@ -68,6 +68,54 @@ export function addDays(date: string, days: number): string {
   return shifted.toISOString().slice(0, 10);
 }
 
+/* ------------------------------------------------------------------ */
+/*  สัปดาห์                                                            */
+/* ------------------------------------------------------------------ */
+
+/**
+ * สัปดาห์แทนด้วย "วันจันทร์ของสัปดาห์นั้น" ในรูปแบบ YYYY-MM-DD
+ *
+ * ไม่ใช้เลขสัปดาห์แบบ ISO (2026-W36) เพราะเลขสัปดาห์คร่อมปีแล้วอธิบายยาก
+ * สัปดาห์สุดท้ายของธันวาคมอาจกลายเป็นสัปดาห์ที่ 1 ของปีถัดไป ซึ่งบอกเจ้าของ
+ * ร้านไม่รู้เรื่อง ส่วนวันจันทร์เป็นวันที่จริงที่เปิดปฏิทินดูได้เลย
+ *
+ * เริ่มวันจันทร์ เพราะ "สัปดาห์นี้" ต้องหมายถึงช่วงเดียวกันทุกครั้งที่เปิดดู
+ * ไม่ใช่เลื่อนตามวันที่บังเอิญกดเข้ามา และบวกขึ้นเป็นเดือนได้ตรงกว่า
+ */
+export function weekOf(date: string): string {
+  const [y, m, d] = date.split("-").map(Number);
+  const at = new Date(Date.UTC(y, m - 1, d));
+  // getUTCDay(): อาทิตย์ = 0 · จันทร์ = 1 → เลื่อนให้จันทร์เป็น 0
+  const offset = (at.getUTCDay() + 6) % 7;
+  return addDays(date, -offset);
+}
+
+export function currentWeek(): string {
+  return weekOf(today());
+}
+
+/** [วันจันทร์, วันอาทิตย์] ของสัปดาห์นั้น */
+export function weekRange(weekStart: string): [string, string] {
+  return [weekStart, addDays(weekStart, 6)];
+}
+
+export function addWeeks(weekStart: string, delta: number): string {
+  return addDays(weekStart, delta * 7);
+}
+
+/** "2026-08-24" → "24–30 ส.ค. 69" · คร่อมเดือนได้ "31 ส.ค. – 6 ก.ย. 69" */
+export function thaiWeek(weekStart: string): string {
+  const [, end] = weekRange(weekStart);
+  const [sy, sm, sd] = weekStart.split("-").map(Number);
+  const [ey, em, ed] = end.split("-").map(Number);
+
+  const endYear = String((ey + 543) % 100).padStart(2, "0");
+  if (sm === em) return `${sd}–${ed} ${THAI_MONTHS_SHORT[em - 1]} ${endYear}`;
+
+  const startYear = sy === ey ? "" : ` ${String((sy + 543) % 100).padStart(2, "0")}`;
+  return `${sd} ${THAI_MONTHS_SHORT[sm - 1]}${startYear} – ${ed} ${THAI_MONTHS_SHORT[em - 1]} ${endYear}`;
+}
+
 /** บวกลบเดือน เช่น ("2026-08", -1) → "2026-07" */
 export function addMonths(month: string, delta: number): string {
   const [y, m] = month.split("-").map(Number);

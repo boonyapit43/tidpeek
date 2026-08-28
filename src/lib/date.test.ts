@@ -17,6 +17,11 @@ import {
   today,
   yearOf,
   yearRange,
+  addWeeks,
+  currentWeek,
+  thaiWeek,
+  weekOf,
+  weekRange,
 } from "./date";
 
 afterEach(() => {
@@ -210,5 +215,53 @@ describe("relativeDayLabel", () => {
     expect(relativeDayLabel("2026-08-10")).toBe("เมื่อวาน");
     expect(relativeDayLabel("2026-08-12")).toBe("พรุ่งนี้");
     expect(relativeDayLabel("2026-08-09")).toBeNull();
+  });
+});
+
+describe("สัปดาห์", () => {
+  /**
+   * สัปดาห์เริ่มวันจันทร์ เพราะ "สัปดาห์นี้" ต้องหมายถึงช่วงเดียวกันทุกครั้ง
+   * ที่เปิดดู ไม่ใช่เลื่อนตามวันที่บังเอิญกดเข้ามา
+   */
+  it("ทุกวันในสัปดาห์เดียวกัน ได้วันจันทร์ตัวเดียวกัน", () => {
+    const monday = "2026-08-31";
+    for (let i = 0; i < 7; i++) {
+      const day = new Date(Date.UTC(2026, 7, 31 + i)).toISOString().slice(0, 10);
+      expect(weekOf(day)).toBe(monday);
+    }
+  });
+
+  it("วันจันทร์ถัดไปขึ้นสัปดาห์ใหม่", () => {
+    expect(weekOf("2026-09-06")).toBe("2026-08-31");
+    expect(weekOf("2026-09-07")).toBe("2026-09-07");
+  });
+
+  it("คร่อมปีได้ถูกต้อง", () => {
+    // 1 ม.ค. 2026 เป็นวันพฤหัส สัปดาห์จึงเริ่มที่ 29 ธ.ค. 2025
+    expect(weekOf("2026-01-01")).toBe("2025-12-29");
+    expect(weekRange("2025-12-29")).toEqual(["2025-12-29", "2026-01-04"]);
+  });
+
+  it("ช่วงของสัปดาห์ยาวเจ็ดวันเสมอ", () => {
+    const [from, to] = weekRange("2026-08-31");
+    expect(from).toBe("2026-08-31");
+    expect(to).toBe("2026-09-06");
+  });
+
+  it("บวกลบสัปดาห์ทีละเจ็ดวัน", () => {
+    expect(addWeeks("2026-08-31", 1)).toBe("2026-09-07");
+    expect(addWeeks("2026-08-31", -1)).toBe("2026-08-24");
+  });
+
+  it("สัปดาห์ปัจจุบันเป็นวันจันทร์เสมอ", () => {
+    expect(weekOf(currentWeek())).toBe(currentWeek());
+  });
+
+  it("แสดงผลเป็นภาษาไทย และย่อเมื่ออยู่เดือนเดียวกัน", () => {
+    expect(thaiWeek("2026-08-24")).toBe("24–30 ส.ค. 69");
+  });
+
+  it("คร่อมเดือนต้องบอกทั้งสองเดือน", () => {
+    expect(thaiWeek("2026-08-31")).toBe("31 ส.ค. – 6 ก.ย. 69");
   });
 });

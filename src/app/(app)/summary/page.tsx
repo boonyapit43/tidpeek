@@ -5,11 +5,13 @@ import {
   getSummary,
   listCategoryTotals,
   listDailyForMonth,
+  listDailyForWeek,
   listMonthlyForYear,
 } from "@/db/queries";
 import {
   addDays,
   addMonths,
+  addWeeks,
   addYears,
   currentMonth,
   currentYear,
@@ -18,8 +20,10 @@ import {
   thaiDateLong,
   thaiMonth,
   thaiMonthShort,
+  thaiWeek,
   thaiYear,
   today,
+  weekOf,
 } from "@/lib/date";
 import { getShopContext } from "@/lib/shop";
 import { dateSchema, monthSchema, yearSchema } from "@/lib/validation";
@@ -42,7 +46,7 @@ export const metadata: Metadata = { title: "สรุป" };
 export default async function SummaryPage({
   searchParams,
 }: {
-  searchParams: Promise<{ p?: string; d?: string; m?: string; y?: string }>;
+  searchParams: Promise<{ p?: string; d?: string; w?: string; m?: string; y?: string }>;
 }) {
   const context = await getShopContext();
   if (!context) return null;
@@ -50,18 +54,29 @@ export default async function SummaryPage({
   const shopId = context.shop.id;
   const params = await searchParams;
 
-  const view = params.p === "day" ? "day" : params.p === "year" ? "year" : "month";
+  const view =
+    params.p === "day"
+      ? "day"
+      : params.p === "week"
+        ? "week"
+        : params.p === "year"
+          ? "year"
+          : "month";
 
   // ค่าจาก URL แก้เองได้ ตรวจก่อนใช้เสมอ ไม่ผ่านก็ตกกลับมาเป็นช่วงปัจจุบัน
   const day = dateSchema.safeParse(params.d).data ?? today();
+  // สัปดาห์แทนด้วยวันจันทร์ จึงตรวจด้วย dateSchema ได้เลยเพราะเป็นวันที่จริง
+  // แล้วดึงกลับไปหาวันจันทร์อีกที เผื่อมีคนส่งวันกลางสัปดาห์มาใน URL
+  const week = weekOf(dateSchema.safeParse(params.w).data ?? today());
   const month = monthSchema.safeParse(params.m).data ?? currentMonth();
   const year = yearSchema.safeParse(params.y).data ?? currentYear();
 
   return (
     <div className="space-y-3">
-      <ViewToggle view={view} day={day} month={month} year={year} />
+      <ViewToggle view={view} day={day} week={week} month={month} year={year} />
 
       {view === "day" && <DayView shopId={shopId} day={day} />}
+      {view === "week" && <WeekView shopId={shopId} week={week} />}
       {view === "month" && <MonthView shopId={shopId} month={month} />}
       {view === "year" && <YearView shopId={shopId} year={year} />}
     </div>
@@ -73,22 +88,25 @@ export default async function SummaryPage({
 function ViewToggle({
   view,
   day,
+  week,
   month,
   year,
 }: {
-  view: "day" | "month" | "year";
+  view: "day" | "week" | "month" | "year";
   day: string;
+  week: string;
   month: string;
   year: string;
 }) {
   const tabs = [
-    { key: "day", label: "รายวัน", href: `/summary?p=day&d=${day}` },
-    { key: "month", label: "รายเดือน", href: `/summary?p=month&m=${month}` },
-    { key: "year", label: "รายปี", href: `/summary?p=year&y=${year}` },
+    { key: "day", label: "วัน", href: `/summary?p=day&d=${day}` },
+    { key: "week", label: "สัปดาห์", href: `/summary?p=week&w=${week}` },
+    { key: "month", label: "เดือน", href: `/summary?p=month&m=${month}` },
+    { key: "year", label: "ปี", href: `/summary?p=year&y=${year}` },
   ] as const;
 
   return (
-    <div className="grid grid-cols-3 gap-1.5 rounded-xl bg-surface-2 p-1.5">
+    <div className="grid grid-cols-4 gap-1.5 rounded-xl bg-surface-2 p-1.5">
       {tabs.map((tab) => (
         <Link
           key={tab.key}
@@ -199,6 +217,66 @@ async function DayView({ shopId, day }: { shopId: string; day: string }) {
           ดูรายการของวันนี้
         </Link>
       </div>
+
+      <CategoryBreakdown totals={categoryTotals} />
+    </>
+  );
+}
+
+/* ------------------------------------------------------------------ */
+/*  รายสัปดาห์                                                         */
+/* ------------------------------------------------------------------ */
+
+/**
+ * สัปดาห์คือช่วงที่ร้านใช้ตอบตัวเองบ่อยที่สุด
+ *
+ * "เดือนนี้ได้เท่าไหร่" ตอบยากตอนเดือนยังไม่จบ เพราะไม่รู้ว่าจะเทียบกับอะไร
+ * แต่ "อาทิตย์นี้ได้เท่าไหร่" เป็นช่วงที่จบเร็วพอจะเห็นผลของสิ่งที่เพิ่งทำ
+ * และยาวพอที่วันแย่วันเดียวจะไม่ทำให้ตกใจ
+ *
+ * ใช้ getSummary กับ listDailyIn ตัวเดียวกับมุมมองอื่นทั้งหมด ต่างกันแค่
+ * ขอบเขตวัน ยอดรายวันจึงบวกขึ้นเป็นสัปดาห์ และสัปดาห์บวกขึ้นเป็นเดือนได้ตรงกัน
+ */
+async function WeekView({ shopId, week }: { shopId: string; week: string }) {
+  const [summary, days, categoryTotals] = await Promise.all([
+    getSummary(shopId, { week }),
+    listDailyForWeek(shopId, week),
+    listCategoryTotals(shopId, { week }),
+  ]);
+
+  const thisWeek = weekOf(today());
+  const label =
+    week === thisWeek
+      ? "สัปดาห์นี้"
+      : week === addWeeks(thisWeek, -1)
+        ? "สัปดาห์ที่แล้ว"
+        : null;
+
+  return (
+    <>
+      <PeriodNav
+        label={label ?? thaiWeek(week)}
+        sublabel={label ? thaiWeek(week) : undefined}
+        prevHref={`/summary?p=week&w=${addWeeks(week, -1)}`}
+        nextHref={`/summary?p=week&w=${addWeeks(week, 1)}`}
+      />
+
+      <SummaryCard summary={summary} title={`สรุปสัปดาห์ ${thaiWeek(week)}`} />
+
+      <BreakdownTable
+        heading="แยกรายวัน"
+        unitLabel="วันที่"
+        emptyText="สัปดาห์นี้ยังไม่มีรายการ"
+        rows={days.map((d) => ({
+          key: d.txnDate,
+          href: `/summary?p=day&d=${d.txnDate}`,
+          label: relativeDayLabel(d.txnDate) ?? thaiDate(d.txnDate),
+          meta: `${d.txnCount} รายการ`,
+          income: d.income,
+          expense: d.expense,
+          profit: d.profit,
+        }))}
+      />
 
       <CategoryBreakdown totals={categoryTotals} />
     </>

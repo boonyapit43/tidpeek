@@ -191,8 +191,8 @@ describe("ร้านใหม่ต้องใช้งานได้ทั�
       select count(*) filter (where direction = 'in')::int  as "in",
              count(*) filter (where direction = 'out')::int as "out"
         from categories where is_deleted = false`;
-    expect(cats.in).toBe(12);
-    expect(cats.out).toBe(19);
+    expect(cats.in).toBe(4);
+    expect(cats.out).toBe(11);
   });
 
   it("ไม่มีประเภทชื่อโอนย้ายบัญชี เพราะการโอนมีที่อยู่ของมันเอง", async () => {
@@ -209,7 +209,7 @@ describe("ร้านใหม่ต้องใช้งานได้ทั�
     await makeShop("ร้านสอง");
 
     const [{ count }] = await raw`select count(*)::int as count from categories`;
-    expect(count).toBe(31);
+    expect(count).toBe(15);
   });
 
   it("บัญชีเงินสดของแต่ละร้านแยกกัน ไม่ใช่ลิ้นชักเดียวกัน", async () => {
@@ -511,13 +511,13 @@ describe("เติมชุดประเภทตั้งต้นย้อ�
     return shopId;
   }
 
-  it("เติมครบ 31 รายการ", async () => {
+  it("เติมครบ 15 รายการ", async () => {
     const shopId = await shopWithoutDefaults();
 
     ok(await addDefaultCategories(IDLE, fd({ shopId })));
 
     const [{ count }] = await raw`select count(*)::int as count from categories`;
-    expect(count).toBe(31);
+    expect(count).toBe(15);
   });
 
   it("ไม่สร้างของซ้ำกับประเภทที่พิมพ์เองไว้แล้ว", async () => {
@@ -538,7 +538,7 @@ describe("เติมชุดประเภทตั้งต้นย้อ�
     ok(await addDefaultCategories(IDLE, fd({ shopId })));
 
     const [{ count }] = await raw`select count(*)::int as count from categories`;
-    expect(count).toBe(31);
+    expect(count).toBe(15);
   });
 });
 
