@@ -48,7 +48,7 @@ export function CategoryManager({
   return (
     <section className="overflow-hidden rounded-2xl bg-surface shadow-sm">
       <div className="flex items-center justify-between gap-3 border-b border-line px-4 py-2.5">
-        <h2 className="text-xs font-semibold text-ink-soft">ประเภทรายรับรายจ่าย</h2>
+        <h2 className="card-head-bare">ประเภทรายรับรายจ่าย</h2>
         <button
           type="button"
           onClick={() => setAdding(true)}

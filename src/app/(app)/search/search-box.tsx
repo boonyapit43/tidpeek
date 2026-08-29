@@ -65,7 +65,7 @@ export function SearchBox({
         <button
           type="submit"
           aria-label="ค้นหา"
-          className="bg-brand-gradient flex min-h-touch w-12 shrink-0 items-center justify-center rounded-xl text-white shadow-md shadow-brand/25 transition active:scale-95"
+          className="bg-brand-gradient flex min-h-touch w-12 shrink-0 items-center justify-center rounded-xl text-on-accent shadow-md shadow-brand/25 transition active:scale-95"
         >
           <svg
             viewBox="0 0 24 24"

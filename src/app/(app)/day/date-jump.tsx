@@ -1,6 +1,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
+import { DateField } from "@/components/date-field";
 import { today } from "@/lib/date";
 import { cn } from "@/lib/cn";
 
@@ -17,25 +18,19 @@ export function DateJump({ date }: { date: string }) {
 
   return (
     <div className="flex gap-2">
-      <div className="flex min-h-touch flex-1 items-center rounded-xl border border-line bg-surface px-3">
-        <input
-          type="date"
-          value={date}
-          onChange={(e) => {
-            if (e.target.value) router.push(`/day?d=${e.target.value}`);
-          }}
-          aria-label="เลือกวันที่จะดู"
-          // text-base ไม่ใช่ text-sm — ต่ำกว่า 16px แล้ว iOS ซูมทั้งหน้าตอนโฟกัส
-          className="w-full bg-transparent text-base text-ink focus:outline-none"
-        />
-      </div>
+      <DateField
+        value={date}
+        onChange={(next) => router.push(`/day?d=${next}`)}
+        label="เลือกวันที่จะดู"
+        className="min-w-0 flex-1"
+      />
 
       <button
         type="button"
         onClick={() => router.push(`/day?d=${now}`)}
         disabled={date === now}
         className={cn(
-          "min-h-touch rounded-xl border border-line bg-surface px-4 text-sm font-medium",
+          "min-h-touch shrink-0 rounded-xl border border-line bg-surface px-3.5 text-sm font-medium",
           "text-ink-soft transition hover:bg-surface-2",
           "disabled:pointer-events-none disabled:opacity-40",
         )}

@@ -56,7 +56,7 @@ export default function AppError({
         <button
           type="button"
           onClick={reset}
-          className="bg-brand-gradient min-h-touch w-full rounded-xl font-semibold text-white shadow-md shadow-brand/25 transition active:scale-[0.98]"
+          className="bg-brand-gradient min-h-touch w-full rounded-xl font-semibold text-on-accent shadow-md shadow-brand/25 transition active:scale-[0.98]"
         >
           ลองใหม่
         </button>

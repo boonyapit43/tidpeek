@@ -16,7 +16,7 @@ export default function NotFound() {
 
       <a
         href="/shops"
-        className="bg-brand-gradient flex min-h-touch w-full items-center justify-center rounded-xl font-semibold text-white shadow-md shadow-brand/25 transition active:scale-[0.98]"
+        className="bg-brand-gradient flex min-h-touch w-full items-center justify-center rounded-xl font-semibold text-on-accent shadow-md shadow-brand/25 transition active:scale-[0.98]"
       >
         กลับไปหน้าเลือกร้าน
       </a>

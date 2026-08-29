@@ -65,7 +65,7 @@ export function AccountBoard({
   return (
     <div className="space-y-3">
       <section className="overflow-hidden rounded-2xl bg-surface shadow-sm">
-        <div className="bg-brand-gradient px-4 py-4 text-white">
+        <div className="bg-brand-gradient text-on-accent px-4 py-4">
           <div className="text-xs opacity-90">เงินรวมทุกบัญชี</div>
           <div className="num mt-0.5 text-3xl font-bold tracking-tight">{bahtShort(total)}</div>
         </div>

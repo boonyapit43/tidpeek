@@ -138,7 +138,7 @@ export function Button({
         "inline-flex min-h-touch items-center justify-center gap-2 rounded-xl px-4",
         "font-semibold transition active:scale-[0.98] disabled:pointer-events-none disabled:opacity-50",
         variant === "primary" &&
-          "bg-brand-gradient text-white shadow-md shadow-brand/25 hover:brightness-110",
+          "bg-brand-gradient text-on-accent shadow-md shadow-brand/25 hover:brightness-110",
         variant === "ghost" && "border border-line bg-surface text-ink hover:bg-surface-2",
         variant === "danger" && "border border-expense/30 text-expense hover:bg-expense-soft",
         className,
@@ -220,7 +220,7 @@ export function DirectionToggle({
         onClick={() => onChange("in")}
         className={cn(
           "min-h-touch rounded-lg font-semibold transition",
-          isIncome ? "bg-income text-white shadow-sm" : "text-ink-soft",
+          isIncome ? "bg-income text-on-accent shadow-sm" : "text-ink-soft",
         )}
       >
         รับเข้า
@@ -231,7 +231,7 @@ export function DirectionToggle({
         onClick={() => onChange("out")}
         className={cn(
           "min-h-touch rounded-lg font-semibold transition",
-          !isIncome ? "bg-expense text-white shadow-sm" : "text-ink-soft",
+          !isIncome ? "bg-expense text-on-accent shadow-sm" : "text-ink-soft",
         )}
       >
         จ่ายออก

@@ -2,8 +2,8 @@ import type { Metadata } from "next";
 import { hasDefaultCategories, listAllAccountsForShop, listAllCategories } from "@/db/queries";
 import { currentMonth, monthRange, today } from "@/lib/date";
 import { getShopContext } from "@/lib/shop";
-import { Button } from "@/components/form-parts";
 import { AccountManager } from "./account-manager";
+import { ExportRange } from "./export-range";
 import { CategoryManager } from "./category-manager";
 
 export const dynamic = "force-dynamic";
@@ -66,51 +66,14 @@ function ExportSection({ shopName }: { shopName: string }) {
 
   return (
     <section className="overflow-hidden rounded-2xl bg-surface shadow-sm">
-      <h2 className="border-b border-line px-4 py-2.5 text-xs font-semibold text-ink-soft">
+      <h2 className="card-head">
         ส่งออกข้อมูล
       </h2>
 
-      <form method="get" action="/api/export" className="space-y-3 border-b border-line p-4">
-        <p className="text-xs text-ink-soft">
-          เลือกช่วงวันเอง ได้ไฟล์ Excel ของ{shopName} แยกเป็นสี่ชีต สรุป · รายการ ·
-          โอนระหว่างบัญชี · ยอดบัญชี
-        </p>
-
-        <div className="grid grid-cols-2 gap-2">
-          <DateField name="from" label="ตั้งแต่วันที่" defaultValue={monthStart} />
-          <DateField name="to" label="ถึงวันที่" defaultValue={today()} />
-        </div>
-
-        <Button type="submit" className="w-full text-sm">
-          <DownloadIcon />
-          ส่งออกช่วงนี้เป็น Excel
-        </Button>
-      </form>
+      <ExportRange shopName={shopName} defaultFrom={monthStart} defaultTo={today()} />
 
       <ExportLink href="/api/export?f=json" label="สำรองทั้งฐานข้อมูล (JSON)" />
     </section>
-  );
-}
-
-function DateField({
-  name,
-  label,
-  defaultValue,
-}: {
-  name: string;
-  label: string;
-  defaultValue: string;
-}) {
-  return (
-    <label className="block">
-      <span className="mb-1 block text-xs font-medium text-ink-soft">{label}</span>
-      <input
-        type="date"
-        name={name}
-        defaultValue={defaultValue}
-        className="min-h-touch w-full rounded-xl border border-line bg-surface-2 px-3 text-sm text-ink"
-      />
-    </label>
   );
 }
 

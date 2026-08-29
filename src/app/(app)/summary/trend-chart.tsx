@@ -38,7 +38,7 @@ export function TrendChart({ heading, points }: { heading: string; points: Trend
 
   return (
     <section className="overflow-hidden rounded-2xl bg-surface shadow-sm">
-      <h2 className="border-b border-line px-4 py-2.5 text-xs font-semibold text-ink-soft">
+      <h2 className="card-head">
         {heading}
       </h2>
 

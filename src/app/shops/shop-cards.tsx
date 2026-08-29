@@ -112,7 +112,7 @@ function EnterShopButton({ shop }: { shop: ShopCardData }) {
             ไล่สีเดียวกับโลโก้แอปเพื่อความเป็นชุดเดียวกัน */}
         <span
           aria-hidden
-          className="bg-brand-gradient flex size-10 shrink-0 items-center justify-center rounded-xl text-base font-bold text-white shadow-sm shadow-brand/25"
+          className="bg-brand-gradient flex size-10 shrink-0 items-center justify-center rounded-xl text-base font-bold text-on-accent shadow-sm shadow-brand/25"
         >
           {shop.name.trim().charAt(0)}
         </span>

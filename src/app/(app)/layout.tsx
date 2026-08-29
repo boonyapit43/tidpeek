@@ -42,17 +42,21 @@ export default async function AppLayout({ children }: { children: React.ReactNod
       {/**
        * แถบบนติดหนึบตอนเลื่อน เพราะชื่อร้านคือบริบทที่ต้องเห็นตลอดเวลา
        * ไม่งั้นพอเลื่อนดูรายการยาวๆ แล้วลืมว่ากำลังดูร้านไหนอยู่
+       *
+       * เป็นแถบสีแบรนด์ ไม่ใช่พื้นขาว — บนมือถือที่ปักแอปไว้หน้าโฮม
+       * แถบสถานะจะใช้สีจาก manifest ถ้าหัวแอปเป็นสีขาวจะเห็นรอยต่อ
+       * สีตัดกันคาจอตลอดเวลา แบบนี้ไล่ต่อกันเป็นผืนเดียว
        */}
-      <header className="sticky top-0 z-30 border-b border-line bg-surface/90 pt-[env(safe-area-inset-top)] backdrop-blur-md">
+      <header className="bg-app-band sticky top-0 z-30 pt-[env(safe-area-inset-top)] shadow-sm">
         <div className="mx-auto flex max-w-2xl items-center gap-3 px-4 py-2">
           {/* ชื่อร้านเป็นลิงก์กลับไปหน้าเลือกร้าน ซึ่งเป็นที่เดียวที่สลับร้านได้
               จงใจไม่ทำเป็นดรอปดาวน์ในแถบนี้ เพราะสลับร้านพลาดระหว่างกรอก
               จะทำให้บันทึกลงผิดร้านโดยไม่ทันสังเกต */}
           <Link
             href="/shops"
-            className="-ml-2 flex min-h-touch min-w-0 items-center gap-1 rounded-lg px-2 transition hover:bg-surface-2"
+            className="-ml-2 flex min-h-touch min-w-0 items-center gap-1.5 rounded-lg px-2 transition hover:bg-white/10"
           >
-            <span className="truncate text-sm font-semibold text-ink">{shop.name}</span>
+            <span className="truncate text-sm font-semibold text-white">{shop.name}</span>
             <svg
               viewBox="0 0 24 24"
               fill="none"
@@ -60,7 +64,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
               strokeWidth={2}
               strokeLinecap="round"
               strokeLinejoin="round"
-              className="size-4 shrink-0 text-ink-soft"
+              className="size-4 shrink-0 text-white/70"
               aria-hidden
             >
               <path d="M8 9l4-4 4 4M16 15l-4 4-4-4" />
