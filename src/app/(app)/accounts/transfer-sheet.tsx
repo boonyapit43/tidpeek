@@ -214,34 +214,19 @@ function TransferForm({
         {editing && <input type="hidden" name="id" value={editing.id} />}
         <input type="hidden" name="txnDate" value={date} />
 
-        <Field label="จำนวนเงิน" htmlFor="transfer-amount" error={fieldError(state, "amount")}>
-          <MoneyInput
-            id="transfer-amount"
-            name="amount"
-            value={amount}
-            onChange={(e) => setAmount(e.target.value)}
-            placeholder="0.00"
-            required
-            autoFocus={!editing}
-            enterKeyHint="next"
-          />
-
-          {/**
-            * โผล่เฉพาะตอนที่รู้ว่าโอนจากบัญชีไหนและบัญชีนั้นมีเงินอยู่จริง
-            * ปุ่มที่เติมค่าศูนย์หรือค่าติดลบให้ ไม่ได้ช่วยอะไรนอกจากทำให้กดพลาด
-            */}
-          {fullAmount && (
-            <button
-              type="button"
-              onClick={() => setAmount(fullAmount)}
-              className="mt-1.5 inline-flex min-h-touch items-center gap-1.5 rounded-xl border border-line px-3 text-sm font-medium text-ink-soft transition active:bg-surface-2"
-            >
-              ทั้งหมด
-              <span className="num font-semibold text-ink">{bahtShort(fullAmount)}</span>
-            </button>
-          )}
-        </Field>
-
+        {/**
+          * ลำดับช่อง: จากบัญชี → ไปบัญชี → จำนวนเงิน
+          *
+          * เดิมจำนวนเงินอยู่บนสุด ซึ่งทำให้ปุ่ม "ทั้งหมด" ที่ต้องรู้บัญชีต้นทาง
+          * ก่อนถึงจะโผล่ ไปโผล่เหนือจุดที่คนเลื่อนผ่านไปแล้ว
+          *
+          * เรียงแบบนี้ตรงกับลำดับที่คนคิดตอนย้ายเงินจริง — เอาจากไหน ไปไหน
+          * เท่าไหร่ — และตรงกับที่แอปธนาคารเรียง จำนวนเงินจึงเป็นช่องสุดท้าย
+          * ที่กรอก ซึ่งเป็นตอนที่รู้ยอดคงเหลือของต้นทางแล้วพอดี
+          *
+          * เลิก autoFocus ด้วย ของเดิมเด้งคีย์บอร์ดตัวเลขขึ้นมาทันทีที่เปิดแผ่น
+          * ซึ่งบังช่องเลือกบัญชีที่ตอนนี้เป็นสิ่งแรกที่ต้องทำ
+          */}
         <Field label="จากบัญชี" htmlFor="transfer-from">
           <Select
             key={`from-${formRound}`}
@@ -297,6 +282,33 @@ function TransferForm({
             {/* ตัดบัญชีต้นทางออกจากตัวเลือก เลือกซ้ำกันไม่ได้ตั้งแต่แรก */}
             <AccountChoices accounts={accounts.filter((a) => a.id !== from)} />
           </Select>
+        </Field>
+
+        <Field label="จำนวนเงิน" htmlFor="transfer-amount" error={fieldError(state, "amount")}>
+          <MoneyInput
+            id="transfer-amount"
+            name="amount"
+            value={amount}
+            onChange={(e) => setAmount(e.target.value)}
+            placeholder="0.00"
+            required
+            enterKeyHint="done"
+          />
+
+          {/**
+            * โผล่เฉพาะตอนที่รู้ว่าโอนจากบัญชีไหนและบัญชีนั้นมีเงินอยู่จริง
+            * ปุ่มที่เติมค่าศูนย์หรือค่าติดลบให้ ไม่ได้ช่วยอะไรนอกจากทำให้กดพลาด
+            */}
+          {fullAmount && (
+            <button
+              type="button"
+              onClick={() => setAmount(fullAmount)}
+              className="mt-1.5 inline-flex min-h-touch items-center gap-1.5 rounded-xl border border-line px-3 text-sm font-medium text-ink-soft transition active:bg-surface-2"
+            >
+              ทั้งหมด
+              <span className="num font-semibold text-ink">{bahtShort(fullAmount)}</span>
+            </button>
+          )}
         </Field>
 
         <DatePicker value={date} onChange={setDate} error={fieldError(state, "txnDate")} />

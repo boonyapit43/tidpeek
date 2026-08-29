@@ -1,3 +1,4 @@
+import { PageTitle } from "@/components/page-title";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { SummaryCard } from "@/components/summary-card";
@@ -30,6 +31,7 @@ import {
   weekRange,
   yearOf,
 } from "@/lib/date";
+import { moreHref, rowsToShow } from "@/lib/paging";
 import { getShopContext } from "@/lib/shop";
 import { defaultSummaryView } from "@/lib/summary-view";
 import {
@@ -70,6 +72,8 @@ export default async function SummaryPage({
     /** เจาะดูประเภท — uuid หรือ none (ไม่ระบุประเภท) คู่กับ cd บอกฝั่ง */
     c?: string;
     cd?: string;
+    /** จำนวนรายการที่กดดูเพิ่มไปแล้วในหน้าเจาะดูประเภท */
+    n?: string;
   }>;
 }) {
   const context = await getShopContext();
@@ -136,6 +140,7 @@ export default async function SummaryPage({
    */
   const drill = categoryParamSchema.safeParse(params.c).data;
   const drillDirection = directionSchema.safeParse(params.cd).data;
+  const shown = rowsToShow(params.n);
 
   if (drill !== undefined && drillDirection !== undefined) {
     const current =
@@ -155,12 +160,19 @@ export default async function SummaryPage({
         period={current.period}
         periodLabel={current.label}
         backHref={`/summary?${current.qs}`}
+        shown={shown}
+        moreHref={moreHref(
+          new URLSearchParams(`${current.qs}&c=${drill}&cd=${drillDirection}`),
+          shown,
+        )}
       />
     );
   }
 
   return (
     <div className="space-y-3">
+      <PageTitle>สรุปยอด</PageTitle>
+
       <ViewToggle
         view={view}
         day={anchor}

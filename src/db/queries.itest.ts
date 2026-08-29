@@ -4,7 +4,9 @@ import { addDays, today } from "@/lib/date";
 import {
   exportTransactionsFlat,
   entriesPerCategory,
+  countAccountMovements,
   latestTxnDate,
+  listAccountMovements,
   listCategoryEntries,
   listPeriodEntries,
   listRecentTitles,
@@ -575,5 +577,83 @@ describe("ส่งออกข้อมูล", () => {
 
     expect(rows.every((r) => r.txnDate >= "2026-08-01" && r.txnDate <= "2026-08-02")).toBe(true);
     expect(rows.map((r) => r.title)).not.toContain("ซื้อเนื้อ");
+  });
+});
+
+/* ------------------------------------------------------------------ */
+
+/**
+ * เพดานของลิสต์ กับจำนวนจริงที่เอาไปบอกคนใช้
+ *
+ * สองอย่างนี้ต้องมาคู่กันเสมอ ลิสต์ที่ตัดแล้วไม่บอกว่าตัด อ่านได้ว่า
+ * "ไม่มีรายการเก่ากว่านี้แล้ว" ซึ่งกับสมุดบัญชีคือการเข้าใจผิดเรื่องเงิน
+ * ที่คนใช้ไม่มีทางรู้ตัว
+ */
+describe("เพดานลิสต์ กับจำนวนจริง", () => {
+  it("เจาะดูประเภทแล้วตัดตามเพดาน แต่จำนวนจริงยังนับครบ", async () => {
+    const AUGUST = { month: "2026-08" } as const;
+
+    // สิงหามีของประเภทซื้อของเข้าร้านสองรายการ ขอมาแค่หนึ่ง
+    const capped = await listCategoryEntries(shopId, AUGUST, costId, "out", 1);
+    expect(capped).toHaveLength(1);
+    // ต้องได้ตัวใหม่สุดก่อน ไม่ใช่ตัดเอาตัวไหนก็ได้
+    expect(capped[0].title).toBe("ซื้อเนื้อ");
+
+    // ส่วนจำนวนที่เอาไปโชว์บนหัวมาจากยอดรวมของประเภท ซึ่งไม่โดนเพดาน
+    const totals = await listCategoryTotals(shopId, AUGUST);
+    const group = totals.find((t) => t.categoryId === costId && t.direction === "out");
+    expect(group?.txnCount).toBe(2);
+  });
+
+  it("ขอมากกว่าที่มี ได้เท่าที่มี ไม่พัง", async () => {
+    const rows = await listCategoryEntries(shopId, { month: "2026-08" }, costId, "out", 999);
+    expect(rows).toHaveLength(2);
+  });
+
+  it("ค้นหาตัดตามเพดาน แต่ยอดรวมยังนับทุกแถวที่ตรง", async () => {
+    const q = { q: "ขาย" };
+
+    const capped = await searchTransactions(shopId, q, 1);
+    expect(capped).toHaveLength(1);
+
+    // ยอดรวมกับจำนวนต้องเป็นของทั้งชุดผลลัพธ์ ไม่ใช่ของแถวที่โหลดมา
+    const totals = await searchTotals(shopId, q);
+    expect(totals.count).toBeGreaterThan(1);
+  });
+});
+
+describe("นับความเคลื่อนไหวของบัญชี", () => {
+  it("นับทั้งรายการปกติและการโอน เท่ากับที่ลิสต์ได้ตอนไม่ติดเพดาน", async () => {
+    await raw`
+      insert into transfers (shop_id, txn_date, from_account_id, to_account_id, amount)
+      values (${shopId}, '2026-08-10', ${cashId}, ${bankId}, 500)`;
+
+    const [rows, total] = await Promise.all([
+      listAccountMovements(shopId, cashId, 999),
+      countAccountMovements(shopId, cashId),
+    ]);
+
+    expect(total).toBe(rows.length);
+    // เงินสดมีรายการปกติสี่ บวกโอนออกหนึ่ง
+    expect(total).toBe(5);
+  });
+
+  /**
+   * ที่ต้องเทสแยก เพราะจำนวนกับลิสต์เป็นคนละ query — ถ้าอันหนึ่งกรอง
+   * ของที่ลบแล้วแต่อีกอันไม่กรอง หน้าจะขึ้น "แสดง 5 จาก 6 รายการ"
+   * แล้วกดดูเพิ่มก็ไม่มีอะไรเพิ่ม กลายเป็นปุ่มที่กดแล้วไม่เกิดอะไร
+   */
+  it("ไม่นับรายการที่ลบแล้ว เหมือนที่ลิสต์ไม่แสดง", async () => {
+    const before = await countAccountMovements(shopId, cashId);
+
+    await raw`
+      insert into transactions (shop_id, txn_date, direction, amount, title, account_id, is_deleted)
+      values (${shopId}, '2026-08-10', 'out', 123, 'ลบแล้ว', ${cashId}, true)`;
+
+    expect(await countAccountMovements(shopId, cashId)).toBe(before);
+  });
+
+  it("บัญชีของร้านอื่น ได้ศูนย์ ไม่ใช่จำนวนจริง", async () => {
+    expect(await countAccountMovements(otherShopId, cashId)).toBe(0);
   });
 });

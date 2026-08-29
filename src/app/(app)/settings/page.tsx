@@ -1,3 +1,4 @@
+import { PageTitle } from "@/components/page-title";
 import type { Metadata } from "next";
 import { hasDefaultCategories, listAllAccountsForShop, listAllCategories } from "@/db/queries";
 import { currentMonth, monthRange, today } from "@/lib/date";
@@ -36,6 +37,8 @@ export default async function SettingsPage() {
 
   return (
     <div className="space-y-3">
+      <PageTitle>ตั้งค่า</PageTitle>
+
       <AccountManager shopId={shop.id} accounts={accounts} />
       <CategoryManager
         shopId={shop.id}

@@ -9,6 +9,7 @@ import type { AccountWithBalance, MovementRow } from "@/db/queries";
 import { baht, bahtShort } from "@/lib/money";
 import { thaiDate } from "@/lib/date";
 import { cn } from "@/lib/cn";
+import { LoadMore } from "@/components/load-more";
 import { type EditableTransfer, TransferSheet } from "./transfer-sheet";
 
 /**
@@ -27,11 +28,16 @@ export function AccountDetail({
   account,
   accounts,
   movements,
+  movementCount,
+  moreHref,
 }: {
   shopId: string;
   account: AccountWithBalance;
   accounts: AccountWithBalance[];
   movements: MovementRow[];
+  /** จำนวนความเคลื่อนไหวทั้งหมด ไม่ใช่จำนวนที่โหลดมาแสดง */
+  movementCount: number;
+  moreHref: string;
 }) {
   const router = useRouter();
   const [editingTransfer, setEditingTransfer] = useState<EditableTransfer | null>(null);
@@ -133,6 +139,16 @@ export function AccountDetail({
               />
             ))}
           </ul>
+        )}
+
+        {movements.length > 0 && (
+          <div className="border-t border-line p-3">
+            <LoadMore
+              shown={movements.length}
+              total={movementCount}
+              href={moreHref}
+            />
+          </div>
         )}
       </section>
 

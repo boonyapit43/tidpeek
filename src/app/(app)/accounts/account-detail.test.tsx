@@ -109,13 +109,23 @@ afterEach(cleanup);
 
 beforeEach(() => routerPush.mockClear());
 
-function setup(over: { account?: AccountWithBalance; movements?: MovementRow[] } = {}) {
+function setup(
+  over: {
+    account?: AccountWithBalance;
+    movements?: MovementRow[];
+    movementCount?: number;
+  } = {},
+) {
+  const movements = over.movements ?? [txnRow, transferRow];
+
   render(
     <AccountDetail
       shopId="shop-1"
       account={over.account ?? SCB}
       accounts={ACCOUNTS}
-      movements={over.movements ?? [txnRow, transferRow]}
+      movements={movements}
+      movementCount={over.movementCount ?? movements.length}
+      moreHref="?a=acc-scb&n=100"
     />,
   );
 }
@@ -167,7 +177,14 @@ describe("ปุ่มที่ต้องหาเจอจากหน้า�
 
   it("มีบัญชีเดียว ปุ่มโอนกดไม่ได้", () => {
     render(
-      <AccountDetail shopId="shop-1" account={SCB} accounts={[SCB]} movements={[]} />,
+      <AccountDetail
+        shopId="shop-1"
+        account={SCB}
+        accounts={[SCB]}
+        movements={[]}
+        movementCount={0}
+        moreHref="?a=acc-scb&n=100"
+      />,
     );
 
     const btn = screen.getByRole("button", {

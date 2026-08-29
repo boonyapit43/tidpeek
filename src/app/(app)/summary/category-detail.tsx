@@ -3,6 +3,7 @@ import { listCategoryEntries, listCategoryTotals, type Period } from "@/db/queri
 import type { Direction } from "@/db/schema";
 import { thaiDate } from "@/lib/date";
 import { bahtShort } from "@/lib/money";
+import { LoadMore } from "@/components/load-more";
 import { cn } from "@/lib/cn";
 
 /**
@@ -22,6 +23,8 @@ export async function CategoryDetail({
   period,
   periodLabel,
   backHref,
+  shown,
+  moreHref,
 }: {
   shopId: string;
   /** null = กลุ่มรายการที่ไม่ระบุประเภท ซึ่งเจาะดูได้เหมือนกลุ่มอื่น */
@@ -30,9 +33,12 @@ export async function CategoryDetail({
   period: Period;
   periodLabel: string;
   backHref: string;
+  /** จำนวนรายการที่จะโหลดมาแสดง ที่เหลือรอกดดูเพิ่ม */
+  shown: number;
+  moreHref: string;
 }) {
   const [entries, totals] = await Promise.all([
-    listCategoryEntries(shopId, period, categoryId, direction),
+    listCategoryEntries(shopId, period, categoryId, direction, shown),
     listCategoryTotals(shopId, period),
   ]);
 
@@ -40,6 +46,16 @@ export async function CategoryDetail({
   const group = totals.find((t) => t.categoryId === categoryId && t.direction === direction);
   const name = group?.name ?? "ไม่ระบุประเภท";
   const income = direction === "in";
+
+  /**
+   * จำนวนที่โชว์บนหัวต้องเป็นจำนวนจริงทั้งหมด ไม่ใช่จำนวนที่โหลดมา
+   *
+   * เดิมใช้ entries.length ได้เพราะไม่มีเพดาน สองอย่างนี้เท่ากันเสมอ
+   * พอใส่เพดานแล้วมันแยกกันทันที และตัวที่ผิดคือตัวที่คนอ่านแล้วเชื่อ —
+   * "ปี 2569 · 50 รายการ" ทั้งที่จริงมี 365 คือการรายงานตัวเลขผิด
+   * ไม่ใช่แค่ UI ไม่สวย
+   */
+  const total = group?.txnCount ?? entries.length;
 
   return (
     <div className="space-y-3">
@@ -74,7 +90,7 @@ export async function CategoryDetail({
               )}
             </div>
             <p className="mt-0.5 text-xs text-ink-soft">
-              {income ? "รับเข้า" : "จ่ายออก"} · {periodLabel} · {entries.length} รายการ
+              {income ? "รับเข้า" : "จ่ายออก"} · {periodLabel} · {total.toLocaleString("th-TH")} รายการ
             </p>
           </div>
 
@@ -125,6 +141,8 @@ export async function CategoryDetail({
           ))}
         </ul>
       )}
+
+      <LoadMore shown={entries.length} total={total} href={moreHref} />
     </div>
   );
 }

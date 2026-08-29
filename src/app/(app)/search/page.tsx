@@ -4,8 +4,10 @@ import { searchTotals, searchTransactions } from "@/db/queries";
 import { DIRECTIONS } from "@/db/schema";
 import { thaiDate } from "@/lib/date";
 import { bahtShort } from "@/lib/money";
+import { moreHref, rowsToShow } from "@/lib/paging";
 import { getShopContext } from "@/lib/shop";
 import { cn } from "@/lib/cn";
+import { LoadMore } from "@/components/load-more";
 import { SearchBox } from "./search-box";
 
 export const dynamic = "force-dynamic";
@@ -25,7 +27,7 @@ export const metadata: Metadata = { title: "ค้นหา" };
 export default async function SearchPage({
   searchParams,
 }: {
-  searchParams: Promise<{ q?: string; d?: string }>;
+  searchParams: Promise<{ q?: string; d?: string; n?: string }>;
 }) {
   const context = await getShopContext();
   if (!context) return null;
@@ -40,9 +42,11 @@ export default async function SearchPage({
   const tooShort = q.length > 0 && q.length < 2;
   const shouldSearch = q.length >= 2;
 
+  const shown = rowsToShow(params.n);
+
   const [rows, totals] = shouldSearch
     ? await Promise.all([
-        searchTransactions(context.shop.id, { q, direction }),
+        searchTransactions(context.shop.id, { q, direction }, shown),
         searchTotals(context.shop.id, { q, direction }),
       ])
     : [[], null];
@@ -121,11 +125,23 @@ export default async function SearchPage({
             </ul>
           )}
 
-          {rows.length === 200 && (
-            <p className="text-center text-xs text-ink-soft">
-              แสดง 200 รายการแรก ลองพิมพ์ให้เจาะจงขึ้น
-            </p>
-          )}
+          {/**
+            * n ไม่ถูกส่งต่อไปที่ลิงก์ตัวกรอง (ทั้งหมด/รับเข้า/จ่ายออก) โดยตั้งใจ
+            * เปลี่ยนตัวกรองคือการเริ่มค้นใหม่ ควรกลับไปเริ่มที่ชุดแรกเสมอ
+            */}
+          <LoadMore
+            shown={rows.length}
+            total={totals.count}
+            href={moreHref(
+              new URLSearchParams(
+                Object.entries({ q, d: direction }).filter(([, v]) => Boolean(v)) as [
+                  string,
+                  string,
+                ][],
+              ),
+              rows.length,
+            )}
+          />
         </>
       )}
     </div>

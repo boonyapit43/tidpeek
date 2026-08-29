@@ -1,3 +1,4 @@
+import { PageTitle } from "@/components/page-title";
 import type { Metadata } from "next";
 import {
   getSummary,
@@ -39,6 +40,8 @@ export default async function EntryPage() {
 
   return (
     <div className="space-y-3">
+      <PageTitle>บันทึกรายการ</PageTitle>
+
       <TodayStrip
         income={summary.income}
         expense={summary.expense}

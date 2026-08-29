@@ -505,6 +505,7 @@ export type SearchFilters = {
 export async function searchTransactions(
   shopId: string,
   filters: SearchFilters,
+  limit = 50,
 ): Promise<TxnRow[]> {
   // escape อักขระพิเศษของ LIKE ไม่งั้นคนพิมพ์ % หรือ _ จะกลายเป็นตัวแทนที่
   const pattern = `%${filters.q.replace(/[\\%_]/g, (c) => `\\${c}`)}%`;
@@ -530,7 +531,7 @@ export async function searchTransactions(
     .leftJoin(accounts, eq(accounts.id, transactions.accountId))
     .where(and(...conditions))
     .orderBy(desc(transactions.txnDate), desc(transactions.createdAt))
-    .limit(200);
+    .limit(limit);
 }
 
 /** ยอดรวมของผลค้นหา คิดใน SQL เหมือนทุกที่ ไม่บวกจากแถวที่ได้มา */
@@ -783,6 +784,43 @@ export async function listAccountMovements(
   );
 
   return merged.slice(0, limit);
+}
+
+/**
+ * จำนวนความเคลื่อนไหวทั้งหมดของบัญชี ไม่สนใจเพดานของลิสต์
+ *
+ * มีไว้บอกความจริงท้ายลิสต์ว่า "แสดง 50 จาก 128 รายการ" ซึ่งจำเป็นเพราะ
+ * ลิสต์ที่ตัดแล้วหยุดเฉยๆ อ่านได้ว่าไม่มีรายการเก่ากว่านี้แล้ว
+ *
+ * ต้องนับสองตารางแล้วบวกกัน เพราะความเคลื่อนไหวของบัญชีมาจากทั้งรายการ
+ * ปกติและการโอน เหมือนกับที่ listAccountMovements ดึงมารวมกัน
+ */
+export async function countAccountMovements(
+  shopId: string,
+  accountId: string,
+): Promise<number> {
+  // ด่านเดียวกับ listAccountMovements — บัญชีที่ร้านนี้ไม่เห็น ต้องได้ศูนย์
+  // ไม่ใช่จำนวนจริงซึ่งเป็นการบอกใบ้ว่าบัญชีนั้นมีอยู่และมีเงินเดินเท่าไหร่
+  if (!(await isAccountVisible(shopId, accountId))) return 0;
+
+  const [[txn], [transfer]] = await Promise.all([
+    db
+      .select({ n: count() })
+      .from(transactions)
+      .where(and(eq(transactions.accountId, accountId), eq(transactions.isDeleted, false))),
+
+    db
+      .select({ n: count() })
+      .from(transfers)
+      .where(
+        and(
+          or(eq(transfers.fromAccountId, accountId), eq(transfers.toAccountId, accountId)),
+          eq(transfers.isDeleted, false),
+        ),
+      ),
+  ]);
+
+  return (txn?.n ?? 0) + (transfer?.n ?? 0);
 }
 
 /* ------------------------------------------------------------------ */
@@ -1063,6 +1101,7 @@ export async function listCategoryEntries(
   period: Period,
   categoryId: string | null,
   direction: Direction,
+  limit = 50,
 ): Promise<CategoryEntry[]> {
   const [from, to] = rangeOf(period);
 
@@ -1089,7 +1128,8 @@ export async function listCategoryEntries(
         lte(transactions.txnDate, to),
       ),
     )
-    .orderBy(desc(transactions.txnDate), desc(transactions.createdAt));
+    .orderBy(desc(transactions.txnDate), desc(transactions.createdAt))
+    .limit(limit);
 }
 
 export type PeriodEntry = CategoryEntry & {

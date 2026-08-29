@@ -1,6 +1,12 @@
+import { PageTitle } from "@/components/page-title";
 import type { Metadata } from "next";
 import Link from "next/link";
-import { listAccountMovements, listAccountsWithBalance } from "@/db/queries";
+import {
+  countAccountMovements,
+  listAccountMovements,
+  listAccountsWithBalance,
+} from "@/db/queries";
+import { moreHref, rowsToShow } from "@/lib/paging";
 import { getShopContext } from "@/lib/shop";
 import { AccountBoard } from "./account-board";
 import { AccountDetail } from "./account-detail";
@@ -24,13 +30,15 @@ export const metadata: Metadata = { title: "บัญชี" };
 export default async function AccountsPage({
   searchParams,
 }: {
-  searchParams: Promise<{ a?: string }>;
+  searchParams: Promise<{ a?: string; n?: string }>;
 }) {
   const context = await getShopContext();
   if (!context) return null;
 
   const shopId = context.shop.id;
-  const selectedId = (await searchParams).a;
+  const params = await searchParams;
+  const selectedId = params.a;
+  const shown = rowsToShow(params.n);
 
   /**
    * ยิงสอง query พร้อมกัน ไม่ไล่ await ทีละอัน
@@ -42,9 +50,10 @@ export default async function AccountsPage({
    * id ที่มั่วมาหรือเป็นของร้านอื่น listAccountMovements ตรวจเองแล้วคืนลิสต์ว่าง
    * ส่วนการทิ้งผลลัพธ์เมื่อ selected เป็น null ข้างล่างเป็นด่านซ้ำอีกชั้น
    */
-  const [accounts, movements] = await Promise.all([
+  const [accounts, movements, movementCount] = await Promise.all([
     listAccountsWithBalance(shopId),
-    selectedId ? listAccountMovements(shopId, selectedId) : Promise.resolve([]),
+    selectedId ? listAccountMovements(shopId, selectedId, shown) : Promise.resolve([]),
+    selectedId ? countAccountMovements(shopId, selectedId) : Promise.resolve(0),
   ]);
 
   // id จาก URL แก้เองได้ ต้องเทียบกับบัญชีที่ร้านนี้เห็นจริงเสมอ
@@ -60,12 +69,24 @@ export default async function AccountsPage({
           account={selected}
           accounts={accounts}
           movements={movements}
+          movementCount={movementCount}
+          moreHref={moreHref(
+            new URLSearchParams({ a: selected.id }),
+            movements.length,
+          )}
         />
       </div>
     );
   }
 
-  return <AccountBoard shopId={shopId} accounts={accounts} />;
+  return (
+    <>
+      {/* หน้ารายบัญชีข้างบนมีชื่อบัญชีเป็น h1 ของตัวเองแล้ว ตรงนี้จึงเป็น
+          ของมุมมองรวมอย่างเดียว ไม่งั้นจะมี h1 สองอันในหน้าเดียว */}
+      <PageTitle>บัญชี</PageTitle>
+      <AccountBoard shopId={shopId} accounts={accounts} />
+    </>
+  );
 }
 
 function BackLink() {

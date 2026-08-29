@@ -1,3 +1,4 @@
+import { PageTitle } from "@/components/page-title";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { SummaryCard } from "@/components/summary-card";
@@ -54,6 +55,8 @@ export default async function DayPage({
 
   return (
     <div className="space-y-3">
+      <PageTitle>รายการรายวัน</PageTitle>
+
       {/**
        * แถบเลื่อนวัน — ปุ่มก่อนหน้า/ถัดไปเป็นลิงก์จริง ไม่ใช่ปุ่ม JavaScript
        * ทำให้ปุ่มย้อนกลับของเบราว์เซอร์ทำงานถูกต้อง และกดค้างเพื่อเปิดแท็บใหม่ได้
