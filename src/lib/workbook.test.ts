@@ -167,7 +167,7 @@ describe("ชนิดของข้อมูลในเซลล์", () => {
    */
   it("เวลาที่บันทึกเป็นเวลาไทย ไม่ใช่เวลาของเซิร์ฟเวอร์", () => {
     const ws = wb.getWorksheet("รายการ")!;
-    const at = ws.getRow(2).getCell(9).value as Date;
+    const at = ws.getRow(2).getCell(8).value as Date;
 
     expect(at).toBeInstanceOf(Date);
     expect(at.toISOString()).toBe("2026-08-28T23:30:00.000Z");
@@ -194,7 +194,6 @@ describe("ชีตรายการ", () => {
       "จำนวนเงิน",
       "บัญชี",
       "หมายเหตุ",
-      "นับเป็นกำไร",
       "เวลาที่บันทึก",
     ]);
   });
@@ -227,6 +226,39 @@ describe("ชีตรายการ", () => {
    * ถ้าเขียนค่าตายไว้ พอคนกรองเหลือเฉพาะค่าแรง ยอดรวมจะยังเป็นของทั้งเดือน
    * แล้วเขาจะอ่านผิดโดยไม่มีอะไรเตือน SUBTOTAL(109) นับเฉพาะแถวที่ยังโชว์อยู่
    */
+  /**
+   * เลิกใช้คอลัมน์ "นับเป็นกำไร" แยกช่อง ใช่/ไม่ แล้ว แต่ข้อมูลนั้นหายไม่ได้
+   *
+   * กำไรในชีตสรุปไม่เท่ากับผลบวกทุกแถวในชีตนี้ เพราะเงินอย่างเติมทุนหรือ
+   * ถอนใช้ส่วนตัวเดินจริงแต่ไม่ใช่ผลประกอบการ ถ้าไม่มีอะไรบอกไว้เลย
+   * คนกระทบยอดจะเจอส่วนต่างที่หาต้นตอไม่เจอ ตอนนี้กำกับไว้ในชื่อประเภทแทน
+   */
+  it("ประเภทที่ไม่นับเป็นกำไรกำกับไว้ในชื่อ แทนคอลัมน์แยก", async () => {
+    const wb2 = await build({
+      ...INPUT,
+      transactions: [
+        { ...INPUT.transactions[0], categoryName: "ถอนใช้ส่วนตัว", counts: false },
+      ],
+    });
+
+    expect(wb2.getWorksheet("รายการ")!.getRow(2).getCell(3).value).toBe(
+      "ถอนใช้ส่วนตัว (ไม่นับเป็นกำไร)",
+    );
+  });
+
+  it("ประเภทที่นับเป็นกำไรตามปกติ ไม่ต้องมีวงเล็บมารก", () => {
+    const ws = wb.getWorksheet("รายการ")!;
+    expect(ws.getRow(2).getCell(3).value).toBe("ซื้อของเข้าร้าน");
+  });
+
+  it("ทุกช่องมีเส้นตาราง และแถวคู่มีพื้นสลับ ไว้ไล่สายตาตามบรรทัด", () => {
+    const ws = wb.getWorksheet("รายการ")!;
+
+    expect(ws.getRow(2).getCell(1).border?.top?.style).toBe("thin");
+    // แถวแรกไม่มีพื้น แถวที่สองมี
+    expect(ws.getRow(3).getCell(1).fill?.type).toBe("pattern");
+  });
+
   it("แถวรวมเป็นสูตร SUBTOTAL ที่ขยับตามตัวกรอง", () => {
     const ws = wb.getWorksheet("รายการ")!;
     const total = ws.getRow(4).getCell(5).value as { formula?: string };
@@ -341,6 +373,9 @@ describe("ชีตสรุป", () => {
     });
 
     expect(empty.worksheets).toHaveLength(4);
-    expect(empty.getWorksheet("รายการ")!.rowCount).toBe(1);
+    // หัวตาราง + บรรทัดบอกว่าช่วงนี้ไม่มีรายการ
+    expect(empty.getWorksheet("รายการ")!.getRow(2).getCell(1).value).toBe(
+      "ช่วงนี้ไม่มีรายการ",
+    );
   });
 });

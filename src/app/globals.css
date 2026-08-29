@@ -309,6 +309,29 @@ input[type="search"]::-webkit-search-results-button {
  * เจาะจงเฉพาะ input[list] เท่านั้น — selector เดียวกันนี้ถ้าเขียนกว้างๆ
  * จะไปลบไอคอนปฏิทินของช่องวันที่ด้วย ซึ่งอันนั้นเป็นดรอปดาวน์จริงต้องคงไว้
  */
+/**
+ * ของที่กดได้ต้องขึ้นเป็นรูปมือ
+ *
+ * เบราว์เซอร์ตั้ง cursor ของ <button> เป็นลูกศรธรรมดามาแต่ไหนแต่ไร ส่วน
+ * Tailwind v3 เคยแก้ให้ในชั้น preflight แล้ว v4 เอาออก (ให้เหตุผลว่ายึด
+ * ตามค่าเดิมของเบราว์เซอร์) ผลคือแอปนี้ไม่มีรูปมือให้เห็นสักที่เดียว
+ * — ปุ่ม แถบที่กางได้ แท็บ ทุกอันดูเหมือนข้อความเฉยๆ บนจอที่ใช้เมาส์
+ *
+ * ลิงก์ไม่ต้องใส่ เพราะเบราว์เซอร์ให้รูปมือกับ <a href> อยู่แล้ว
+ * ส่วนตัวที่กดไม่ได้ต้องเป็นลูกศรห้าม ไม่ใช่รูปมือหลอกให้กด
+ */
+button:not(:disabled),
+[role="button"]:not([aria-disabled="true"]),
+summary,
+label[for],
+select:not(:disabled) {
+  cursor: pointer;
+}
+
+button:disabled,
+[role="button"][aria-disabled="true"] {
+  cursor: not-allowed;
+}
 input[list]::-webkit-calendar-picker-indicator {
   display: none !important;
 }

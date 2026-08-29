@@ -77,7 +77,6 @@ function setup(props: Partial<React.ComponentProps<typeof EntryForm>> = {}) {
       shopId="shop-1"
       accounts={ACCOUNTS}
       categories={CATEGORIES}
-      lastAccountId={null}
       titleHints={{ in: [], out: [] }}
       {...props}
     />,
@@ -213,13 +212,13 @@ describe("ช่องบัญชี", () => {
     );
   });
 
-  it("มีประวัติ ให้เลือกบัญชีที่ใช้ล่าสุด", () => {
-    const { accountSelect } = setup({ lastAccountId: "acc-bank" });
-    expect(accountSelect.value).toBe("acc-bank");
-  });
-
-  it("บัญชีที่ใช้ล่าสุดถูกปิดไปแล้ว กลับไปถามใหม่ ไม่เดาบัญชีแรกแทน", () => {
-    const { accountSelect } = setup({ lastAccountId: "acc-ที่ถูกลบไปแล้ว" });
+  /**
+   * เคยเติมบัญชีที่ใช้ล่าสุดให้ โดยอ้างว่าไม่ใช่การเดาเพราะคนเลือกเองครั้งก่อน
+   * เจ้าของร้านบอกว่ายังไม่ใช่ — ครั้งก่อนเลือกเงินสด ไม่ได้แปลว่าครั้งนี้
+   * จะเป็นเงินสด และช่องที่มีค่าค้างอยู่คือช่องที่คนกวาดตาผ่านโดยไม่ได้อ่าน
+   */
+  it("ไม่เติมบัญชีให้จากประวัติ ต้องเลือกเองทุกครั้ง", () => {
+    const { accountSelect } = setup();
     expect(accountSelect.value).toBe("");
   });
 
@@ -288,16 +287,6 @@ describe("ปุ่มบันทึก", () => {
     expect(save.disabled).toBe(false);
   });
 
-  it("มีบัญชีที่ใช้ล่าสุด ไม่ต้องเลือกบัญชีซ้ำ", async () => {
-    const user = userEvent.setup();
-    const { amount, title, categorySelect, save } = setup({ lastAccountId: "acc-bank" });
-
-    await user.type(amount, "120");
-    await user.type(title, "ขายของ");
-    await user.selectOptions(categorySelect, "cat-cost");
-
-    expect(save.disabled).toBe(false);
-  });
 
   it("ชื่อรายการที่มีแต่ช่องว่าง ยังกดไม่ได้", async () => {
     const user = userEvent.setup();
