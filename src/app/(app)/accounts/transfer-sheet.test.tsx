@@ -325,3 +325,186 @@ describe("บันทึกไม่สำเร็จ", () => {
     expect(to.value).toBe("acc-kt");
   });
 });
+
+/* ------------------------------------------------------------------ */
+
+/**
+ * ปุ่ม "ทั้งหมด" — ท่าที่ร้านทำจริงคือปิดร้านแล้วฝากเงินสดทั้งกระเป๋าเข้าธนาคาร
+ *
+ * เดิมต้องเลื่อนไปอ่านยอดในตัวเลือกแล้วพิมพ์ตามทีละหลัก พิมพ์พลาดหลักเดียว
+ * ยอดสองบัญชีเพี้ยนพร้อมกัน และเป็นความผิดที่หายากเพราะตัวเลขดูสมเหตุสมผล
+ */
+describe("โอนทั้งจำนวน", () => {
+  it("ยังไม่ได้เลือกต้นทาง ยังไม่มีปุ่มให้กด", () => {
+    setup();
+    expect(screen.queryByRole("button", { name: /ทั้งหมด/ })).toBeNull();
+  });
+
+  it("เลือกต้นทางแล้วปุ่มโผล่ พร้อมบอกยอดที่จะเติมให้", async () => {
+    const user = userEvent.setup();
+    const { from } = setup();
+
+    await user.selectOptions(from, "acc-scb");
+
+    // SCB มียอด 10,000 ตามชุดข้อมูลของไฟล์นี้
+    expect(screen.getByRole("button", { name: /ทั้งหมด/ }).textContent).toContain("10,000");
+  });
+
+  it("กดแล้วเติมยอดเต็มลงช่องจำนวนเงิน", async () => {
+    const user = userEvent.setup();
+    const { from, amount } = setup();
+
+    await user.selectOptions(from, "acc-kt");
+    await user.click(screen.getByRole("button", { name: /ทั้งหมด/ }));
+
+    // ส่งค่าดิบจากฐานข้อมูล ไม่ใช่ข้อความที่จัดรูปแบบแล้ว
+    // เพราะฝั่งเซิร์ฟเวอร์รับเฉพาะตัวเลขล้วน คอมมาทำให้ถูกปฏิเสธ
+    expect((amount as HTMLInputElement).value).toBe("2000");
+  });
+
+  it("เปลี่ยนต้นทางแล้วยอดในปุ่มเปลี่ยนตาม", async () => {
+    const user = userEvent.setup();
+    const { from } = setup();
+
+    await user.selectOptions(from, "acc-scb");
+    expect(screen.getByRole("button", { name: /ทั้งหมด/ }).textContent).toContain("10,000");
+
+    await user.selectOptions(from, "acc-cash");
+    expect(screen.getByRole("button", { name: /ทั้งหมด/ }).textContent).toContain("500");
+  });
+
+  /**
+   * บัญชีที่ไม่มีเงินเหลือ ปุ่มต้องไม่โผล่
+   *
+   * ปุ่มที่เติมศูนย์ให้ไม่ได้ช่วยอะไร แถมกดแล้วปุ่มโอนก็ยังกดไม่ได้อยู่ดี
+   * (จำนวนเงินต้องมากกว่าศูนย์) กลายเป็นทางตันที่ดูเหมือนใช้ได้
+   */
+  it("บัญชีที่ยอดเป็นศูนย์ ไม่มีปุ่มให้กด", async () => {
+    const user = userEvent.setup();
+    render(
+      <TransferSheet
+        open
+        onClose={() => undefined}
+        shopId="shop-1"
+        accounts={[
+          account("acc-empty", "กระปุกเปล่า", "0"),
+          account("acc-scb", "SCB", "10000"),
+        ]}
+      />,
+    );
+
+    const from = screen.getByLabelText("จากบัญชี") as HTMLSelectElement;
+    await user.selectOptions(from, "acc-empty");
+
+    expect(screen.queryByRole("button", { name: /ทั้งหมด/ })).toBeNull();
+  });
+
+  it("แก้การโอนเดิมก็ใช้ปุ่มได้ ไม่ใช่มีแต่ตอนสร้างใหม่", async () => {
+    const user = userEvent.setup();
+    setup({
+      editing: {
+        id: "tr-1",
+        fromAccountId: "acc-scb",
+        toAccountId: "acc-cash",
+        txnDate: "2026-08-01",
+        amount: "100",
+        note: null,
+      },
+    });
+
+    await user.click(screen.getByRole("button", { name: /ทั้งหมด/ }));
+    expect((screen.getByLabelText("จำนวนเงิน") as HTMLInputElement).value).toBe("10000");
+  });
+});
+
+/* ------------------------------------------------------------------ */
+
+/**
+ * สัญญาณบอกว่า "โอนใหม่สำเร็จแล้ว" ที่ส่งออกไปให้หน้าที่เปิดแผ่นนี้
+ *
+ * แยกจาก onClose เพราะสองอย่างนี้ไม่ใช่เรื่องเดียวกัน — ปิดแผ่นเกิดตอน
+ * กดกากบาททิ้งไปเฉยๆ ก็ได้ ส่วนอันนี้แปลว่าเงินขยับจริงแล้ว
+ */
+describe("บอกหน้าที่เรียกใช้ ว่าโอนใหม่สำเร็จแล้ว", () => {
+  it("โอนใหม่สำเร็จแล้วส่งสัญญาณ", async () => {
+    const user = userEvent.setup();
+    const onCreated = vi.fn();
+    createTransfer.mockResolvedValue({ status: "ok" });
+
+    render(
+      <TransferSheet
+        open
+        onClose={() => undefined}
+        onCreated={onCreated}
+        shopId="shop-1"
+        accounts={ACCOUNTS}
+      />,
+    );
+
+    await user.type(screen.getByLabelText("จำนวนเงิน"), "500");
+    await user.selectOptions(screen.getByLabelText("จากบัญชี"), "acc-cash");
+    await user.selectOptions(screen.getByLabelText("ไปบัญชี"), "acc-scb");
+    await user.click(screen.getByRole("button", { name: "โอนเงิน" }));
+
+    await waitFor(() => expect(onCreated).toHaveBeenCalledTimes(1));
+  });
+
+  /**
+   * แก้ของเดิมไม่ใช่การโอนใหม่
+   *
+   * ถ้าส่งสัญญาณตรงนี้ด้วย คนที่กำลังไล่ดูประวัติของบัญชีแล้วแตะแก้
+   * ตัวเลขผิดสักบรรทัด จะถูกพาออกจากหน้าที่ดูอยู่โดยไม่ได้ขอ
+   */
+  it("แก้ของเดิมสำเร็จ ไม่ส่งสัญญาณ", async () => {
+    const user = userEvent.setup();
+    const onCreated = vi.fn();
+    updateTransfer.mockResolvedValue({ status: "ok" });
+
+    render(
+      <TransferSheet
+        open
+        onClose={() => undefined}
+        onCreated={onCreated}
+        shopId="shop-1"
+        accounts={ACCOUNTS}
+        editing={{
+          id: "tr-1",
+          fromAccountId: "acc-scb",
+          toAccountId: "acc-cash",
+          txnDate: "2026-08-01",
+          amount: "100",
+          note: null,
+        }}
+      />,
+    );
+
+    await user.click(screen.getByRole("button", { name: "บันทึกการแก้ไข" }));
+
+    await waitFor(() => expect(updateTransfer).toHaveBeenCalled());
+    expect(onCreated).not.toHaveBeenCalled();
+  });
+
+  it("โอนไม่สำเร็จ ไม่ส่งสัญญาณ", async () => {
+    const user = userEvent.setup();
+    const onCreated = vi.fn();
+    createTransfer.mockResolvedValue({ status: "error", message: "โอนไม่สำเร็จ" });
+
+    render(
+      <TransferSheet
+        open
+        onClose={() => undefined}
+        onCreated={onCreated}
+        shopId="shop-1"
+        accounts={ACCOUNTS}
+      />,
+    );
+
+    await user.type(screen.getByLabelText("จำนวนเงิน"), "500");
+    await user.selectOptions(screen.getByLabelText("จากบัญชี"), "acc-cash");
+    await user.selectOptions(screen.getByLabelText("ไปบัญชี"), "acc-scb");
+    await user.click(screen.getByRole("button", { name: "โอนเงิน" }));
+
+    await waitFor(() => expect(createTransfer).toHaveBeenCalled());
+    expect(onCreated).not.toHaveBeenCalled();
+  });
+});

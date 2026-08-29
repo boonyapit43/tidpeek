@@ -53,6 +53,7 @@ export function TransferSheet({
   accounts,
   editing,
   defaultFromId,
+  onCreated,
 }: {
   open: boolean;
   onClose: () => void;
@@ -67,6 +68,13 @@ export function TransferSheet({
    * อยู่แล้ว ไม่ควรต้องมาเลือกซ้ำอีกรอบว่าเงินออกจากไหน
    */
   defaultFromId?: string;
+  /**
+   * เรียกเมื่อสร้างการโอนใหม่สำเร็จ (ไม่เรียกตอนแก้ของเดิมหรือลบ)
+   *
+   * มีไว้ให้หน้าที่เปิดแผ่นนี้พาไปดูผลต่อได้ เพราะการโอนขยับเงินสองบัญชี
+   * พร้อมกัน แต่หน้าที่กดโอนมาอาจเห็นแค่บัญชีเดียว
+   */
+  onCreated?: () => void;
 }) {
   return (
     <Sheet open={open} onClose={onClose} title={editing ? "แก้ไขการโอน" : "โอนเงินระหว่างบัญชี"}>
@@ -79,6 +87,7 @@ export function TransferSheet({
           editing={editing ?? null}
           defaultFromId={defaultFromId}
           onDone={onClose}
+          onCreated={onCreated}
         />
       )}
     </Sheet>
@@ -91,19 +100,26 @@ function TransferForm({
   editing,
   defaultFromId,
   onDone,
+  onCreated,
 }: {
   shopId: string;
   accounts: AccountWithBalance[];
   editing: EditableTransfer | null;
   defaultFromId?: string;
   onDone: () => void;
+  onCreated?: () => void;
 }) {
   const [state, formAction] = useActionState(editing ? updateTransfer : createTransfer, IDLE);
   const [deleteState, deleteAction] = useActionState(deleteTransfer, IDLE);
   const [confirmingDelete, setConfirmingDelete] = useState(false);
   const noteId = useId();
 
-  const amount = useKeptValue(editing?.amount ?? "");
+  /**
+   * ใช้ useState ตรงๆ แทน useKeptValue เพราะปุ่ม "ทั้งหมด" ต้องเซ็ตค่าเองได้
+   * ซึ่ง useKeptValue ไม่ได้คืน setter ออกมา (มันคือ useState ที่ห่อไว้อยู่แล้ว
+   * เพื่อกัน React 19 ล้างค่า ซึ่ง controlled แบบนี้ก็กันได้เหมือนกัน)
+   */
+  const [amount, setAmount] = useState(editing?.amount ?? "");
   const note = useKeptValue(editing?.note ?? "");
   const [date, setDate] = useState(editing?.txnDate ?? today);
 
@@ -133,6 +149,7 @@ function TransferForm({
 
   useEffect(() => {
     if (state.status === "ok" || deleteState.status === "ok") onDone();
+    if (state.status === "ok" && !editing) onCreated?.();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [state, deleteState]);
 
@@ -173,7 +190,22 @@ function TransferForm({
     );
   }
 
-  const canSubmit = amount.value.trim().length > 0 && Boolean(from) && Boolean(effectiveTo);
+  const canSubmit = amount.trim().length > 0 && Boolean(from) && Boolean(effectiveTo);
+
+  /**
+   * ยอดคงเหลือของบัญชีต้นทาง ไว้ให้ปุ่ม "ทั้งหมด" เติมให้ในทีเดียว
+   *
+   * ท่าที่ร้านทำจริงคือปิดร้านแล้วฝากเงินสดทั้งกระเป๋าเข้าธนาคาร ซึ่งเดิม
+   * ต้องเลื่อนไปอ่านยอดในตัวเลือกแล้วพิมพ์ตามทีละหลัก พิมพ์พลาดหลักเดียว
+   * ยอดสองบัญชีก็เพี้ยนพร้อมกัน
+   *
+   * ส่งยอดเป็น string ต่อตรงจากฐานข้อมูล ไม่แปลงเป็น number ระหว่างทาง
+   * ตามกฎเงินของแอป — ที่แปลงตรงนี้มีแค่การเทียบว่ามากกว่าศูนย์ไหม
+   * ซึ่งไม่ได้เอาผลไปเป็นยอดเงิน
+   */
+  const fromBalance = accounts.find((a) => a.id === from)?.balance;
+  const fullAmount =
+    fromBalance && Number.parseFloat(fromBalance) > 0 ? fromBalance : null;
 
   return (
     <>
@@ -184,14 +216,30 @@ function TransferForm({
 
         <Field label="จำนวนเงิน" htmlFor="transfer-amount" error={fieldError(state, "amount")}>
           <MoneyInput
-            {...amount}
             id="transfer-amount"
             name="amount"
+            value={amount}
+            onChange={(e) => setAmount(e.target.value)}
             placeholder="0.00"
             required
             autoFocus={!editing}
             enterKeyHint="next"
           />
+
+          {/**
+            * โผล่เฉพาะตอนที่รู้ว่าโอนจากบัญชีไหนและบัญชีนั้นมีเงินอยู่จริง
+            * ปุ่มที่เติมค่าศูนย์หรือค่าติดลบให้ ไม่ได้ช่วยอะไรนอกจากทำให้กดพลาด
+            */}
+          {fullAmount && (
+            <button
+              type="button"
+              onClick={() => setAmount(fullAmount)}
+              className="mt-1.5 inline-flex min-h-touch items-center gap-1.5 rounded-xl border border-line px-3 text-sm font-medium text-ink-soft transition active:bg-surface-2"
+            >
+              ทั้งหมด
+              <span className="num font-semibold text-ink">{bahtShort(fullAmount)}</span>
+            </button>
+          )}
         </Field>
 
         <Field label="จากบัญชี" htmlFor="transfer-from">

@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { cleanup, render, screen, within } from "@testing-library/react";
+import { cleanup, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import type { AccountWithBalance, MovementRow } from "@/db/queries";
 import { AccountDetail } from "./account-detail";
@@ -14,6 +14,23 @@ import { AccountDetail } from "./account-detail";
  *
  * บทเรียนคือ **ปุ่มต้องอยู่ในที่ที่คนไปหา ไม่ใช่ที่ที่จัดหมวดแล้วเข้าท่า**
  */
+
+/**
+ * ของกลางใน setup.ts ปลอมไว้แค่ redirect หน้านี้ใช้ useRouter ด้วย
+ * จึงต้องปลอมทับเองทั้งก้อน และเก็บ push ไว้ตรวจว่าพากลับหน้ารวมจริง
+ */
+const routerPush = vi.hoisted(() => vi.fn());
+
+vi.mock("next/navigation", () => ({
+  useRouter: () => ({
+    push: routerPush,
+    replace: vi.fn(),
+    refresh: vi.fn(),
+    back: vi.fn(),
+    forward: vi.fn(),
+    prefetch: vi.fn(),
+  }),
+}));
 
 vi.mock("@/actions/transfers", () => ({
   createTransfer: vi.fn(async () => ({ status: "ok" as const })),
@@ -89,6 +106,8 @@ beforeEach(() => {
 });
 
 afterEach(cleanup);
+
+beforeEach(() => routerPush.mockClear());
 
 function setup(over: { account?: AccountWithBalance; movements?: MovementRow[] } = {}) {
   render(
@@ -207,5 +226,48 @@ describe("รายการเงินเข้าออก", () => {
 
     expect(screen.getByText("ยังไม่มีเงินเข้าออกบัญชีนี้")).toBeTruthy();
     expect(screen.getByRole("button", { name: "โอนเงินออกจากบัญชีนี้" })).toBeTruthy();
+  });
+});
+
+/* ------------------------------------------------------------------ */
+
+/**
+ * โอนเสร็จแล้วต้องพากลับไปหน้ารวมบัญชี
+ *
+ * การโอนขยับเงินสองบัญชีพร้อมกัน แต่หน้านี้โชว์ได้ทีละบัญชี ยืนดูอยู่ที่เดิม
+ * จึงเห็นแค่ขาที่เงินออก ไม่เห็นว่าปลายทางรับครบไหม ซึ่งเป็นสิ่งเดียวที่
+ * คนโอนอยากรู้ — เจ้าของร้านแจ้งเองว่า "โอนเสร็จแล้วมันไม่กลับมาหน้ารวมบัญชี"
+ */
+describe("โอนเสร็จแล้วไปไหนต่อ", () => {
+  it("โอนใหม่สำเร็จ พากลับไปหน้ารวมบัญชี", async () => {
+    const user = userEvent.setup();
+    setup();
+
+    await user.click(screen.getByRole("button", { name: "โอนเงินออกจากบัญชีนี้" }));
+
+    const sheet = openDialog()!;
+    await user.type(within(sheet).getByLabelText("จำนวนเงิน"), "500");
+    await user.selectOptions(within(sheet).getByLabelText("ไปบัญชี"), "acc-kt");
+    await user.click(within(sheet).getByRole("button", { name: "โอนเงิน" }));
+
+    await waitFor(() => expect(routerPush).toHaveBeenCalledWith("/accounts"));
+  });
+
+  /**
+   * แก้ของเดิมยังอยู่หน้าเดิม เพราะตอนนั้นกำลังไล่ดูประวัติของบัญชีนี้อยู่
+   */
+  it("แก้การโอนเดิม ไม่ถูกพาออกจากหน้านี้", async () => {
+    const user = userEvent.setup();
+    setup();
+
+    await user.click(screen.getByRole("button", { name: /ไป กรุงไทย/ }));
+
+    const sheet = openDialog();
+    if (sheet) {
+      const save = within(sheet).queryByRole("button", { name: "บันทึกการแก้ไข" });
+      if (save) await user.click(save);
+    }
+
+    expect(routerPush).not.toHaveBeenCalled();
   });
 });

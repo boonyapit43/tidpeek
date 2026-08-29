@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { EditAccountSheet } from "@/components/account-sheet";
 import { Button } from "@/components/form-parts";
@@ -32,6 +33,7 @@ export function AccountDetail({
   accounts: AccountWithBalance[];
   movements: MovementRow[];
 }) {
+  const router = useRouter();
   const [editingTransfer, setEditingTransfer] = useState<EditableTransfer | null>(null);
   const [transferring, setTransferring] = useState(false);
   const [editingAccount, setEditingAccount] = useState(false);
@@ -146,6 +148,17 @@ export function AccountDetail({
         accounts={accounts}
         editing={editingTransfer}
         defaultFromId={account.id}
+        /**
+          * โอนเสร็จแล้วพากลับไปหน้ารวมบัญชี ไม่ค้างอยู่ที่บัญชีเดียว
+          *
+          * การโอนขยับเงินสองบัญชีพร้อมกัน แต่หน้านี้โชว์ได้ทีละบัญชี
+          * ยืนดูอยู่ที่เดิมจึงเห็นแค่ขาที่เงินออก ไม่เห็นว่าปลายทางรับครบไหม
+          * ซึ่งเป็นสิ่งเดียวที่คนโอนอยากรู้
+          *
+          * เฉพาะตอนโอนใหม่เท่านั้น แก้หรือลบของเดิมยังอยู่หน้าเดิม
+          * เพราะตอนนั้นกำลังไล่ดูประวัติของบัญชีนี้อยู่ ไม่ควรถูกพาออกไป
+          */
+        onCreated={() => router.push("/accounts")}
       />
 
       <EditAccountSheet
