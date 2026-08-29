@@ -390,3 +390,62 @@ describe("หลังบันทึกสำเร็จ ฟอร์มต้
     await waitFor(() => expect(f.save.disabled).toBe(true));
   });
 });
+
+/* ------------------------------------------------------------------ */
+
+/**
+ * กฎที่สำคัญที่สุดของฟอร์มนี้ — จอโชว์อะไร ระบบต้องส่งอันนั้น
+ *
+ * บั๊กที่คนใช้เจอกับเงินจริง: ลงรายการก่อนหน้าด้วยไทยพลัส พอบันทึกเสร็จ
+ * ช่องบัญชีโชว์ SCB แต่พอกดบันทึกรายการถัดไป เงินกลับไปหักจากไทยพลัส
+ *
+ * สาเหตุคือ React 19 สั่ง form.reset() เองหลัง action ซึ่งเปลี่ยนค่าใน DOM
+ * แต่ไม่ได้บอก React ค่าที่เห็นกับค่าที่จะส่งจึงแยกกันเงียบๆ
+ *
+ * เทสชุดนี้ผูกสองอย่างไว้ด้วยกันตรงๆ — ค่าที่ช่องเลือกโชว์ กับค่าใน
+ * ช่องซ่อนที่ถูกส่งจริง ถ้าวันหนึ่งมันแยกกันอีก เทสจะแดงทันที
+ */
+describe("ค่าที่เห็นกับค่าที่ส่ง ต้องเป็นอันเดียวกันเสมอ", () => {
+  const hidden = (form: HTMLFormElement, name: string) =>
+    (form.querySelector(`input[type=hidden][name=${name}]`) as HTMLInputElement).value;
+
+  it("เลือกไทยพลัสแล้วช่องซ่อนเป็นไทยพลัส ไม่ใช่บัญชีแรกในลิสต์", async () => {
+    const user = userEvent.setup();
+    const { form, accountSelect } = setup();
+
+    await user.selectOptions(accountSelect, "acc-bank");
+
+    expect(accountSelect.value).toBe("acc-bank");
+    expect(hidden(form, "accountId")).toBe("acc-bank");
+  });
+
+  /**
+   * เคสของคนใช้เป๊ะๆ — ลงด้วยไทยพลัสไปแล้วหนึ่งรายการ
+   *
+   * หลังบันทึก ช่องต้องว่างและช่องซ่อนต้องว่างด้วย ไม่ใช่ช่องว่างแต่ค่าที่
+   * ส่งยังเป็นไทยพลัสค้างอยู่ ซึ่งคือเงินหักผิดบัญชีโดยไม่มีใครเห็น
+   */
+  it("บันทึกด้วยไทยพลัสแล้ว รายการถัดไปต้องว่างทั้งที่เห็นและที่จะส่ง", async () => {
+    const user = userEvent.setup();
+    const { form, amount, title, categorySelect, accountSelect, save } = setup();
+
+    await user.type(amount, "165");
+    await user.type(title, "ค่าแก๊ส");
+    await user.selectOptions(categorySelect, "cat-cost");
+    await user.selectOptions(accountSelect, "acc-bank");
+
+    expect(hidden(form, "accountId")).toBe("acc-bank");
+    await user.click(save);
+
+    await waitFor(() => {
+      expect(hidden(form, "accountId")).toBe("");
+      expect(hidden(form, "categoryId")).toBe("");
+    });
+
+    // และสิ่งที่ตาเห็นต้องตรงกับนั้น
+    const nowAccount = screen.getByLabelText(/บัญชี/) as HTMLSelectElement;
+    const nowCategory = screen.getByLabelText("ประเภท") as HTMLSelectElement;
+    expect(nowAccount.value).toBe("");
+    expect(nowCategory.value).toBe("");
+  });
+});
