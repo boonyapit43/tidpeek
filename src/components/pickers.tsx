@@ -22,6 +22,15 @@ import { bahtShort } from "@/lib/money";
  * หน้าตั้งค่าอย่างเดียว จะไม่มีใครเห็นตอนที่มันสำคัญ
  */
 export function AccountOptions({ accounts }: { accounts: AccountWithBalance[] }) {
+  /**
+   * ลิสต์ว่างต้องบอกว่าทำไมและไปเพิ่มที่ไหน ไม่ใช่โชว์ "ไม่ระบุ" เฉยๆ
+   * ให้คนงงว่าบัญชีหายไปไหน — มาตรฐานเดียวกับแผ่นโอนเงินที่บอกว่า
+   * ต้องมีสองบัญชีก่อนถึงจะโอนได้
+   */
+  if (accounts.length === 0) {
+    return <option value="">ยังไม่มีบัญชี — เพิ่มได้ที่แท็บตั้งค่า</option>;
+  }
+
   return (
     <>
       <option value="">— ไม่ระบุ —</option>
@@ -37,6 +46,11 @@ export function AccountOptions({ accounts }: { accounts: AccountWithBalance[] })
 
 /** ประเภทที่ไม่นับเป็นกำไรมีวงเล็บกำกับ ไม่ได้ใช้สีบอกอย่างเดียว */
 export function CategoryOptions({ categories }: { categories: Category[] }) {
+  if (categories.length === 0) {
+    // ฝั่งรับกับฝั่งจ่ายมีคนละชุด สลับฝั่งแล้วว่างได้ทั้งที่อีกฝั่งมีของ
+    return <option value="">ยังไม่มีประเภทของฝั่งนี้ — เพิ่มได้ที่แท็บตั้งค่า</option>;
+  }
+
   return (
     <>
       <option value="">— ไม่ระบุ —</option>

@@ -226,11 +226,28 @@ describe("ช่องบัญชี", () => {
     expect(names.some((n) => n?.includes("ไทยพลัส") && n.includes("4,000"))).toBe(true);
   });
 
-  it("ร้านที่ยังไม่มีบัญชีเลย ยังเปิดหน้าได้ และเหลือแค่ไม่ระบุ", () => {
+  it("ร้านที่ยังไม่มีบัญชีเลย บอกตรงๆ ว่าว่างและไปเพิ่มที่ไหน", () => {
+    // ไม่ใช่โชว์ "ไม่ระบุ" เฉยๆ ให้คนงงว่าบัญชีหายไปไหน
     const { accountSelect } = setup({ accounts: [] });
 
     expect(accountSelect.value).toBe("");
     expect(accountSelect.options).toHaveLength(1);
+    expect(accountSelect.options[0].textContent).toContain("ยังไม่มีบัญชี");
+  });
+
+  it("ฝั่งที่ยังไม่มีประเภทเลย ก็บอกแบบเดียวกัน", async () => {
+    const user = userEvent.setup();
+    const { categorySelect } = setup({
+      categories: [category("cat-sale", "ขายหน้าร้าน", "in")],
+    });
+
+    // ฟอร์มเปิดมาที่ฝั่งจ่ายออก ซึ่งชุดนี้ไม่มีประเภทฝั่งนั้นเลย
+    expect(categorySelect.options).toHaveLength(1);
+    expect(categorySelect.options[0].textContent).toContain("ยังไม่มีประเภทของฝั่งนี้");
+
+    // สลับไปฝั่งรับ ประเภทที่มีอยู่ต้องกลับมาพร้อมตัวเลือกไม่ระบุ
+    await user.click(screen.getByRole("button", { name: "รับเข้า" }));
+    expect(categorySelect.options).toHaveLength(2);
   });
 });
 
