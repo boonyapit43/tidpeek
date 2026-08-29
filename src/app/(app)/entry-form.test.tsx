@@ -142,12 +142,19 @@ describe("ช่องประเภท", () => {
    *
    * ของจริงร้านลงรายจ่ายทีละรายการตลอดวัน แล้วลงยอดขายครั้งเดียวตอนปิดร้าน
    * เป็นจ่าย 6 ต่อรับ 1 — ตั้งผิดด้านเท่ากับกดสลับเพิ่มวันละหกครั้ง
+   *
+   * แต่ประเภทไม่ถูกเดาให้ — คนใช้ขอเองว่าต้องขึ้น "เลือกก่อน" ไม่ใช่
+   * default เป็นค่าแรกสุด เพราะค่าที่ถูกเดาผิดคือรายงานที่เพี้ยนเงียบๆ
    */
-  it("เปิดหน้ามาอยู่ฝั่งจ่ายออก และเลือกประเภทแรกของฝั่งนั้นให้", () => {
+  it("เปิดหน้ามาอยู่ฝั่งจ่ายออก แต่ประเภทขึ้นเลือกก่อน ไม่เดาตัวแรกให้", () => {
     const { categorySelect, form } = setup();
 
     expect(valueSentBy(form, "direction")).toBe("out");
-    expect(categorySelect.value).toBe("cat-cost");
+    expect(categorySelect.value).toBe("");
+    expect(categorySelect.options[categorySelect.selectedIndex].textContent).toContain(
+      "เลือกประเภทก่อน",
+    );
+    expect(valueSentBy(form, "categoryId")).toBe("");
   });
 
   /**
@@ -156,13 +163,14 @@ describe("ช่องประเภท", () => {
    * เดิมใช้ "" แทนทั้ง "ยังไม่ได้เลือก" และ "เลือกไม่ระบุไว้เอง" พอเลือก
    * ไม่ระบุ ระบบนึกว่ายังไม่ได้เลือกแล้วเด้งกลับไปตัวแรกทันที
    */
-  it("เลือก — ไม่ระบุ — แล้วต้องค้างอยู่ ไม่เด้งกลับไปตัวแรก", async () => {
+  it("เลือกไม่ระบุแล้วต้องค้างอยู่ และส่งออกไปเป็นค่าว่าง", async () => {
     const user = userEvent.setup();
     const { categorySelect, form } = setup();
 
-    await user.selectOptions(categorySelect, "");
+    await user.selectOptions(categorySelect, "__none__");
 
-    expect(categorySelect.value).toBe("");
+    expect(categorySelect.value).toBe("__none__");
+    // รหัสภายในถูกแปลงกลับเป็นค่าว่างก่อนถึงเซิร์ฟเวอร์เสมอ
     expect(valueSentBy(form, "categoryId")).toBe("");
   });
 
@@ -175,7 +183,8 @@ describe("ช่องประเภท", () => {
     const names = [...categorySelect.options].map((o) => o.textContent?.trim());
     expect(names).toContain("ขายหน้าร้าน");
     expect(names).not.toContain("ซื้อของเข้าร้าน");
-    expect(categorySelect.value).toBe("cat-sale");
+    // สลับฝั่งแล้วก็ยังไม่เดาให้ — กลับมาที่เลือกก่อนเหมือนเปิดหน้าใหม่
+    expect(categorySelect.value).toBe("");
   });
 
   it("ประเภทที่ไม่นับเป็นกำไรมีวงเล็บกำกับ ไม่ได้ใช้สีบอกอย่างเดียว", () => {
@@ -189,11 +198,19 @@ describe("ช่องประเภท", () => {
 /* ------------------------------------------------------------------ */
 
 describe("ช่องบัญชี", () => {
-  it("ไม่มีประวัติ ให้เลือกบัญชีแรกไว้ ไม่ใช่ปล่อยเป็นไม่ระบุ", () => {
-    // ถ้าปล่อยเป็นไม่ระบุ รายการที่ลงเร็วๆ จะไม่ผูกบัญชี
-    // แล้วยอดคงเหลือไม่ขยับทั้งที่เงินเข้าออกจริง
+  /**
+   * ไม่มีประวัติ = ไม่เดา — ขึ้น "เลือกบัญชีก่อน" แล้วล็อกปุ่มบันทึกไว้
+   *
+   * เดิมเดาบัญชีแรกให้เพื่อกันรายการไม่ผูกบัญชี (ยอดจะไม่ขยับ) แต่การเดา
+   * ผิดคือเงินลงผิดบัญชีเงียบๆ — ตอนนี้กันบั๊กเดิมด้วยการล็อกปุ่มแทน
+   */
+  it("ไม่มีประวัติ ขึ้นเลือกบัญชีก่อน ไม่เดาตัวแรกให้", () => {
     const { accountSelect } = setup();
-    expect(accountSelect.value).toBe("acc-cash");
+
+    expect(accountSelect.value).toBe("");
+    expect(accountSelect.options[accountSelect.selectedIndex].textContent).toContain(
+      "เลือกบัญชีก่อน",
+    );
   });
 
   it("มีประวัติ ให้เลือกบัญชีที่ใช้ล่าสุด", () => {
@@ -201,21 +218,16 @@ describe("ช่องบัญชี", () => {
     expect(accountSelect.value).toBe("acc-bank");
   });
 
-  it("บัญชีที่ใช้ล่าสุดถูกปิดไปแล้ว ให้ตกกลับไปบัญชีแรก", () => {
-    // ถ้าส่งค่าที่ไม่มีในตัวเลือก เบราว์เซอร์จะเด้งไปตัวแรกเงียบๆ
-    // แล้วสิ่งที่ React คิดว่าเลือกอยู่กับสิ่งที่ส่งจริงจะไม่ตรงกัน
+  it("บัญชีที่ใช้ล่าสุดถูกปิดไปแล้ว กลับไปถามใหม่ ไม่เดาบัญชีแรกแทน", () => {
     const { accountSelect } = setup({ lastAccountId: "acc-ที่ถูกลบไปแล้ว" });
-    expect(accountSelect.value).toBe("acc-cash");
+    expect(accountSelect.value).toBe("");
   });
 
-  it("เลือกไม่ระบุเองได้ และค้างอยู่", async () => {
-    const user = userEvent.setup();
-    const { accountSelect, form } = setup();
+  it("ฟอร์มบันทึกใหม่ไม่มีตัวเลือกไม่ระบุบัญชี — เงินทุกรายการต้องมีที่มาที่ไป", () => {
+    const { accountSelect } = setup();
 
-    await user.selectOptions(accountSelect, "");
-
-    expect(accountSelect.value).toBe("");
-    expect(valueSentBy(form, "accountId")).toBe("");
+    const selectable = [...accountSelect.options].filter((o) => !o.disabled);
+    expect(selectable.map((o) => o.value)).not.toContain("");
   });
 
   it("ยอดคงเหลือติดอยู่ในชื่อตัวเลือก จะได้เห็นตอนกำลังเลือก", () => {
@@ -245,34 +257,56 @@ describe("ช่องบัญชี", () => {
     expect(categorySelect.options).toHaveLength(1);
     expect(categorySelect.options[0].textContent).toContain("ยังไม่มีประเภทของฝั่งนี้");
 
-    // สลับไปฝั่งรับ ประเภทที่มีอยู่ต้องกลับมาพร้อมตัวเลือกไม่ระบุ
+    // สลับไปฝั่งรับ ได้ครบสามส่วน: ตัวบอกให้เลือก + ไม่ระบุ + ประเภทที่มี
     await user.click(screen.getByRole("button", { name: "รับเข้า" }));
-    expect(categorySelect.options).toHaveLength(2);
+    expect(categorySelect.options).toHaveLength(3);
   });
 });
 
 /* ------------------------------------------------------------------ */
 
 describe("ปุ่มบันทึก", () => {
-  it("กดไม่ได้จนกว่าจะมีทั้งจำนวนเงินและชื่อรายการ", async () => {
+  /**
+   * ต้องครบสี่อย่างถึงจะกดได้: จำนวน ชื่อ ประเภท และบัญชี
+   *
+   * สองอย่างหลังคือด่านที่มาแทนการเดาค่าแรกให้ — ปุ่มที่กดไม่ได้บอกชัดกว่า
+   * รายการที่ถูกบันทึกลงผิดบัญชีผิดหมวดโดยไม่มีใครทันเห็น
+   */
+  it("กดไม่ได้จนกว่าจะครบ จำนวน ชื่อ ประเภท และบัญชี", async () => {
     const user = userEvent.setup();
-    const { amount, title, save } = setup();
-
-    expect(save.disabled).toBe(true);
+    const { amount, title, categorySelect, accountSelect, save } = setup();
 
     await user.type(amount, "120");
+    await user.type(title, "ขายของ");
+    // ครบสองช่องบนแล้ว แต่ยังไม่ได้เลือกประเภทกับบัญชี
     expect(save.disabled).toBe(true);
 
+    await user.selectOptions(categorySelect, "cat-cost");
+    expect(save.disabled).toBe(true);
+
+    await user.selectOptions(accountSelect, "acc-cash");
+    expect(save.disabled).toBe(false);
+  });
+
+  it("มีบัญชีที่ใช้ล่าสุด ไม่ต้องเลือกบัญชีซ้ำ", async () => {
+    const user = userEvent.setup();
+    const { amount, title, categorySelect, save } = setup({ lastAccountId: "acc-bank" });
+
+    await user.type(amount, "120");
     await user.type(title, "ขายของ");
+    await user.selectOptions(categorySelect, "cat-cost");
+
     expect(save.disabled).toBe(false);
   });
 
   it("ชื่อรายการที่มีแต่ช่องว่าง ยังกดไม่ได้", async () => {
     const user = userEvent.setup();
-    const { amount, title, save } = setup();
+    const { amount, title, categorySelect, accountSelect, save } = setup();
 
     await user.type(amount, "120");
     await user.type(title, "   ");
+    await user.selectOptions(categorySelect, "cat-cost");
+    await user.selectOptions(accountSelect, "acc-cash");
 
     expect(save.disabled).toBe(true);
   });

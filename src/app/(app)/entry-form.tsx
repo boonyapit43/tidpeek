@@ -14,10 +14,24 @@ import {
   fieldError,
 } from "@/components/form-parts";
 import { DatePicker } from "@/components/date-picker";
-import { AccountOptions, CategoryOptions } from "@/components/pickers";
+import {
+  AccountOptionItems,
+  CategoryOptionItems,
+  NO_ACCOUNTS_LABEL,
+  NO_CATEGORIES_LABEL,
+} from "@/components/pickers";
 import type { AccountWithBalance } from "@/db/queries";
 import type { Category, Direction } from "@/db/schema";
 import { today } from "@/lib/date";
+
+/**
+ * ค่าของตัวเลือก "ไม่ระบุประเภท" ใน dropdown
+ *
+ * ค่า "" ถูกจองให้ตัวบอกสถานะ "ยังไม่ได้เลือก" (— เลือกประเภทก่อน —) แล้ว
+ * ถ้าให้ไม่ระบุใช้ "" ด้วย สองความหมายจะแยกกันไม่ออก ซึ่งคือต้นเหตุของ
+ * บั๊กเก่าที่เลือกไม่ระบุแล้วเด้งกลับ ค่านี้ถูกแปลงกลับเป็น "" ก่อนส่งเสมอ
+ */
+const NONE = "__none__";
 import { AddCategorySheet } from "./add-category-sheet";
 
 export type TitleHint = { title: string; categoryId: string | null };
@@ -81,7 +95,7 @@ export function EntryForm({
    * ทับสิ่งที่คนเพิ่งตั้งใจเลือกไว้กับรายการนี้
    */
   const [categoryTouched, setCategoryTouched] = useState(false);
-  /** สามสถานะเหมือนประเภทข้างบน null = ยังไม่ได้เลือกเอง "" = เลือกไม่ระบุไว้ */
+  /** null = ยังไม่ได้เลือกเอง — ฟอร์มบันทึกใหม่ไม่มีตัวเลือกไม่ระบุ จึงเหลือสองสถานะ */
   const [accountId, setAccountId] = useState<string | null>(null);
   const [title, setTitle] = useState("");
   const [amount, setAmount] = useState("");
@@ -97,42 +111,44 @@ export function EntryForm({
   const hints = titleHints[direction];
 
   /**
-   * ประเภทที่ใช้ได้จริงในตอนนี้
+   * ประเภทที่เลือกอยู่จริงตอนนี้ — null คือยังไม่ได้เลือก และต้องโชว์เป็น
+   * "เลือกประเภทก่อน" ไม่ใช่แอบเดาตัวแรกของฝั่งให้
    *
-   * คำนวณตอน render แทนการเก็บเป็น state แล้วใช้ effect คอยแก้เมื่อสลับฝั่ง
-   * เพราะการ setState ใน effect ทำให้ render สองรอบต่อการกดหนึ่งครั้ง
-   * และจะมีเสี้ยววินาทีที่หน้าจอโชว์ประเภทของฝั่งเก่าค้างอยู่
+   * เคยเดาให้ แล้วผลคือรายการถูกจัดหมวดเป็นตัวแรกของลิสต์เงียบๆ ทั้งที่
+   * ไม่ใช่ — สรุปแยกประเภทที่อุตส่าห์ออกแบบชุดประเภทมาก็เพี้ยนโดยไม่มีใคร
+   * ทันเห็น การถามตรงๆ เสียหนึ่งแตะ แต่ตัวเลขในรายงานเชื่อถือได้
+   * (ชื่อรายการที่เคยพิมพ์ยังช่วยเดาประเภทให้เหมือนเดิม — อันนั้นเดาจาก
+   * ประวัติของคนใช้เอง ไม่ใช่จากลำดับในลิสต์)
    *
-   * ⚠️ "" (ไม่ระบุ) ต้องนับว่าเป็นค่าที่ใช้ได้ด้วย
-   *    ถ้าเช็คแค่ว่ามีอยู่ในรายการไหม string ว่างจะไม่ผ่านแล้วเด้งกลับไป
-   *    ตัวแรกทันที ทำให้เลือก "ไม่ระบุ" ไม่ได้เลย
+   * คำนวณตอน render แทนการเก็บ state + effect เพื่อไม่ให้มีเสี้ยววินาที
+   * ที่หน้าจอโชว์ประเภทของฝั่งเก่าค้างอยู่ตอนสลับฝั่ง
+   *
+   * ⚠️ "" (เลือกไม่ระบุไว้เอง) ต้องนับว่าเป็นค่าที่ใช้ได้ ไม่ใช่ยังไม่เลือก
    */
-  const chosen = categoryId !== null;
-  const stillUsable = categoryId === "" || visibleCategories.some((c) => c.id === categoryId);
+  const categoryUsable =
+    categoryId === "" || visibleCategories.some((c) => c.id === categoryId);
 
-  const effectiveCategoryId =
-    chosen && stillUsable ? categoryId : (visibleCategories[0]?.id ?? "");
+  const effectiveCategoryId = categoryId !== null && categoryUsable ? categoryId : null;
 
   /**
-   * บัญชีตั้งต้น เรียงตามลำดับนี้ — ที่เลือกเอง → ที่ใช้ล่าสุด → ตัวแรกในรายการ
+   * บัญชีที่เลือกอยู่ — ที่เลือกเอง → ที่ใช้ล่าสุด → ถามตรงๆ ว่าเลือกก่อน
    *
-   * เดิมตั้งต้นเป็น "ไม่ระบุ" ซึ่งดูเป็นกลางดี แต่ผลจริงคือรายการที่ลงเร็วๆ
-   * ไม่ผูกกับบัญชีไหนเลย ยอดคงเหลือเลยไม่ขยับทั้งที่เงินเข้าออกจริง
-   * เดาบัญชีให้แล้วเลือกผิดยังเห็นและแก้ได้ แต่ไม่เลือกให้เลยแล้วยอดนิ่ง
-   * ไม่มีอะไรบอกว่าผิด กว่าจะรู้ก็ต้องไล่แก้ย้อนหลังทีละรายการ
+   * ไม่เดา "ตัวแรกในลิสต์" ให้อีกแล้ว เพราะตัวแรกเป็นแค่ลำดับที่ตั้งไว้
+   * ไม่ได้บอกว่าเงินเข้าออกทางไหนจริง เดาผิดแล้วเงินไปลงผิดบัญชีเงียบๆ
+   * ส่วนที่ใช้ล่าสุดยังเติมให้ เพราะนั่นคือสิ่งที่คนใช้เลือกเองกับมือครั้งก่อน
    *
-   * เช็คว่ายังอยู่ในรายการไหมด้วย เพราะบัญชีที่ใช้ล่าสุดอาจถูกปิดไปแล้ว
-   * ถ้าไม่เช็คแล้วส่งค่าที่ไม่มีในตัวเลือก เบราว์เซอร์จะเด้งไปตัวแรกเงียบๆ
+   * แล้วบั๊กเก่าที่รายการไม่ผูกบัญชีจนยอดไม่ขยับล่ะ? — กันด้วยปุ่มบันทึก
+   * ที่กดไม่ได้จนกว่าจะเลือก (ดู canSubmit) ไม่ใช่ด้วยการเดาแทน และฟอร์ม
+   * บันทึกใหม่ไม่มีตัวเลือก "ไม่ระบุ" เลย เงินทุกรายการต้องมีที่มาที่ไป
+   * (แผ่นแก้ไขยังมี เพื่อรายการเก่าที่เคยลงไว้โดยไม่ผูกบัญชี)
+   *
+   * เช็คว่ายังอยู่ในรายการไหมด้วย เพราะบัญชีอาจถูกปิดไปแล้ว
    */
-  const accountChosen = accountId !== null;
-  const accountUsable = accountId === "" || accounts.some((a) => a.id === accountId);
-  const fallbackAccountId =
-    (lastAccountId && accounts.some((a) => a.id === lastAccountId) ? lastAccountId : null) ??
-    accounts[0]?.id ??
-    "";
+  const lastUsableId =
+    lastAccountId && accounts.some((a) => a.id === lastAccountId) ? lastAccountId : null;
 
   const effectiveAccountId =
-    accountChosen && accountUsable ? accountId : fallbackAccountId;
+    accountId !== null && accounts.some((a) => a.id === accountId) ? accountId : lastUsableId;
 
   /**
    * ล้างช่องที่ต้องกรอกใหม่ทุกครั้ง หลังบันทึกสำเร็จ
@@ -183,7 +199,14 @@ export function EntryForm({
   }
 
   const isIncome = direction === "in";
-  const canSubmit = title.trim().length > 0 && amount.trim().length > 0;
+
+  // ร้านที่ลิสต์ว่าง (เช่นยังไม่มีบัญชีเลย) ไม่ถูกล็อกจนบันทึกอะไรไม่ได้
+  // ช่องนั้นจะโชว์ข้อความบอกทางไปเพิ่ม และยอมให้บันทึกแบบไม่ผูกไปก่อน
+  const categoryReady = visibleCategories.length === 0 || effectiveCategoryId !== null;
+  const accountReady = accounts.length === 0 || effectiveAccountId !== null;
+
+  const canSubmit =
+    title.trim().length > 0 && amount.trim().length > 0 && categoryReady && accountReady;
 
   return (
     <>
@@ -241,16 +264,33 @@ export function EntryForm({
           <div className="flex gap-2">
             <Select
               id="category"
-              name="categoryId"
-              value={effectiveCategoryId}
+              value={
+                effectiveCategoryId === null
+                  ? ""
+                  : effectiveCategoryId === ""
+                    ? NONE
+                    : effectiveCategoryId
+              }
               onChange={(e) => {
-                setCategoryId(e.target.value);
+                setCategoryId(e.target.value === NONE ? "" : e.target.value);
                 setCategoryTouched(true);
               }}
               className="flex-1"
             >
-              <CategoryOptions categories={visibleCategories} />
+              {visibleCategories.length === 0 ? (
+                <option value="">{NO_CATEGORIES_LABEL}</option>
+              ) : (
+                <>
+                  <option value="" disabled>
+                    — เลือกประเภทก่อน —
+                  </option>
+                  <option value={NONE}>ไม่ระบุประเภท</option>
+                  <CategoryOptionItems categories={visibleCategories} />
+                </>
+              )}
             </Select>
+            {/* ค่าที่ส่งจริงอยู่ตรงนี้ — แปลงรหัสไม่ระบุกลับเป็นค่าว่างให้เซิร์ฟเวอร์ */}
+            <input type="hidden" name="categoryId" value={effectiveCategoryId ?? ""} />
             <button
               type="button"
               onClick={() => setSheetOpen(true)}
@@ -275,12 +315,21 @@ export function EntryForm({
         <Field label={isIncome ? "เงินเข้าบัญชี" : "จ่ายจากบัญชี"} htmlFor="account">
           <Select
             id="account"
-            name="accountId"
-            value={effectiveAccountId}
+            value={effectiveAccountId ?? ""}
             onChange={(e) => setAccountId(e.target.value)}
           >
-            <AccountOptions accounts={accounts} />
+            {accounts.length === 0 ? (
+              <option value="">{NO_ACCOUNTS_LABEL}</option>
+            ) : (
+              <>
+                <option value="" disabled>
+                  — เลือกบัญชีก่อน —
+                </option>
+                <AccountOptionItems accounts={accounts} />
+              </>
+            )}
           </Select>
+          <input type="hidden" name="accountId" value={effectiveAccountId ?? ""} />
         </Field>
 
         <DatePicker value={date} onChange={setDate} error={fieldError(state, "txnDate")} />

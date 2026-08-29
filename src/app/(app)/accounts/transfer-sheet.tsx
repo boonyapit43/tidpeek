@@ -108,29 +108,28 @@ function TransferForm({
   const [date, setDate] = useState(editing?.txnDate ?? today);
 
   /**
-   * บัญชีต้นทางและปลายทางต้องไม่ซ้ำกัน
+   * ไม่เดาบัญชีให้ — ทั้งสองช่องเริ่มที่ "เลือกบัญชีก่อน" แล้วให้เลือกเอง
    *
-   * เลือกให้ล่วงหน้าเป็นสองบัญชีแรกที่ไม่ใช่ตัวเดียวกัน คนใช้จึงกดโอนได้เลย
-   * โดยไม่ต้องเลือกครบสองช่องก่อน
+   * เคยเลือกสองบัญชีแรกไว้ให้เพื่อความไว แต่การย้ายเงินจริงที่ต้นทางถูกเดา
+   * ผิดคือยอดสองบัญชีเพี้ยนพร้อมกันเงียบๆ ปุ่มโอนจึงล็อกไว้จนกว่าจะเลือกครบ
+   *
+   * ยกเว้นสองกรณีที่ไม่ใช่การเดา: แก้ของเดิม (ค่าจริงของแถวนั้น) และกดโอน
+   * จากหน้าของบัญชีใดบัญชีหนึ่ง ซึ่งคนกดตั้งใจโอน "ออกจากบัญชีนี้" อยู่แล้ว
    */
   const initialFrom =
     editing?.fromAccountId ??
-    (defaultFromId && accounts.some((a) => a.id === defaultFromId)
-      ? defaultFromId
-      : (accounts[0]?.id ?? ""));
+    (defaultFromId && accounts.some((a) => a.id === defaultFromId) ? defaultFromId : "");
 
   const [from, setFrom] = useState(initialFrom);
-  const [to, setTo] = useState(
-    editing?.toAccountId ?? accounts.find((a) => a.id !== initialFrom)?.id ?? "",
-  );
+  const [to, setTo] = useState(editing?.toAccountId ?? "");
 
   /**
-   * เลือกต้นทางทับปลายทาง ให้ปลายทางเลื่อนไปบัญชีอื่นเอง
+   * เปลี่ยนต้นทางไปทับปลายทางที่เลือกไว้ ปลายทางถอยกลับเป็น "เลือกบัญชีก่อน"
    *
-   * แทนที่จะปล่อยให้กดบันทึกแล้วค่อยเจอข้อความว่าเลือกซ้ำกัน — ทำให้สถานะ
-   * ที่ผิดเกิดขึ้นบนหน้าจอไม่ได้ตั้งแต่แรก ดีกว่าปล่อยให้เกิดแล้วค่อยฟ้อง
+   * สถานะซ้ำกันเกิดบนหน้าจอไม่ได้ตั้งแต่แรก และไม่แอบเดาบัญชีอื่นแทน —
+   * การเดาตรงนี้คือสิ่งเดียวกับที่เพิ่งเลิกทำข้างบน
    */
-  const effectiveTo = to === from ? (accounts.find((a) => a.id !== from)?.id ?? "") : to;
+  const effectiveTo = to === from ? "" : to;
 
   useEffect(() => {
     if (state.status === "ok" || deleteState.status === "ok") onDone();
@@ -152,7 +151,7 @@ function TransferForm({
     );
   }
 
-  const canSubmit = amount.value.trim().length > 0 && Boolean(effectiveTo);
+  const canSubmit = amount.value.trim().length > 0 && Boolean(from) && Boolean(effectiveTo);
 
   return (
     <>
@@ -180,6 +179,9 @@ function TransferForm({
             value={from}
             onChange={(e) => setFrom(e.target.value)}
           >
+            <option value="" disabled>
+              — เลือกบัญชีต้นทาง —
+            </option>
             <AccountChoices accounts={accounts} />
           </Select>
         </Field>
@@ -196,6 +198,9 @@ function TransferForm({
             value={effectiveTo}
             onChange={(e) => setTo(e.target.value)}
           >
+            <option value="" disabled>
+              — เลือกบัญชีปลายทาง —
+            </option>
             {/* ตัดบัญชีต้นทางออกจากตัวเลือก เลือกซ้ำกันไม่ได้ตั้งแต่แรก */}
             <AccountChoices accounts={accounts.filter((a) => a.id !== from)} />
           </Select>

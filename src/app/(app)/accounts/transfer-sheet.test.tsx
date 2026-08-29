@@ -97,29 +97,41 @@ const valueOf = (form: HTMLFormElement, key: string) => new FormData(form).get(k
 /* ------------------------------------------------------------------ */
 
 describe("โอนเงินใหม่", () => {
-  it("เลือกสองบัญชีแรกไว้ให้ กดโอนได้เลยโดยไม่ต้องเลือกเอง", () => {
+  /**
+   * ไม่เดาบัญชีให้ — คนใช้ขอเองว่าต้องขึ้น "เลือกก่อน" ไม่ใช่ default
+   * ค่าแรกสุด การย้ายเงินที่ต้นทางถูกเดาผิดคือยอดสองบัญชีเพี้ยนพร้อมกัน
+   */
+  it("เปิดมาทั้งสองช่องขึ้นเลือกบัญชีก่อน ไม่เดาให้", () => {
     const { from, to } = setup();
 
-    expect(from.value).toBe("acc-scb");
-    expect(to.value).toBe("acc-kt");
+    expect(from.value).toBe("");
+    expect(to.value).toBe("");
+    expect(from.options[from.selectedIndex].textContent).toContain("เลือกบัญชีต้นทาง");
+    expect(to.options[to.selectedIndex].textContent).toContain("เลือกบัญชีปลายทาง");
   });
 
-  it("บัญชีต้นทางไม่โผล่ในตัวเลือกปลายทาง — เลือกซ้ำกันไม่ได้ตั้งแต่แรก", () => {
-    const { to } = setup();
-
-    expect([...to.options].map((o) => o.value)).not.toContain("acc-scb");
-    expect([...to.options]).toHaveLength(2);
-  });
-
-  it("เปลี่ยนต้นทางไปทับปลายทาง ปลายทางเลื่อนหนีเอง", async () => {
+  it("บัญชีต้นทางไม่โผล่ในตัวเลือกปลายทาง — เลือกซ้ำกันไม่ได้ตั้งแต่แรก", async () => {
     const user = userEvent.setup();
     const { from, to } = setup();
 
-    // ตอนแรก SCB → กรุงไทย · เปลี่ยนต้นทางเป็นกรุงไทย
+    await user.selectOptions(from, "acc-scb");
+
+    expect([...to.options].map((o) => o.value)).not.toContain("acc-scb");
+    // สองบัญชีที่เหลือ + ตัวบอกให้เลือก
+    expect([...to.options]).toHaveLength(3);
+  });
+
+  it("เปลี่ยนต้นทางไปทับปลายทางที่เลือกไว้ ปลายทางถอยกลับไปถามใหม่ ไม่เดาแทน", async () => {
+    const user = userEvent.setup();
+    const { from, to } = setup();
+
+    await user.selectOptions(from, "acc-scb");
+    await user.selectOptions(to, "acc-kt");
+    // เปลี่ยนต้นทางเป็นบัญชีเดียวกับปลายทางที่เลือกไว้
     await user.selectOptions(from, "acc-kt");
 
     expect(from.value).toBe("acc-kt");
-    expect(to.value).not.toBe("acc-kt");
+    expect(to.value).toBe("");
     expect([...to.options].map((o) => o.value)).not.toContain("acc-kt");
   });
 
@@ -130,11 +142,14 @@ describe("โอนเงินใหม่", () => {
     expect(labels.some((l) => l?.includes("SCB") && l.includes("10,000"))).toBe(true);
   });
 
-  it("ไม่มีตัวเลือก — ไม่ระบุ — เพราะการโอนต้องรู้ทั้งต้นทางและปลายทาง", () => {
+  it("ส่งค่าว่างไม่ได้ — ตัวบอกให้เลือกกดเลือกซ้ำไม่ได้ และไม่มีตัวเลือกไม่ระบุ", () => {
     const { from, to } = setup();
 
-    expect([...from.options].map((o) => o.value)).not.toContain("");
-    expect([...to.options].map((o) => o.value)).not.toContain("");
+    for (const select of [from, to]) {
+      const empties = [...select.options].filter((o) => o.value === "");
+      expect(empties).toHaveLength(1);
+      expect(empties[0].disabled).toBe(true);
+    }
   });
 
   it("ส่งคีย์ครบตามที่ action ต้องการ และไม่มี note ตอนไม่ได้พิมพ์", () => {
@@ -152,13 +167,17 @@ describe("โอนเงินใหม่", () => {
     expect(keys).not.toContain("id");
   });
 
-  it("ยังไม่ใส่จำนวนเงิน กดโอนไม่ได้", async () => {
+  it("กดโอนไม่ได้จนกว่าจะครบ จำนวน ต้นทาง และปลายทาง", async () => {
     const user = userEvent.setup();
-    const { amount, submit } = setup();
-
-    expect(submit.disabled).toBe(true);
+    const { amount, from, to, submit } = setup();
 
     await user.type(amount, "3000");
+    expect(submit.disabled).toBe(true);
+
+    await user.selectOptions(from, "acc-scb");
+    expect(submit.disabled).toBe(true);
+
+    await user.selectOptions(to, "acc-kt");
     expect(submit.disabled).toBe(false);
   });
 
@@ -167,6 +186,7 @@ describe("โอนเงินใหม่", () => {
     const { amount, from, to, submit } = setup();
 
     await user.type(amount, "3000");
+    await user.selectOptions(from, "acc-scb");
     await user.selectOptions(to, "acc-cash");
     await user.click(submit);
 
@@ -184,17 +204,18 @@ describe("โอนเงินใหม่", () => {
    * คนกดตั้งใจจะโอน "ออกจากบัญชีนี้" อยู่แล้ว ไม่ควรต้องเลือกซ้ำว่าเงินออกจากไหน
    * เทสข้อนี้กันไม่ให้ปุ่มนั้นหลุดกลับไปเป็นฟอร์มเปล่าที่เลือกบัญชีแรกให้เสมอ
    */
-  it("เปิดจากหน้าบัญชีไหน ต้นทางต้องเป็นบัญชีนั้น", () => {
+  it("เปิดจากหน้าบัญชีไหน ต้นทางต้องเป็นบัญชีนั้น ส่วนปลายทางยังต้องเลือกเอง", () => {
+    // อันนี้ไม่ใช่การเดา — คนกดตั้งใจโอนออกจากบัญชีนี้อยู่แล้ว
     const { from, to } = setup({ defaultFromId: "acc-cash" });
 
     expect(from.value).toBe("acc-cash");
-    expect(to.value).not.toBe("acc-cash");
+    expect(to.value).toBe("");
   });
 
-  it("ส่ง defaultFromId ที่ไม่มีในรายการมา ให้ตกกลับไปบัญชีแรก", () => {
+  it("ส่ง defaultFromId ที่ไม่มีในรายการมา กลับไปถามใหม่ ไม่เดาบัญชีแรกแทน", () => {
     const { from } = setup({ defaultFromId: "acc-ที่ถูกลบไปแล้ว" });
 
-    expect(from.value).toBe("acc-scb");
+    expect(from.value).toBe("");
   });
 
   it("มีบัญชีเดียว โอนไม่ได้ และบอกว่าต้องทำอะไรต่อ", () => {
