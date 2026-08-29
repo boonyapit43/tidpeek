@@ -67,7 +67,7 @@ export function ShopCards({
               type="button"
               onClick={() => setEditing(shop)}
               aria-label={`แก้ไขร้าน ${shop.name}`}
-              className="absolute top-1/2 right-1.5 flex size-10 -translate-y-1/2 items-center justify-center rounded-xl text-ink-soft transition hover:bg-surface-2 active:scale-90"
+              className="absolute top-1/2 right-1 flex size-11 -translate-y-1/2 items-center justify-center rounded-xl text-ink-soft transition hover:bg-surface-2 active:scale-90"
             >
               <svg
                 viewBox="0 0 24 24"

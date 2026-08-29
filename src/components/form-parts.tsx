@@ -162,6 +162,7 @@ export function SubmitButton({
   pendingLabel,
   className,
   variant = "primary",
+  disabled,
   ...props
 }: React.ComponentProps<"button"> & {
   pendingLabel?: string;
@@ -170,7 +171,15 @@ export function SubmitButton({
   const { pending } = useFormStatus();
 
   return (
-    <Button type="submit" variant={variant} disabled={pending} className={className} {...props}>
+    /**
+     * disabled ต้องรวมกับ pending เอง ห้ามปล่อยให้ {...props} ทับ
+     *
+     * เคยเขียน disabled={pending} แล้ววาง {...props} ไว้ข้างหลัง — ฟอร์มไหน
+     * ส่ง disabled ของตัวเองมา (เช่นปุ่มบันทึกที่รอให้กรอกครบ) จะทับล็อกนี้
+     * พอดี ผลคือระหว่างกำลังบันทึก ช่องยังกรอกครบอยู่ ปุ่มจึงกดซ้ำได้
+     * แล้วได้รายการซ้ำสองบรรทัด ซึ่งคือบั๊กที่คอมเมนต์ข้างบนสัญญาว่ากันไว้
+     */
+    <Button {...props} type="submit" variant={variant} disabled={pending || disabled} className={className}>
       {pending && (
         <span
           aria-hidden

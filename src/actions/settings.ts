@@ -5,7 +5,7 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { db } from "@/db";
 import { defaultAccountRows, defaultCategoryRows } from "@/db/defaults";
-import { accounts, categories, shops, transactions } from "@/db/schema";
+import { accounts, categories, shops, transactions, transfers } from "@/db/schema";
 import {
   getShop,
   nextAccountSortOrder,
@@ -175,7 +175,7 @@ export async function updateShop(_prev: ActionState, formData: FormData): Promis
  * อยู่ในบัญชีกลางโดยไม่มีหน้าไหนแสดงให้เห็นว่ามาจากไหน
  *
  * สิ่งที่ถูกลบตามไปด้วย
- *   • รายการทั้งหมดของร้าน — ต้องลบ ไม่งั้นยอดของบัญชีกลางที่ร้านอื่นใช้อยู่
+ *   • รายการและการโอนทั้งหมดของร้าน — ต้องลบ ไม่งั้นยอดของบัญชีกลางที่ร้านอื่นใช้อยู่
  *     จะยังนับเงินของร้านที่ลบไปแล้ว แล้วยอดจะไม่ตรงกับแอปธนาคาร
  *   • บัญชีและประเภทที่เป็นของร้านนี้เท่านั้น
  *
@@ -208,6 +208,14 @@ export async function deleteShop(_prev: ActionState, formData: FormData): Promis
         .update(transactions)
         .set({ isDeleted: true, updatedAt: now })
         .where(and(eq(transactions.shopId, id), eq(transactions.isDeleted, false)));
+
+      // การโอนอยู่คนละตารางกับรายการ ลืมตรงนี้แล้วการโอนของร้านที่ลบไป
+      // จะยังเดินยอดของบัญชีกลางต่อ เป็นเงินที่ไม่มีหน้าไหนอธิบายได้
+      // (เคยลืมมาแล้วจริงหนึ่งครั้ง เทสใน flows.itest.ts เป็นตัวจับ)
+      await tx
+        .update(transfers)
+        .set({ isDeleted: true, updatedAt: now })
+        .where(and(eq(transfers.shopId, id), eq(transfers.isDeleted, false)));
 
       await tx
         .update(accounts)
@@ -272,6 +280,16 @@ export async function updateAccount(_prev: ActionState, formData: FormData): Pro
     if (!parsed.success) return invalid(parsed.error);
 
     const input = parsed.data;
+
+    /**
+     * ต้องตรวจว่าร้านที่จะให้บัญชีไปสังกัดยังมีชีวิตอยู่
+     *
+     * ไม่ตรวจแล้วมีช่องโหว่กับบัญชีกลางโดยเฉพาะ — accountScope ฝั่ง isNull
+     * จับคู่บัญชีกลางได้เสมอ ถ้าปลอมฟอร์มส่ง shopId ของร้านที่ลบไปแล้วมา
+     * (FK ยังผ่านเพราะแถวร้านยังอยู่ แค่ติดธงลบ) บัญชีจะย้ายไปสังกัดร้านผี
+     * แล้วหายจากทุกหน้าจอ ทั้งที่รายการของมันยังเดินยอดอยู่
+     */
+    if (!(await getShop(input.shopId))) return SHOP_NOT_FOUND;
 
     const updated = await db
       .update(accounts)

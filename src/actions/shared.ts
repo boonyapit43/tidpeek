@@ -79,7 +79,13 @@ function isNextControlFlow(error: unknown): boolean {
   const digest = (error as { digest?: unknown })?.digest;
   if (typeof digest !== "string") return false;
 
-  return digest.startsWith("NEXT_REDIRECT") || digest === "NEXT_NOT_FOUND";
+  return (
+    digest.startsWith("NEXT_REDIRECT") ||
+    // Next 16 เปลี่ยน digest ของ notFound/forbidden/unauthorized เป็นชื่อนี้
+    // (ดู http-access-fallback.js ใน node_modules) ค่าเก่าเก็บไว้เผื่อของค้าง
+    digest.startsWith("NEXT_HTTP_ERROR_FALLBACK") ||
+    digest === "NEXT_NOT_FOUND"
+  );
 }
 
 /** แปลความผิดพลาดที่เจอบ่อยเป็นภาษาที่คนหน้าร้านอ่านแล้วรู้ว่าต้องทำอะไร */

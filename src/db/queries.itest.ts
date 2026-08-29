@@ -299,7 +299,7 @@ describe("ขอบเขตของข้อมูล", () => {
       getSummary(shopId, { month: "2026-08" }),
       getSummary(shopId, { year: "2026" }),
       listCategoryTotals(shopId, { year: "2026" }),
-      exportTransactionsFlat(),
+      exportTransactionsFlat(shopId, { year: "2026" }),
     ]);
 
     for (const s of [day, month, year]) expect(n(s.income)).toBeLessThan(99999);
@@ -361,20 +361,47 @@ describe("ค้นหา", () => {
 });
 
 describe("ส่งออกข้อมูล", () => {
-  it("มีชื่อร้าน ชื่อประเภท ชื่อบัญชี ไม่ใช่แค่ id", async () => {
-    const rows = await exportTransactionsFlat();
+  const YEAR = { year: "2026" } as const;
+
+  it("มีชื่อประเภทกับชื่อบัญชี ไม่ใช่แค่ id", async () => {
+    const rows = await exportTransactionsFlat(shopId, YEAR);
     const row = rows.find((r) => r.title === "ขายวันเสาร์")!;
 
-    expect(row.shopName).toBe("ร้านหลัก");
     expect(row.categoryName).toBe("ขายหน้าร้าน");
     expect(row.accountName).toBe("เงินสด");
     expect(row.counts).toBe(true);
   });
 
   it("วันที่ออกมาเป็น YYYY-MM-DD ไม่ใช่ Date ที่เลื่อนเขตเวลาได้", async () => {
-    const rows = await exportTransactionsFlat();
+    const rows = await exportTransactionsFlat(shopId, YEAR);
     const row = rows.find((r) => r.title === "ขายวันเสาร์")!;
 
     expect(row.txnDate).toBe("2026-08-01");
+  });
+
+  /**
+   * บั๊กที่เคยมี — ส่งออกแล้วได้รายการของทุกร้านปนกันมา
+   *
+   * ไฟล์ที่ส่งให้คนทำบัญชีของร้านหนึ่ง จึงมีรายการของอีกร้านอยู่ด้วย
+   * โดยที่คนรับไฟล์ไปไม่มีทางรู้เลยว่าปน
+   */
+  it("ต้องมีเฉพาะรายการของร้านที่เลือก ไม่ปนร้านอื่น", async () => {
+    const rows = await exportTransactionsFlat(shopId, YEAR);
+    expect(rows.map((r) => r.title)).not.toContain("ของร้านอื่น");
+  });
+
+  it("กรองตามช่วงวันได้ ไม่ใช่ได้ทั้งหมดเสมอ", async () => {
+    const august = await exportTransactionsFlat(shopId, { month: "2026-08" });
+    const wholeYear = await exportTransactionsFlat(shopId, YEAR);
+
+    expect(august.length).toBeLessThan(wholeYear.length);
+    expect(august.every((r) => r.txnDate.startsWith("2026-08"))).toBe(true);
+  });
+
+  it("ช่วงกำหนดเองเก็บเฉพาะวันในช่วงนั้น", async () => {
+    const rows = await exportTransactionsFlat(shopId, { from: "2026-08-01", to: "2026-08-02" });
+
+    expect(rows.every((r) => r.txnDate >= "2026-08-01" && r.txnDate <= "2026-08-02")).toBe(true);
+    expect(rows.map((r) => r.title)).not.toContain("ซื้อเนื้อ");
   });
 });

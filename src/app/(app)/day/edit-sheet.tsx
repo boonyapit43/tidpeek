@@ -77,8 +77,15 @@ function EditTxnForm({
   categories: Category[];
   onDone: () => void;
 }) {
-  const [state, formAction] = useActionState(updateTransaction, IDLE);
-  const [deleteState, deleteAction] = useActionState(deleteTransaction, IDLE);
+  /**
+   * ดึง isPending ของทั้งสอง action มาไขว้ล็อกกัน
+   *
+   * สองฟอร์มนี้แยกกัน useFormStatus จึงเห็นเฉพาะฟอร์มของตัวเอง — ระหว่าง
+   * ที่การแก้ไขกำลังวิ่งอยู่ ปุ่มลบยังกดได้ ถ้ากดทัน สองคำสั่งจะวิ่งแข่งกัน
+   * แล้วผลสุดท้ายขึ้นกับว่าใครถึงฐานข้อมูลก่อน ซึ่งเดาไม่ได้
+   */
+  const [state, formAction, updating] = useActionState(updateTransaction, IDLE);
+  const [deleteState, deleteAction, deleting] = useActionState(deleteTransaction, IDLE);
   const [direction, setDirection] = useState<Direction>(txn.direction);
   const [confirmingDelete, setConfirmingDelete] = useState(false);
 
@@ -186,7 +193,7 @@ function EditTxnForm({
 
         <StatusMessage state={state} />
 
-        <SubmitButton className="w-full">บันทึกการแก้ไข</SubmitButton>
+        <SubmitButton className="w-full" disabled={deleting}>บันทึกการแก้ไข</SubmitButton>
       </form>
 
       {/* ฟอร์มลบแยกต่างหาก เพราะปุ่มสองปุ่มในฟอร์มเดียวกัน
@@ -207,7 +214,12 @@ function EditTxnForm({
             >
               ยกเลิก
             </Button>
-            <SubmitButton variant="danger" className="flex-1" pendingLabel="กำลังลบ">
+            <SubmitButton
+              variant="danger"
+              className="flex-1"
+              pendingLabel="กำลังลบ"
+              disabled={updating}
+            >
               ยืนยันลบถาวร
             </SubmitButton>
           </div>
@@ -216,6 +228,7 @@ function EditTxnForm({
             type="button"
             variant="danger"
             className="w-full"
+            disabled={updating}
             onClick={() => setConfirmingDelete(true)}
           >
             ลบรายการนี้

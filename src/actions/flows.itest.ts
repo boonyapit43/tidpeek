@@ -12,6 +12,7 @@ import {
   updateAccount,
 } from "./settings";
 import { createTransaction, deleteTransaction, updateTransaction } from "./transactions";
+import { createTransfer } from "./transfers";
 
 /**
  * เทสเส้นทางจริงตั้งแต่ FormData ถึงฐานข้อมูล
@@ -484,6 +485,52 @@ describe("ลบร้าน", () => {
     expect(counts.accDeleted).toBe(1);
   });
 
+  /**
+   * บั๊กที่เคยหลุดจริง — ลบร้านแล้วลบครบทุกตารางยกเว้น transfers
+   *
+   * การโอนของร้านที่ลบไปจึงยังเดินยอดของบัญชีกลางต่อ เป็นเงินก้อนที่
+   * ไม่มีหน้าไหนในแอปอธิบายได้ว่ามาจากไหน เพราะร้านต้นเรื่องหายไปแล้ว
+   */
+  it("ลบร้านแล้วการโอนของร้านหายตาม ยอดบัญชีกลางไม่ค้างเงินผี", async () => {
+    const a = await makeShop("ร้านหนึ่ง");
+    await makeShop("ร้านสอง");
+
+    // บัญชีกลางที่ทุกร้านเห็น กับบัญชีเงินสดของร้านที่กำลังจะลบ
+    const [shared] = await raw<{ id: string }[]>`
+      insert into accounts (shop_id, name, kind)
+      values (null, 'SCB กลาง', 'bank') returning id`;
+    const [own] = await raw<{ id: string }[]>`
+      select id from accounts where shop_id = ${a} limit 1`;
+
+    ok(
+      await createTransfer(
+        IDLE,
+        fd({
+          shopId: a,
+          fromAccountId: must(own, "บัญชีของร้าน").id,
+          toAccountId: shared.id,
+          txnDate: "2026-08-13",
+          amount: "5000",
+        }),
+      ),
+    );
+
+    ok(await deleteShop(IDLE, fd({ id: a })));
+
+    const [row] = await raw`
+      select (select count(*)::int from transfers where not is_deleted) as "left",
+             (select coalesce(sum(case when t.to_account_id = ${shared.id} then t.amount
+                                       else -t.amount end), 0)
+                from transfers t
+               where not t.is_deleted
+                 and (t.to_account_id = ${shared.id} or t.from_account_id = ${shared.id}))
+               as "sharedDelta"`;
+
+    expect(row.left).toBe(0);
+    // เงิน 5000 ที่โอนเข้าบัญชีกลาง ต้องหายไปพร้อมร้าน ไม่ค้างเป็นเงินผี
+    expect(Number(row.sharedDelta)).toBe(0);
+  });
+
   it("ไม่มีการลบแถวออกจากฐานจริงสักแถว", async () => {
     const shopId = await makeShop();
     ok(await createTransaction(IDLE, entryFormData({ shopId, amount: "10", title: "x" })));
@@ -498,6 +545,64 @@ describe("ลบร้าน", () => {
     expect(counts.shops).toBe(1);
     expect(counts.txns).toBe(1);
     expect(counts.accounts).toBe(1);
+  });
+});
+
+/* ------------------------------------------------------------------ */
+
+/**
+ * server action เป็น endpoint ที่ยิงตรงจากอินเทอร์เน็ตได้ ไม่ได้ปลอดภัย
+ * แค่เพราะปุ่มที่เรียกมันอยู่หลังหน้าล็อกอิน — ชุดนี้คือตาข่ายรับ action ใหม่
+ * ที่ลืมเช็ค hasSession() ซึ่งเป็นการลืมที่เงียบที่สุดและแพงที่สุด
+ */
+describe("ยิง action โดยไม่ล็อกอิน", () => {
+  it("บันทึกรายการไม่ได้ และไม่มีอะไรถูกเขียนลงฐาน", async () => {
+    const shopId = await makeShop();
+    await destroySession();
+
+    const state = await createTransaction(
+      IDLE,
+      entryFormData({ shopId, amount: "999", title: "ลักไก่" }),
+    );
+
+    expect(state.status).toBe("error");
+    const [{ count }] = await raw`select count(*)::int as count from transactions`;
+    expect(count).toBe(0);
+  });
+
+  it("โอนเงินไม่ได้", async () => {
+    const shopId = await makeShop();
+    const [acc] = await raw<{ id: string }[]>`
+      insert into accounts (shop_id, name, kind) values (${shopId}, 'สอง', 'bank') returning id`;
+    const [own] = await raw<{ id: string }[]>`
+      select id from accounts where shop_id = ${shopId} and id <> ${acc.id} limit 1`;
+    await destroySession();
+
+    const state = await createTransfer(
+      IDLE,
+      fd({
+        shopId,
+        fromAccountId: must(own, "บัญชีแรกของร้าน").id,
+        toAccountId: acc.id,
+        txnDate: "2026-08-13",
+        amount: "100",
+      }),
+    );
+
+    expect(state.status).toBe("error");
+    const [{ count }] = await raw`select count(*)::int as count from transfers`;
+    expect(count).toBe(0);
+  });
+
+  it("ลบร้านไม่ได้", async () => {
+    const shopId = await makeShop();
+    await destroySession();
+
+    const state = await deleteShop(IDLE, fd({ id: shopId }));
+
+    expect(state.status).toBe("error");
+    const [row] = await raw`select is_deleted from shops where id = ${shopId}`;
+    expect(row.is_deleted).toBe(false);
   });
 });
 

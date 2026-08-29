@@ -39,14 +39,12 @@ export default async function AccountsPage({
    * เวลาแค่ 0.09ms แปลว่าเวลาทั้งหมดคือระยะทาง ไม่ใช่การคำนวณ
    * ถ้าไล่ทีละอันหน้านี้จะช้าเป็นสองเท่าโดยไม่ได้อะไรเพิ่ม
    *
-   * ⚠️ ดึงความเคลื่อนไหวก่อนที่จะรู้ว่า id ที่ส่งมาเป็นบัญชีของร้านนี้จริงไหม
-   *    ซึ่งปลอดภัย เพราะผลลัพธ์ถูกส่งต่อไปแสดงก็ต่อเมื่อ selected ไม่ใช่ null
-   *    (คือเจอในรายการบัญชีที่ร้านนี้มองเห็น) ถ้า id เป็นของร้านอื่นหรือมั่วมา
-   *    ข้อมูลที่ดึงมาจะถูกทิ้งไปเฉยๆ ไม่มีทางหลุดไปถึงเบราว์เซอร์
+   * id ที่มั่วมาหรือเป็นของร้านอื่น listAccountMovements ตรวจเองแล้วคืนลิสต์ว่าง
+   * ส่วนการทิ้งผลลัพธ์เมื่อ selected เป็น null ข้างล่างเป็นด่านซ้ำอีกชั้น
    */
   const [accounts, movements] = await Promise.all([
     listAccountsWithBalance(shopId),
-    selectedId ? listAccountMovements(selectedId) : Promise.resolve([]),
+    selectedId ? listAccountMovements(shopId, selectedId) : Promise.resolve([]),
   ]);
 
   // id จาก URL แก้เองได้ ต้องเทียบกับบัญชีที่ร้านนี้เห็นจริงเสมอ

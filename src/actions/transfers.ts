@@ -49,10 +49,18 @@ async function checkAccounts(
   shopId: string,
   fromAccountId: string,
   toAccountId: string,
+  // ค่าเดิมของแถวตอนแก้ไข — บัญชีที่ไม่ได้เปลี่ยนไม่ต้องตรวจซ้ำ จะได้แก้
+  // การโอนเก่าที่บัญชีถูกปิดหรือลบไปแล้วได้ (เช่นแก้แค่หมายเหตุ)
+  // ส่วนบัญชีที่เลือกใหม่ต้องยังเปิดใช้งานอยู่
+  previous?: { fromAccountId: string; toAccountId: string },
 ): Promise<ActionState | null> {
   const [fromOk, toOk] = await Promise.all([
-    isAccountVisible(shopId, fromAccountId),
-    isAccountVisible(shopId, toAccountId),
+    previous?.fromAccountId === fromAccountId
+      ? true
+      : isAccountVisible(shopId, fromAccountId, true),
+    previous?.toAccountId === toAccountId
+      ? true
+      : isAccountVisible(shopId, toAccountId, true),
   ]);
 
   if (!fromOk) return failed("ไม่พบบัญชีต้นทางที่เลือก");
@@ -107,10 +115,31 @@ export async function updateTransfer(
 
     const input = parsed.data;
 
+    // ด่านเดียวกับ createTransfer และ updateTransaction — ร้านต้องยังมีชีวิต
+    if (!(await getShop(input.shopId))) return SHOP_NOT_FOUND;
+
+    const [previous] = await db
+      .select({
+        fromAccountId: transfers.fromAccountId,
+        toAccountId: transfers.toAccountId,
+      })
+      .from(transfers)
+      .where(
+        and(
+          eq(transfers.id, input.id),
+          eq(transfers.shopId, input.shopId),
+          eq(transfers.isDeleted, false),
+        ),
+      )
+      .limit(1);
+
+    if (!previous) return failed("ไม่พบรายการโอนที่จะแก้ไข อาจถูกลบไปแล้ว");
+
     const accountError = await checkAccounts(
       input.shopId,
       input.fromAccountId,
       input.toAccountId,
+      previous,
     );
     if (accountError) return accountError;
 

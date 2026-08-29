@@ -23,7 +23,10 @@ import {
   thaiWeek,
   thaiYear,
   today,
+  monthOf,
   weekOf,
+  weekRange,
+  yearOf,
 } from "@/lib/date";
 import { getShopContext } from "@/lib/shop";
 import { dateSchema, monthSchema, yearSchema } from "@/lib/validation";
@@ -71,9 +74,41 @@ export default async function SummaryPage({
   const month = monthSchema.safeParse(params.m).data ?? currentMonth();
   const year = yearSchema.safeParse(params.y).data ?? currentYear();
 
+  /**
+   * วันตัวแทนของช่วงที่กำลังดู — แท็บอื่นพาไปช่วงที่ครอบวันนี้เสมอ
+   *
+   * เดิมแต่ละแท็บจำช่วงของตัวเองแยกกัน เปิดดูเดือนกรกฎาแล้วจิ้มเข้าไปดู
+   * วันที่ 15 พอกดกลับแท็บเดือน กลายเป็นเดือนสิงหา (เดือนปัจจุบัน) เพราะ
+   * URL ไม่มี m ติดมา ช่วงที่กำลังไล่ดูหายไปเฉยๆ
+   *
+   * ถ้าช่วงที่ดูครอบวันนี้อยู่ ใช้วันนี้เป็นตัวแทน (กดไปแท็บวันแล้วได้วันนี้
+   * ไม่ใช่วันที่ 1) ถ้าเป็นช่วงอดีต ใช้วันแรกของช่วงนั้น
+   */
+  const now = today();
+  const anchor =
+    view === "day"
+      ? day
+      : view === "week"
+        ? now >= week && now <= weekRange(week)[1]
+          ? now
+          : week
+        : view === "month"
+          ? monthOf(now) === month
+            ? now
+            : `${month}-01`
+          : yearOf(now) === year
+            ? now
+            : `${year}-01-01`;
+
   return (
     <div className="space-y-3">
-      <ViewToggle view={view} day={day} week={week} month={month} year={year} />
+      <ViewToggle
+        view={view}
+        day={anchor}
+        week={weekOf(anchor)}
+        month={monthOf(anchor)}
+        year={yearOf(anchor)}
+      />
 
       {view === "day" && <DayView shopId={shopId} day={day} />}
       {view === "week" && <WeekView shopId={shopId} week={week} />}
@@ -181,6 +216,42 @@ function Arrow({
   );
 }
 
+/**
+ * ส่งออกช่วงที่กำลังดูอยู่เป็นไฟล์ Excel
+ *
+ * อยู่ท้ายทุกมุมมองโดยตั้งใจ เพราะช่วงเวลาที่คนอยากได้ไฟล์ คือช่วงที่
+ * เพิ่งดูตัวเลขจนพอใจแล้ว ไม่ต้องไปเลือกวันซ้ำอีกรอบในหน้าอื่น
+ *
+ * ใช้คำว่า "ช่วงนี้" เหมือนกันทั้งสี่มุมมอง ไม่ใช่ "วันนี้/เดือนนี้" เพราะคน
+ * เลื่อนไปดูวันหรือเดือนย้อนหลังได้ ปุ่มที่เขียนว่าวันนี้ทั้งที่กำลังดูเมื่อวาน
+ * คือคำโกหกเล็กๆ ที่ทำให้ไม่แน่ใจว่าไฟล์ที่ได้เป็นของวันไหนกันแน่
+ *
+ * เป็นลิงก์ธรรมดา ไม่ใช่ปุ่มที่เรียก JavaScript เบราว์เซอร์จัดการ
+ * ดาวน์โหลดเองได้ดีกว่า และไม่โดนบล็อกบนมือถือ
+ */
+function ExportLink({ href, label }: { href: string; label: string }) {
+  return (
+    <a
+      href={href}
+      className="flex min-h-touch items-center justify-center gap-2 rounded-2xl bg-surface px-4 text-sm font-semibold text-ink shadow-sm transition active:bg-surface-2"
+    >
+      <svg
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth={1.75}
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        className="size-5 shrink-0 text-ink-soft"
+        aria-hidden
+      >
+        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3" />
+      </svg>
+      {label}
+    </a>
+  );
+}
+
 /* ------------------------------------------------------------------ */
 /*  รายวัน                                                             */
 /* ------------------------------------------------------------------ */
@@ -214,11 +285,14 @@ async function DayView({ shopId, day }: { shopId: string; day: string }) {
           href={`/day?d=${day}`}
           className="flex min-h-touch items-center justify-center gap-2 rounded-xl border border-line text-sm font-semibold text-ink transition hover:bg-surface-2"
         >
-          ดูรายการของวันนี้
+          {/* บอกวันตามจริง — ปุ่มที่เขียนว่าวันนี้ทั้งที่กำลังดูเมื่อวานคือคำโกหกเล็กๆ */}
+          ดูรายการของ{label ?? "วันนั้น"}
         </Link>
       </div>
 
       <CategoryBreakdown totals={categoryTotals} />
+
+      <ExportLink href={`/api/export?p=day&d=${day}`} label="ส่งออกช่วงนี้เป็น Excel" />
     </>
   );
 }
@@ -279,6 +353,8 @@ async function WeekView({ shopId, week }: { shopId: string; week: string }) {
       />
 
       <CategoryBreakdown totals={categoryTotals} />
+
+      <ExportLink href={`/api/export?p=week&w=${week}`} label="ส่งออกช่วงนี้เป็น Excel" />
     </>
   );
 }
@@ -321,6 +397,8 @@ async function MonthView({ shopId, month }: { shopId: string; month: string }) {
       />
 
       <CategoryBreakdown totals={categoryTotals} />
+
+      <ExportLink href={`/api/export?p=month&m=${month}`} label="ส่งออกช่วงนี้เป็น Excel" />
     </>
   );
 }
@@ -362,6 +440,8 @@ async function YearView({ shopId, year }: { shopId: string; year: string }) {
       />
 
       <CategoryBreakdown totals={categoryTotals} />
+
+      <ExportLink href={`/api/export?p=year&y=${year}`} label="ส่งออกช่วงนี้เป็น Excel" />
     </>
   );
 }

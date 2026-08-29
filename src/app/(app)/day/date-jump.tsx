@@ -25,7 +25,8 @@ export function DateJump({ date }: { date: string }) {
             if (e.target.value) router.push(`/day?d=${e.target.value}`);
           }}
           aria-label="เลือกวันที่จะดู"
-          className="w-full bg-transparent text-sm text-ink focus:outline-none"
+          // text-base ไม่ใช่ text-sm — ต่ำกว่า 16px แล้ว iOS ซูมทั้งหน้าตอนโฟกัส
+          className="w-full bg-transparent text-base text-ink focus:outline-none"
         />
       </div>
 

@@ -29,7 +29,14 @@ export function AccountBoard({
    * หรือคิดต่อ และจำนวนบัญชีมีไม่กี่ใบ ส่วนยอดของแต่ละบัญชียังคิดใน SQL
    * เหมือนเดิมทุกบัญชี
    */
-  const total = accounts.reduce((sum, a) => sum + Number.parseFloat(a.balance), 0);
+  // บวกเป็น "สตางค์" จำนวนเต็ม ไม่ใช่บาททศนิยม — 0.1 + 0.2 ของ float
+  // ไม่เท่า 0.3 พอดี ยอดที่ควรเป็นศูนย์เป๊ะจะเหลือเศษ 1e-13 แล้วทั้งตัวเลข
+  // ที่โชว์และเงื่อนไข total !== 0 ข้างล่างเพี้ยนตาม
+  const totalSatang = accounts.reduce(
+    (sum, a) => sum + Math.round(Number.parseFloat(a.balance) * 100),
+    0,
+  );
+  const total = totalSatang / 100;
 
   /**
    * ทุกบัญชียังไม่ได้ตั้งยอดตั้งต้นเลยสักใบ แต่มีเงินเดินแล้ว
@@ -42,7 +49,7 @@ export function AccountBoard({
   const neverSetOpening =
     accounts.length > 0 &&
     accounts.every((a) => Number.parseFloat(a.openingBalance) === 0) &&
-    total !== 0;
+    totalSatang !== 0;
 
   if (accounts.length === 0) {
     return (

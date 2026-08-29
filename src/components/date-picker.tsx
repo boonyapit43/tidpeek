@@ -58,7 +58,8 @@ export function DatePicker({
               if (e.target.value) onChange(e.target.value);
             }}
             aria-label="เลือกวันอื่น"
-            className="w-full bg-transparent text-sm focus:outline-none"
+            // text-base ไม่ใช่ text-sm — ต่ำกว่า 16px แล้ว iOS ซูมทั้งหน้าตอนโฟกัส
+            className="w-full bg-transparent text-base focus:outline-none"
           />
           {isOther && (
             <span className="num pointer-events-none absolute right-3 text-xs font-semibold">

@@ -51,6 +51,9 @@ export async function rememberShop(shopId: string): Promise<void> {
     httpOnly: true,
     sameSite: "lax",
     path: "/",
+    // ธงเดียวกับ session cookie — ไม่ใส่แล้วคนกลางทางเน็ตยัด cookie ผ่าน
+    // http:// ได้ ซึ่งเท่ากับสลับร้านที่กำลังบันทึกอยู่เงียบๆ
+    secure: process.env.NODE_ENV === "production",
     maxAge: 60 * 60 * 24 * 365,
   });
 }

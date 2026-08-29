@@ -74,6 +74,13 @@ export function EntryForm({
    * ตอนคนเลือก "ไม่ระบุ" ระบบจะนึกว่ายังไม่ได้เลือกแล้วเด้งกลับไปตัวแรกทันที
    */
   const [categoryId, setCategoryId] = useState<string | null>(null);
+  /**
+   * แตะช่องประเภท "สำหรับรายการที่กำลังพิมพ์อยู่" หรือยัง — คนละเรื่องกับ
+   * categoryId ที่ค้างข้ามรายการโดยตั้งใจ (ลงค่าแรกสามคนติดกันไม่ต้องเลือกซ้ำ)
+   * ธงนี้รีเซ็ตทุกครั้งที่บันทึกสำเร็จหรือสลับฝั่ง ใช้กันตัวเดาประเภทไม่ให้
+   * ทับสิ่งที่คนเพิ่งตั้งใจเลือกไว้กับรายการนี้
+   */
+  const [categoryTouched, setCategoryTouched] = useState(false);
   /** สามสถานะเหมือนประเภทข้างบน null = ยังไม่ได้เลือกเอง "" = เลือกไม่ระบุไว้ */
   const [accountId, setAccountId] = useState<string | null>(null);
   const [title, setTitle] = useState("");
@@ -146,6 +153,8 @@ export function EntryForm({
       setNote("");
       // ยุบหมายเหตุกลับด้วย รายการถัดไปส่วนใหญ่ไม่ได้ใช้
       setNoteOpen(false);
+      // การเลือกเมื่อกี้เป็นของรายการที่บันทึกจบไปแล้ว รายการใหม่เดาได้อีก
+      setCategoryTouched(false);
     }
   }
 
@@ -155,9 +164,17 @@ export function EntryForm({
     if (state.status === "ok") amountRef.current?.focus();
   }, [state]);
 
-  /** พิมพ์ชื่อที่เคยใช้แล้วเดาประเภทให้ ลดการแตะไปหนึ่งจังหวะต่อรายการ */
+  /**
+   * พิมพ์ชื่อที่เคยใช้แล้วเดาประเภทให้ ลดการแตะไปหนึ่งจังหวะต่อรายการ
+   *
+   * เดาเฉพาะตอนที่คนยังไม่ได้แตะช่องประเภทของรายการนี้ — ถ้าเพิ่งเลือกไว้
+   * แม้แต่เลือก "ไม่ระบุ" ก็ถือว่าตั้งใจ ห้ามเดาทับ ไม่งั้นแค่กลับไปแก้
+   * ตัวสะกดในชื่อรายการ ประเภทที่เลือกไว้ก็เด้งไปเป็นของที่ระบบจำได้
+   * แล้วรายการถูกบันทึกผิดหมวดโดยไม่ทันเห็น
+   */
   function handleTitle(value: string) {
     setTitle(value);
+    if (categoryTouched) return;
 
     const hit = hints.find((h) => h.title === value);
     if (hit?.categoryId && visibleCategories.some((c) => c.id === hit.categoryId)) {
@@ -176,7 +193,14 @@ export function EntryForm({
         <input type="hidden" name="txnDate" value={date} />
 
         {/* สลับฝั่ง — ปุ่มใหญ่เต็มความกว้าง กดพลาดยากแม้ถือมือเดียว */}
-        <DirectionToggle direction={direction} onChange={setDirection} />
+        <DirectionToggle
+          direction={direction}
+          onChange={(next) => {
+            setDirection(next);
+            // สลับฝั่งแล้วประเภทเดิมใช้ไม่ได้อยู่แล้ว เปิดทางให้ตัวเดาทำงานใหม่
+            setCategoryTouched(false);
+          }}
+        />
 
         <Field label="จำนวนเงิน" htmlFor="amount" error={fieldError(state, "amount")}>
           <MoneyInput
@@ -219,7 +243,10 @@ export function EntryForm({
               id="category"
               name="categoryId"
               value={effectiveCategoryId}
-              onChange={(e) => setCategoryId(e.target.value)}
+              onChange={(e) => {
+                setCategoryId(e.target.value);
+                setCategoryTouched(true);
+              }}
               className="flex-1"
             >
               <CategoryOptions categories={visibleCategories} />

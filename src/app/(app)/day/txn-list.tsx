@@ -49,6 +49,22 @@ export function TxnList({
     () => items.find((t) => t.id === openTxnId) ?? null,
   );
 
+  /**
+   * ปิดแผ่นแล้วล้าง ?t= ทิ้งด้วย ไม่งั้นรีเฟรชหรือกลับมาจากแท็บอื่น
+   * แผ่นแก้ไขของรายการที่จัดการจบไปแล้วจะเด้งขึ้นมาเองอีกรอบ
+   * ใช้ replaceState ตรงๆ ไม่ผ่าน router เพราะแค่เก็บกวาด URL
+   * ไม่ได้อยากให้หน้าโหลดข้อมูลใหม่หรือเพิ่มประวัติให้ปุ่มย้อนกลับ
+   */
+  function closeEditor() {
+    setEditing(null);
+
+    const url = new URL(window.location.href);
+    if (url.searchParams.has("t")) {
+      url.searchParams.delete("t");
+      window.history.replaceState(null, "", url);
+    }
+  }
+
   if (items.length === 0) {
     return (
       <div className="rounded-2xl bg-surface px-4 py-10 text-center shadow-sm">
@@ -110,7 +126,7 @@ export function TxnList({
 
       <EditSheet
         txn={editing}
-        onClose={() => setEditing(null)}
+        onClose={closeEditor}
         shopId={shopId}
         accounts={accounts}
         categories={categories}

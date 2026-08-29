@@ -13,6 +13,7 @@ import {
   or,
   sql,
 } from "drizzle-orm";
+import type { SQL } from "drizzle-orm";
 import { alias } from "drizzle-orm/pg-core";
 import { db } from "./index";
 import { accounts, categories, shops, transactions, transfers } from "./schema";
@@ -171,9 +172,12 @@ export async function listShopsWithToday(today: string): Promise<ShopCard[]> {
       todayCount: sql<number>`count(${transactions.id})::int`,
       // นับแยกด้วย subquery ไม่ใช่จาก join ข้างบน เพราะ join ถูกจำกัดไว้
       // เฉพาะรายการของวันนี้แล้ว จะนับรายการทั้งหมดจากตรงนั้นไม่ได้
+      // ⚠️ ${shops.id} ถูกห่อในบล็อก sql ของตัวเองก่อนเสมอ — ดูกฎที่ balanceExpr
+      //    query นี้มี join จึงไม่โดนตัดชื่อตารางวันนี้ แต่วันที่ใครแยก query นี้
+      //    ออกไปโดยไม่มี join มันจะกลายเป็น tx.shop_id = tx.id เงียบๆ ทันที
       totalCount: sql<number>`(
         select count(*)::int from transactions tx
-         where tx.shop_id = ${shops.id} and tx.is_deleted = false
+         where tx.shop_id = ${sql`${shops.id}`} and tx.is_deleted = false
       )`,
     })
     .from(shops)
@@ -322,11 +326,27 @@ export async function listAllCategories(shopId: string): Promise<Category[]> {
  * ถ้าไม่เช็ค คนที่เข้าถึงแอปได้จะผูกรายการของร้านหนึ่งเข้ากับบัญชีส่วนตัว
  * ของอีกร้านได้ แล้วยอดของทั้งสองร้านจะเพี้ยนโดยไม่มีใครรู้
  */
-export async function isAccountVisible(shopId: string, accountId: string): Promise<boolean> {
+/**
+ * mustBeActive ใช้ตอนสร้างรายการใหม่ — บัญชีที่กดปิดใช้งานไว้ต้องรับเงิน
+ * เข้าออกใหม่ไม่ได้ ตามความหมายของปุ่มปิดใช้งาน (ฟอร์มปกติไม่โชว์ให้เลือก
+ * อยู่แล้ว แต่ id ที่มากับฟอร์มปลอมได้เสมอ) ส่วนตอนแก้รายการเก่า
+ * การอ้างถึงบัญชีเดิมที่ถูกปิดไปแล้วยังต้องผ่าน จึงเป็นพารามิเตอร์ ไม่ใช่กฎตายตัว
+ */
+export async function isAccountVisible(
+  shopId: string,
+  accountId: string,
+  mustBeActive = false,
+): Promise<boolean> {
   const [row] = await db
     .select({ id: accounts.id })
     .from(accounts)
-    .where(and(eq(accounts.id, accountId), visibleToShop(shopId)))
+    .where(
+      and(
+        eq(accounts.id, accountId),
+        visibleToShop(shopId),
+        mustBeActive ? eq(accounts.isActive, true) : undefined,
+      ),
+    )
     .limit(1);
 
   return Boolean(row);
@@ -342,11 +362,18 @@ export async function isAccountVisible(shopId: string, accountId: string): Promi
 export async function getVisibleCategory(
   shopId: string,
   categoryId: string,
+  mustBeActive = false,
 ): Promise<Category | null> {
   const [row] = await db
     .select()
     .from(categories)
-    .where(and(eq(categories.id, categoryId), categoryVisibleToShop(shopId)))
+    .where(
+      and(
+        eq(categories.id, categoryId),
+        categoryVisibleToShop(shopId),
+        mustBeActive ? eq(categories.isActive, true) : undefined,
+      ),
+    )
     .limit(1);
 
   return row ?? null;
@@ -585,14 +612,20 @@ export async function listRecentTitles(
  * ไม่ใช่ "ของวันที่ใหม่ที่สุด" — คนลงรายการย้อนหลังของเมื่อวานได้ตลอด
  */
 export async function lastUsedAccountId(shopId: string): Promise<string | null> {
+  // join บัญชีเพื่อกรองเอาเฉพาะที่ยังเลือกได้จริง — ถ้าบัญชีล่าสุดถูกลบ
+  // หรือปิดใช้งานไปแล้ว ให้ถอยไปหารายการก่อนหน้าแทน ไม่ใช่คืน id ตาย
+  // ที่ฟอร์มต้องเงียบๆ ตกกลับไปบัญชีแรกเอง
   const [row] = await db
     .select({ accountId: transactions.accountId })
     .from(transactions)
+    .innerJoin(accounts, eq(accounts.id, transactions.accountId))
     .where(
       and(
         eq(transactions.shopId, shopId),
         eq(transactions.isDeleted, false),
         isNotNull(transactions.accountId),
+        eq(accounts.isDeleted, false),
+        eq(accounts.isActive, true),
       ),
     )
     .orderBy(desc(transactions.createdAt))
@@ -660,9 +693,22 @@ export type MovementRow = {
  * บรรทัดใหม่สุดครบตามจำนวนที่ขอ ไม่ว่าฝั่งไหนจะมีเยอะกว่ากัน
  */
 export async function listAccountMovements(
+  shopId: string,
   accountId: string,
   limit = 60,
 ): Promise<MovementRow[]> {
+  /**
+   * ตรวจก่อนว่าบัญชีนี้เป็นบัญชีที่ร้านนี้มองเห็นจริง ไม่เห็นก็ได้ลิสต์ว่าง
+   *
+   * เดิมพึ่งให้ฝั่งที่เรียกตรวจเองแล้วทิ้งผลลัพธ์ ซึ่งทำถูกอยู่หนึ่งที่
+   * แต่เป็นธรรมเนียมที่ลืมได้ พอย้ายเข้ามาไว้ในนี้ ผู้เรียกรายต่อไป
+   * ลืมยังไงข้อมูลร้านอื่นก็ไม่หลุด และ TypeScript บังคับให้ส่ง shopId มาเสมอ
+   *
+   * ความเคลื่อนไหวข้างในไม่กรองร้านโดยตั้งใจ — บัญชีที่ใช้ร่วมกันทุกร้าน
+   * ต้องเห็นเงินเข้าออกของทุกร้าน ไม่งั้นยอดคงเหลือที่โชว์จะอธิบายไม่ได้
+   */
+  if (!(await isAccountVisible(shopId, accountId))) return [];
+
   const [txnRows, transferRows] = await Promise.all([
     db
       .select({
@@ -784,7 +830,9 @@ export type Period =
   | { day: string }
   | { week: string }
   | { month: string }
-  | { year: string };
+  | { year: string }
+  /** ช่วงกำหนดเอง ใช้ตอนส่งออกที่คนเลือกวันเริ่มวันจบเอง */
+  | { from: string; to: string };
 
 /**
  * ช่วงวันของทุกมุมมอง — วัน เดือน ปี ต่างกันแค่ขอบเขต ไม่ใช่วิธีคิด
@@ -795,6 +843,7 @@ export type Period =
 function rangeOf(period: Period): [string, string] {
   if ("day" in period) return [period.day, period.day];
   if ("week" in period) return weekRange(period.week);
+  if ("from" in period) return [period.from, period.to];
   if ("month" in period) return monthRange(period.month);
   return yearRange(period.year);
 }
@@ -945,32 +994,17 @@ export async function exportAll() {
   };
 }
 
-/** การโอนพร้อมชื่อร้านและชื่อบัญชี สำหรับส่งออกเป็น CSV */
-export async function exportTransfersFlat() {
-  return db
-    .select({
-      txnDate: transfers.txnDate,
-      shopName: shops.name,
-      fromName: fromAccount.name,
-      toName: toAccount.name,
-      amount: transfers.amount,
-      note: transfers.note,
-      createdAt: transfers.createdAt,
-    })
-    .from(transfers)
-    .innerJoin(shops, eq(shops.id, transfers.shopId))
-    .innerJoin(fromAccount, eq(fromAccount.id, transfers.fromAccountId))
-    .innerJoin(toAccount, eq(toAccount.id, transfers.toAccountId))
-    .where(eq(transfers.isDeleted, false))
-    .orderBy(asc(transfers.txnDate), asc(transfers.createdAt));
-}
-
-/** รายการทั้งหมดพร้อมชื่อประเภทและบัญชี สำหรับส่งออกเป็น CSV เปิดใน Excel */
-export async function exportTransactionsFlat() {
+/**
+ * รายการของร้านในช่วงที่เลือก พร้อมชื่อประเภทและชื่อบัญชี
+ *
+ * ⚠️ รับ shopId เสมอ ไม่มีโหมด "ทุกร้าน"
+ *    ของเดิมดึงทุกร้านมารวมกัน ไฟล์ที่ส่งให้คนทำบัญชีของร้านหนึ่ง
+ *    จึงมีรายการของอีกร้านปนอยู่ ซึ่งคนรับไฟล์ไปไม่มีทางรู้เลย
+ */
+export async function exportTransactionsFlat(shopId: string, period: Period) {
   return db
     .select({
       txnDate: transactions.txnDate,
-      shopName: shops.name,
       direction: transactions.direction,
       categoryName: categories.name,
       counts: sql<boolean>`${countsFlag}`,
@@ -981,9 +1015,119 @@ export async function exportTransactionsFlat() {
       createdAt: transactions.createdAt,
     })
     .from(transactions)
-    .innerJoin(shops, eq(shops.id, transactions.shopId))
     .leftJoin(categories, eq(categories.id, transactions.categoryId))
     .leftJoin(accounts, eq(accounts.id, transactions.accountId))
-    .where(eq(transactions.isDeleted, false))
+    .where(scopeOf(shopId, period))
     .orderBy(asc(transactions.txnDate), asc(transactions.createdAt));
+}
+
+/** การโอนของร้านในช่วงที่เลือก พร้อมชื่อบัญชีสองฝั่ง */
+export async function exportTransfersFlat(shopId: string, period: Period) {
+  const [from, to] = rangeOf(period);
+
+  return db
+    .select({
+      txnDate: transfers.txnDate,
+      fromName: fromAccount.name,
+      toName: toAccount.name,
+      amount: transfers.amount,
+      note: transfers.note,
+      createdAt: transfers.createdAt,
+    })
+    .from(transfers)
+    .innerJoin(fromAccount, eq(fromAccount.id, transfers.fromAccountId))
+    .innerJoin(toAccount, eq(toAccount.id, transfers.toAccountId))
+    .where(
+      and(
+        eq(transfers.shopId, shopId),
+        eq(transfers.isDeleted, false),
+        gte(transfers.txnDate, from),
+        lte(transfers.txnDate, to),
+      ),
+    )
+    .orderBy(asc(transfers.txnDate), asc(transfers.createdAt));
+}
+
+export type AccountPeriodRow = {
+  name: string;
+  /** ปิดใช้งานอยู่ไหม — ไฟล์ส่งออกติดป้ายกำกับ เพราะบัญชีนี้ไม่โผล่ในแอปแล้ว */
+  active: boolean;
+  /** บัญชีที่ใช้ร่วมกันทุกร้าน — ตัวเลขนับเงินของทุกร้าน ไม่ใช่แค่ร้านที่ส่งออก */
+  shared: boolean;
+  opening: string;
+  income: string;
+  expense: string;
+  transferNet: string;
+  closing: string;
+};
+
+/**
+ * ยอดของแต่ละบัญชีในช่วงที่เลือก ไว้กระทบยอดกับสมุดธนาคาร
+ *
+ * closing คือยอด ณ วันสุดท้ายของช่วง ไม่ใช่ยอดวันนี้ — นับทุกอย่างที่เกิด
+ * ถึงวันนั้นแล้วหยุด ถ้าใช้ยอดวันนี้ ตัวเลขจะไม่มีทางตรงกับสมุดของเดือนที่ปิดไปแล้ว
+ *
+ * ยอดตั้งต้นบวกความเคลื่อนไหวในช่วง ไม่จำเป็นต้องเท่ากับ closing เพราะอาจมี
+ * รายการก่อนหน้าช่วงนี้อยู่ ซึ่งถูกนับรวมอยู่ใน closing แล้ว
+ */export async function accountTotalsForPeriod(
+  shopId: string,
+  period: Period,
+): Promise<AccountPeriodRow[]> {
+  const [from, to] = rangeOf(period);
+
+  /**
+   * ⚠️ ทุกก้อนที่อ้าง accounts.id ต้องเป็น sql`` ของตัวเอง แล้วค่อยเอาไปเสียบ
+   *    ในช่องของ select อีกที ห้ามเขียน ${accounts.id} ลงไปตรงๆ ในก้อนนอกสุด
+   *
+   *    drizzle ตัดชื่อตารางออกจากคอลัมน์ที่เป็นชิ้นส่วนชั้นบนสุดของช่อง select
+   *    เมื่อ query ดึงจากตารางเดียวไม่มี join ${accounts.id} จึงกลายเป็น "id"
+   *    เปล่าๆ แล้ว Postgres ไปจับคู่กับ tx.id หรือ tf.id ของ subquery แทน
+   *    ได้เงื่อนไขที่ไม่มีทางจริง ผลคือคืน 0 เงียบๆ ไม่มี error สักตัว
+   *
+   *    เคยหลุดมาแล้วสองครั้ง — shopDelta และชีตยอดบัญชีของไฟล์ส่งออก
+   *    ครั้งหลังนี้เกือบส่งไฟล์ที่บอกว่าทั้งเดือนไม่มีเงินเข้าออกเลยให้คนทำบัญชี
+   *    เทสใน export.itest.ts เป็นตัวจับถ้าวันหนึ่งมันหลุดอีก
+   */
+  const txnInRange = (pick: SQL) => sql`coalesce((
+    select sum(${pick})
+      from transactions tx
+     where tx.account_id = ${accounts.id}
+       and tx.is_deleted = false
+       and tx.txn_date >= ${from} and tx.txn_date <= ${to}
+  ), 0)`;
+
+  const txnUntilEnd = sql`coalesce((
+    select sum(case when tx.direction = 'in' then tx.amount else -tx.amount end)
+      from transactions tx
+     where tx.account_id = ${accounts.id}
+       and tx.is_deleted = false
+       and tx.txn_date <= ${to}
+  ), 0)`;
+
+  /** เข้าเป็นบวก ออกเป็นลบ เขียนรวมก้อนเดียวจะได้ไม่มีใครใส่แค่ขาเดียว */
+  const transferSum = (window: SQL) => sql`coalesce((
+    select sum(case when tf.to_account_id = ${accounts.id} then tf.amount else -tf.amount end)
+      from transfers tf
+     where (tf.to_account_id = ${accounts.id} or tf.from_account_id = ${accounts.id})
+       and tf.is_deleted = false
+       and ${window}
+  ), 0)`;
+
+  const inRange = sql`tf.txn_date >= ${from} and tf.txn_date <= ${to}`;
+  const untilEnd = sql`tf.txn_date <= ${to}`;
+
+  return db
+    .select({
+      name: accounts.name,
+      active: accounts.isActive,
+      shared: sql<boolean>`(${sql`${accounts.shopId}`} is null)`,
+      opening: accounts.openingBalance,
+      income: sql<string>`(${txnInRange(sql`case when tx.direction = 'in' then tx.amount else 0 end`)})`,
+      expense: sql<string>`(${txnInRange(sql`case when tx.direction = 'out' then tx.amount else 0 end`)})`,
+      transferNet: sql<string>`(${transferSum(inRange)})`,
+      closing: sql<string>`(${accounts.openingBalance} + ${txnUntilEnd} + ${transferSum(untilEnd)})`,
+    })
+    .from(accounts)
+    .where(visibleToShop(shopId))
+    .orderBy(asc(accounts.sortOrder), asc(accounts.name));
 }

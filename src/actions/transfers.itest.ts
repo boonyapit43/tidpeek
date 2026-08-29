@@ -350,7 +350,7 @@ describe("หน้าเคลื่อนไหวของบัญชี", (
 
     ok(await createTransfer(IDLE, transferForm({ txnDate: "2026-08-12" })));
 
-    const rows = await listAccountMovements(scb);
+    const rows = await listAccountMovements(shopId, scb);
 
     expect(rows.map((r) => r.kind)).toEqual(["transfer", "txn"]);
     expect(rows[0].txnDate).toBe("2026-08-12");
@@ -360,8 +360,8 @@ describe("หน้าเคลื่อนไหวของบัญชี", (
   it("ฝั่งต้นทางเห็นเป็นเงินออก ฝั่งปลายทางเห็นเป็นเงินเข้า", async () => {
     ok(await createTransfer(IDLE, transferForm()));
 
-    const [out] = await listAccountMovements(scb);
-    const [into] = await listAccountMovements(krungthai);
+    const [out] = await listAccountMovements(shopId, scb);
+    const [into] = await listAccountMovements(shopId, krungthai);
 
     expect(n(out.signed)).toBe(-3000);
     expect(out.label).toBe("กรุงไทย"); // ชื่อบัญชีอีกฝั่ง
@@ -380,7 +380,7 @@ describe("หน้าเคลื่อนไหวของบัญชี", (
       values (${shopId}, '2026-08-11', 'out', 200, 'ค่าน้ำ', ${scb})`;
     ok(await createTransfer(IDLE, transferForm()));
 
-    const rows = await listAccountMovements(scb);
+    const rows = await listAccountMovements(shopId, scb);
     const moved = rows.reduce((sum, r) => sum + n(r.signed), 0);
 
     const account = must(
@@ -396,6 +396,6 @@ describe("หน้าเคลื่อนไหวของบัญชี", (
     const [row] = await raw<{ id: string }[]>`select id from transfers`;
     ok(await deleteTransfer(IDLE, fd({ shopId, id: row.id })));
 
-    expect(await listAccountMovements(scb)).toHaveLength(0);
+    expect(await listAccountMovements(shopId, scb)).toHaveLength(0);
   });
 });

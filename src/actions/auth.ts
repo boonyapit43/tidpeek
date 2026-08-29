@@ -23,7 +23,16 @@ import { type ActionState, failed, formObject, invalid } from "./shared";
 async function clientKey(): Promise<string> {
   const h = await headers();
   const forwarded = h.get("x-forwarded-for");
-  return forwarded?.split(",")[0]?.trim() || h.get("x-real-ip") || "unknown";
+  /**
+   * เอาตัวขวาสุด ไม่ใช่ตัวซ้ายสุด
+   *
+   * proxy มาตรฐาน (nginx ที่ตั้ง proxy_add_x_forwarded_for และ Vercel)
+   * "ต่อท้าย" IP จริงของคนที่ยิงมา ส่วนค่าที่อยู่ซ้ายๆ คือของที่ client
+   * ส่งมาเองซึ่งปลอมได้อิสระ — ถ้าใช้ตัวซ้าย คนเดารหัสแค่สุ่ม header ใหม่
+   * ทุกครั้งก็หลุดตัวนับ แถมยังใส่ IP ของเหยื่อมาเพื่อล็อกเจ้าของร้านเองได้ด้วย
+   */
+  const chain = forwarded?.split(",").map((v) => v.trim()).filter(Boolean) ?? [];
+  return chain[chain.length - 1] || h.get("x-real-ip") || "unknown";
 }
 
 export async function login(_prev: ActionState, formData: FormData): Promise<ActionState> {

@@ -43,7 +43,7 @@ const money = (name: string) => numeric(name, { precision: 12, scale: 2 });
  *   กู้กลับได้ด้วย SQL บรรทัดเดียว
  *
  *   ⚠️ ถ้าเพิ่ม query ใหม่ ต้องใส่เงื่อนไข is_deleted ด้วยเสมอ
- *      ไม่งั้นของที่ลบไปแล้วจะโผล่กลับมา ดู notDeleted() ใน queries.ts
+ *      ไม่งั้นของที่ลบไปแล้วจะโผล่กลับมา — ทุก query ใน queries.ts กรองธงนี้เอง
  *
  * created_at / updated_at — ตอบว่าแถวนี้เกิดเมื่อไหร่และถูกแตะครั้งสุดท้ายเมื่อไหร่
  *   ใช้ timestamptz เพราะเป็นเวลาจริงที่เกิดเหตุ ต่างจาก txn_date ที่เป็น
@@ -59,6 +59,19 @@ const auditColumns = {
 /*  ร้าน                                                               */
 /* ------------------------------------------------------------------ */
 
+/**
+ * ทุกตารางปิดท้ายด้วย .enableRLS() — สามเหตุผล
+ *
+ *   1. REST API อัตโนมัติของ Supabase (PostgREST) อ่านตารางที่เปิด RLS
+ *      โดยไม่มี policy ไม่ได้เลย ปิดทางคนถือ anon key ยิงอ่านตรง
+ *   2. เส้นทาง migration ต้องได้ผลเหมือน schema.sql — เคยหลุดมาแล้วจริง
+ *      ตาราง transfers ถูกสร้างผ่าน migration โดยไม่มี RLS ทั้งที่อีกสี่ตารางมี
+ *   3. กัน db:push ถอด RLS ทิ้งเงียบๆ — ถ้า schema ตรงนี้ไม่ประกาศไว้
+ *      drizzle-kit จะเห็นว่าฐานจริงมี RLS แต่ schema ไม่มี แล้วสั่ง DISABLE ให้
+ *
+ * แอปเองไม่กระทบ เพราะ role ใน DATABASE_URL เป็นเจ้าของตาราง ซึ่ง Postgres
+ * ยกเว้น RLS ให้อยู่แล้ว
+ */
 export const shops = pgTable(
   "shops",
   {
@@ -69,7 +82,7 @@ export const shops = pgTable(
     ...auditColumns,
   },
   (t) => [index("idx_shops_live").on(t.isDeleted, t.sortOrder)],
-);
+).enableRLS();
 
 /* ------------------------------------------------------------------ */
 /*  บัญชี / ช่องทางเงิน                                                */
@@ -100,7 +113,7 @@ export const accounts = pgTable(
     check("accounts_kind_check", sql`${t.kind} in ('cash','bank','ewallet')`),
     index("idx_accounts_shop").on(t.shopId, t.isDeleted),
   ],
-);
+).enableRLS();
 
 /* ------------------------------------------------------------------ */
 /*  ประเภทรายรับรายจ่าย                                                */
@@ -131,7 +144,7 @@ export const categories = pgTable(
     check("categories_direction_check", sql`${t.direction} in ('in','out')`),
     index("idx_categories_shop").on(t.shopId, t.isDeleted),
   ],
-);
+).enableRLS();
 
 /* ------------------------------------------------------------------ */
 /*  รายการเคลื่อนไหว                                                   */
@@ -196,7 +209,7 @@ export const transactions = pgTable(
     index("idx_txn_account").on(t.accountId, t.isDeleted),
     index("idx_txn_category").on(t.categoryId, t.isDeleted),
   ],
-);
+).enableRLS();
 
 /* ------------------------------------------------------------------ */
 /*  การโอนเงินระหว่างบัญชี                                             */
@@ -259,7 +272,7 @@ export const transfers = pgTable(
     index("idx_transfers_from").on(t.fromAccountId, t.isDeleted),
     index("idx_transfers_to").on(t.toAccountId, t.isDeleted),
   ],
-);
+).enableRLS();
 
 /* ------------------------------------------------------------------ */
 /*  ชนิดที่อนุมานจาก schema — อย่าประกาศ type ของแถวซ้ำที่อื่น          */

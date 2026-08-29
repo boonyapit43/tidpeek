@@ -1,6 +1,8 @@
 import type { Metadata } from "next";
 import { hasDefaultCategories, listAllAccountsForShop, listAllCategories } from "@/db/queries";
+import { currentMonth, monthRange, today } from "@/lib/date";
 import { getShopContext } from "@/lib/shop";
+import { Button } from "@/components/form-parts";
 import { AccountManager } from "./account-manager";
 import { CategoryManager } from "./category-manager";
 
@@ -42,7 +44,7 @@ export default async function SettingsPage() {
         // เลยสักตัว ปุ่มเติมชุดตั้งต้นจึงโผล่เฉพาะกรณีนั้น กดแล้วหายไปเอง
         canAddDefaults={!hasDefaults}
       />
-      <ExportSection />
+      <ExportSection shopName={shop.name} />
     </div>
   );
 }
@@ -50,25 +52,65 @@ export default async function SettingsPage() {
 /**
  * ส่งออกข้อมูล
  *
- * เป็นลิงก์ธรรมดาไม่ใช่ปุ่มที่เรียก JavaScript เพราะเบราว์เซอร์จัดการ
- * การดาวน์โหลดเองได้ดีกว่า และทำงานได้แม้บนมือถือที่บล็อก popup
+ * ที่นี่คือทางออกของ "ช่วงกำหนดเอง" เท่านั้น ช่วงที่ใช้บ่อย (วัน สัปดาห์
+ * เดือน ปี) มีปุ่มอยู่ท้ายหน้าสรุปของช่วงนั้นแล้ว ไม่ต้องเดินมาเลือกวันซ้ำ
  *
- * มีอยู่ตั้งแต่วันแรกโดยตั้งใจ ข้อมูลบัญชีของร้านต้องเอาออกไปได้เสมอ
- * ไม่ว่าจะย้ายโฮสต์ ย้ายฐานข้อมูล หรือเลิกใช้แอปนี้ไปเลย
+ * ฟอร์มเป็น GET ธรรมดา ไม่มี JavaScript เลย กดแล้วเบราว์เซอร์เปิดลิงก์
+ * /api/export?from=..&to=.. ซึ่งตอบกลับมาเป็นไฟล์ วิธีนี้ทำงานได้แม้
+ * สคริปต์โหลดไม่ขึ้น และไม่โดนตัวบล็อก popup บนมือถือ
  */
-function ExportSection() {
+function ExportSection({ shopName }: { shopName: string }) {
+  // ตั้งต้นเป็น "ต้นเดือนถึงวันนี้" ซึ่งเป็นช่วงที่คนขอบ่อยที่สุด
+  // กดส่งเลยโดยไม่แตะอะไรก็ได้ของที่ใช้ได้จริง
+  const [monthStart] = monthRange(currentMonth());
+
   return (
     <section className="overflow-hidden rounded-2xl bg-surface shadow-sm">
       <h2 className="border-b border-line px-4 py-2.5 text-xs font-semibold text-ink-soft">
         ส่งออกข้อมูล
       </h2>
 
-      <div className="divide-y divide-line">
-        <ExportLink href="/api/export" label="ทั้งฐานข้อมูล (JSON)" />
-        <ExportLink href="/api/export?f=csv" label="รายการรับจ่าย (CSV)" />
-        <ExportLink href="/api/export?f=transfers" label="การโอนระหว่างบัญชี (CSV)" />
-      </div>
+      <form method="get" action="/api/export" className="space-y-3 border-b border-line p-4">
+        <p className="text-xs text-ink-soft">
+          เลือกช่วงวันเอง ได้ไฟล์ Excel ของ{shopName} แยกเป็นสี่ชีต สรุป · รายการ ·
+          โอนระหว่างบัญชี · ยอดบัญชี
+        </p>
+
+        <div className="grid grid-cols-2 gap-2">
+          <DateField name="from" label="ตั้งแต่วันที่" defaultValue={monthStart} />
+          <DateField name="to" label="ถึงวันที่" defaultValue={today()} />
+        </div>
+
+        <Button type="submit" className="w-full text-sm">
+          <DownloadIcon />
+          ส่งออกช่วงนี้เป็น Excel
+        </Button>
+      </form>
+
+      <ExportLink href="/api/export?f=json" label="สำรองทั้งฐานข้อมูล (JSON)" />
     </section>
+  );
+}
+
+function DateField({
+  name,
+  label,
+  defaultValue,
+}: {
+  name: string;
+  label: string;
+  defaultValue: string;
+}) {
+  return (
+    <label className="block">
+      <span className="mb-1 block text-xs font-medium text-ink-soft">{label}</span>
+      <input
+        type="date"
+        name={name}
+        defaultValue={defaultValue}
+        className="min-h-touch w-full rounded-xl border border-line bg-surface-2 px-3 text-sm text-ink"
+      />
+    </label>
   );
 }
 
@@ -79,18 +121,26 @@ function ExportLink({ href, label }: { href: string; label: string }) {
       className="flex min-h-touch items-center justify-between gap-3 px-4 py-3 text-sm text-ink transition active:bg-surface-2"
     >
       {label}
-      <svg
-        viewBox="0 0 24 24"
-        fill="none"
-        stroke="currentColor"
-        strokeWidth={1.75}
-        strokeLinecap="round"
-        strokeLinejoin="round"
-        className="size-5 shrink-0 text-ink-soft"
-        aria-hidden
-      >
-        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3" />
-      </svg>
+      <span className="text-ink-soft">
+        <DownloadIcon />
+      </span>
     </a>
+  );
+}
+
+function DownloadIcon() {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth={1.75}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      className="size-5 shrink-0"
+      aria-hidden
+    >
+      <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3" />
+    </svg>
   );
 }

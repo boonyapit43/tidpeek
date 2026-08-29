@@ -34,15 +34,33 @@ import {
  * แก้ได้จาก devtools ถ้าไม่ตรวจ คนที่เข้าแอปได้จะผูกรายการข้ามร้านได้
  */
 
-/** ตรวจว่า categoryId กับ accountId ที่ส่งมาใช้กับร้านนี้ได้จริง */
+/**
+ * ตรวจว่า categoryId กับ accountId ที่ส่งมาใช้กับร้านนี้ได้จริง
+ *
+ * previous คือค่าเดิมของแถวตอนแก้ไข — การอ้างอิงที่ "ไม่ได้เปลี่ยน" ไม่ต้อง
+ * ตรวจซ้ำ เหตุผลไม่ใช่เรื่องประหยัด query แต่เป็นเรื่องแก้รายการเก่าให้ได้:
+ * รายการที่ผูกบัญชีซึ่งถูกลบไปแล้ว (ระบบสัญญาว่ารายการเก่าอยู่ครบ) ถ้าตรวจ
+ * ทุกครั้งจะแก้แม้แต่ชื่อรายการไม่ได้เลย เพราะฟอร์มส่งบัญชีเดิมกลับมาแล้ว
+ * โดนปฏิเสธว่า "ไม่พบบัญชี" ทั้งที่คนไม่ได้แตะช่องบัญชีด้วยซ้ำ
+ *
+ * ส่วนการอ้างอิงที่เปลี่ยนใหม่ ต้องเป็นของที่ยังเปิดใช้งานอยู่ (mustBeActive)
+ * เพราะของที่ปิดใช้งานไว้ต้องไม่รับรายการใหม่ ตามความหมายของปุ่มปิดใช้งาน
+ */
 async function checkReferences(
   shopId: string,
   direction: "in" | "out",
   categoryId: string | null,
   accountId: string | null,
+  previous?: { direction: "in" | "out"; categoryId: string | null; accountId: string | null },
 ): Promise<ActionState | null> {
-  if (categoryId) {
-    const category = await getVisibleCategory(shopId, categoryId);
+  const categoryUnchanged =
+    previous !== undefined &&
+    categoryId === previous.categoryId &&
+    // ถ้าสลับฝั่งด้วย ประเภทเดิมอาจอยู่ผิดฝั่งแล้ว ต้องตรวจใหม่
+    direction === previous.direction;
+
+  if (categoryId && !categoryUnchanged) {
+    const category = await getVisibleCategory(shopId, categoryId, true);
     if (!category) return failed("ไม่พบประเภทที่เลือก");
 
     if (category.direction !== direction) {
@@ -51,7 +69,9 @@ async function checkReferences(
     }
   }
 
-  if (accountId && !(await isAccountVisible(shopId, accountId))) {
+  const accountUnchanged = previous !== undefined && accountId === previous.accountId;
+
+  if (accountId && !accountUnchanged && !(await isAccountVisible(shopId, accountId, true))) {
     return failed("ไม่พบบัญชีที่เลือก");
   }
 
@@ -115,11 +135,32 @@ export async function updateTransaction(
 
     if (!(await getShop(input.shopId))) return SHOP_NOT_FOUND;
 
+    // ดึงแถวเดิมมาก่อน เพื่อให้ checkReferences รู้ว่าอะไร "ไม่ได้เปลี่ยน"
+    // เงื่อนไข shopId ตรงนี้สำคัญเท่ากับใน update — กันอ่านข้ามร้านด้วย
+    const [previous] = await db
+      .select({
+        direction: transactions.direction,
+        categoryId: transactions.categoryId,
+        accountId: transactions.accountId,
+      })
+      .from(transactions)
+      .where(
+        and(
+          eq(transactions.id, input.id),
+          eq(transactions.shopId, input.shopId),
+          eq(transactions.isDeleted, false),
+        ),
+      )
+      .limit(1);
+
+    if (!previous) return failed("ไม่พบรายการที่จะแก้ไข อาจถูกลบไปแล้ว");
+
     const refError = await checkReferences(
       input.shopId,
       input.direction,
       input.categoryId,
       input.accountId,
+      previous,
     );
     if (refError) return refError;
 

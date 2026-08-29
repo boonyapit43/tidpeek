@@ -33,7 +33,7 @@ export function AccountManager({
         <button
           type="button"
           onClick={() => setAdding(true)}
-          className="text-sm font-semibold text-brand"
+          className="flex min-h-touch items-center px-2 -mr-2 text-sm font-semibold text-brand"
         >
           + เพิ่ม
         </button>
