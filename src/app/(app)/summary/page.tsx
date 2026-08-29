@@ -4,6 +4,7 @@ import { SummaryCard } from "@/components/summary-card";
 import {
   getSummary,
   latestTxnDate,
+  listPeriodEntries,
   listCategoryTotals,
   listDailyForMonth,
   listDailyForWeek,
@@ -347,9 +348,10 @@ function dailyPoints(
  * ส่วนรายการทีละบรรทัดอยู่ที่แท็บรายวัน ซึ่งแก้ไขได้ด้วย
  */
 async function DayView({ shopId, day }: { shopId: string; day: string }) {
-  const [summary, categoryTotals] = await Promise.all([
+  const [summary, categoryTotals, entries] = await Promise.all([
     getSummary(shopId, { day }),
-    listCategoryTotals(shopId, { day }),
+    listCategoryTotals(shopId, { day }),
+    listPeriodEntries(shopId, { day }),
   ]);
 
   const label = relativeDayLabel(day);
@@ -398,7 +400,11 @@ async function DayView({ shopId, day }: { shopId: string; day: string }) {
             </Link>
           </div>
 
-          <CategoryBreakdown totals={categoryTotals} detailQs={`p=day&d=${day}`} />
+          <CategoryBreakdown
+            totals={categoryTotals}
+            entries={entries}
+            detailQs={`/summary?p=day&d=${day}`}
+          />
 
           <ExportLink href={`/api/export?p=day&d=${day}`} label="ส่งออกช่วงนี้เป็น Excel" />
         </>
@@ -422,10 +428,11 @@ async function DayView({ shopId, day }: { shopId: string; day: string }) {
  * ขอบเขตวัน ยอดรายวันจึงบวกขึ้นเป็นสัปดาห์ และสัปดาห์บวกขึ้นเป็นเดือนได้ตรงกัน
  */
 async function WeekView({ shopId, week }: { shopId: string; week: string }) {
-  const [summary, days, categoryTotals] = await Promise.all([
+  const [summary, days, categoryTotals, entries] = await Promise.all([
     getSummary(shopId, { week }),
     listDailyForWeek(shopId, week),
-    listCategoryTotals(shopId, { week }),
+    listCategoryTotals(shopId, { week }),
+    listPeriodEntries(shopId, { week }),
   ]);
 
   const thisWeek = weekOf(today());
@@ -467,7 +474,11 @@ async function WeekView({ shopId, week }: { shopId: string; week: string }) {
         }))}
       />
 
-      <CategoryBreakdown totals={categoryTotals} detailQs={`p=week&w=${week}`} />
+      <CategoryBreakdown
+        totals={categoryTotals}
+        entries={entries}
+        detailQs={`/summary?p=week&w=${week}`}
+      />
 
       <ExportLink href={`/api/export?p=week&w=${week}`} label="ส่งออกช่วงนี้เป็น Excel" />
     </>
@@ -479,10 +490,11 @@ async function WeekView({ shopId, week }: { shopId: string; week: string }) {
 /* ------------------------------------------------------------------ */
 
 async function MonthView({ shopId, month }: { shopId: string; month: string }) {
-  const [summary, days, categoryTotals] = await Promise.all([
+  const [summary, days, categoryTotals, entries] = await Promise.all([
     getSummary(shopId, { month }),
     listDailyForMonth(shopId, month),
-    listCategoryTotals(shopId, { month }),
+    listCategoryTotals(shopId, { month }),
+    listPeriodEntries(shopId, { month }),
   ]);
 
   return (
@@ -519,7 +531,11 @@ async function MonthView({ shopId, month }: { shopId: string; month: string }) {
         }))}
       />
 
-      <CategoryBreakdown totals={categoryTotals} detailQs={`p=month&m=${month}`} />
+      <CategoryBreakdown
+        totals={categoryTotals}
+        entries={entries}
+        detailQs={`/summary?p=month&m=${month}`}
+      />
 
       <ExportLink href={`/api/export?p=month&m=${month}`} label="ส่งออกช่วงนี้เป็น Excel" />
     </>
@@ -531,10 +547,11 @@ async function MonthView({ shopId, month }: { shopId: string; month: string }) {
 /* ------------------------------------------------------------------ */
 
 async function YearView({ shopId, year }: { shopId: string; year: string }) {
-  const [summary, months, categoryTotals] = await Promise.all([
+  const [summary, months, categoryTotals, entries] = await Promise.all([
     getSummary(shopId, { year }),
     listMonthlyForYear(shopId, year),
-    listCategoryTotals(shopId, { year }),
+    listCategoryTotals(shopId, { year }),
+    listPeriodEntries(shopId, { year }),
   ]);
 
   return (
@@ -567,7 +584,11 @@ async function YearView({ shopId, year }: { shopId: string; year: string }) {
         }))}
       />
 
-      <CategoryBreakdown totals={categoryTotals} detailQs={`p=year&y=${year}`} />
+      <CategoryBreakdown
+        totals={categoryTotals}
+        entries={entries}
+        detailQs={`/summary?p=year&y=${year}`}
+      />
 
       <ExportLink href={`/api/export?p=year&y=${year}`} label="ส่งออกช่วงนี้เป็น Excel" />
     </>

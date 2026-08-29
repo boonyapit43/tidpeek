@@ -1118,6 +1118,73 @@ export async function listCategoryEntries(
     .orderBy(desc(transactions.txnDate), desc(transactions.createdAt));
 }
 
+export type PeriodEntry = CategoryEntry & {
+  categoryId: string | null;
+  direction: Direction;
+};
+
+/** จำนวนรายการต่อประเภทที่แนบไปกับหน้าสรุป — เกินนี้ให้กดดูทั้งหมดแทน */
+export const ENTRIES_PER_CATEGORY = 30;
+
+/**
+ * รายการล่าสุดของทุกประเภทในช่วงเดียว จำกัดต่อประเภท — เลี้ยงส่วนกางดู
+ * ในหน้าสรุป ที่กดแล้วต้องกางทันทีโดยไม่เปลี่ยนหน้าและไม่ยิงขอข้อมูลเพิ่ม
+ *
+ * ต้องจำกัด "ต่อประเภท" ไม่ใช่รวมทั้งก้อน — มุมมองปีมีรายการเป็นพัน
+ * แนบไปหมดหน้าจะอ้วนโดยไม่มีใครกางดูครบ ส่วนประเภทที่เกินโควตา
+ * หน้าบ้านมีลิงก์ไปหน้าแจกแจงเต็มซึ่งดึงเฉพาะประเภทนั้นอยู่แล้ว
+ */
+export async function listPeriodEntries(
+  shopId: string,
+  period: Period,
+): Promise<PeriodEntry[]> {
+  const [from, to] = rangeOf(period);
+
+  const ranked = db.$with("ranked").as(
+    db
+      .select({
+        id: transactions.id,
+        txnDate: transactions.txnDate,
+        title: transactions.title,
+        amount: transactions.amount,
+        note: transactions.note,
+        accountName: accounts.name,
+        categoryId: transactions.categoryId,
+        direction: transactions.direction,
+        rank: sql<number>`row_number() over (
+          partition by ${transactions.categoryId}, ${transactions.direction}
+          order by ${transactions.txnDate} desc, ${transactions.createdAt} desc
+        )`.as("rank"),
+      })
+      .from(transactions)
+      .leftJoin(accounts, eq(accounts.id, transactions.accountId))
+      .where(
+        and(
+          eq(transactions.shopId, shopId),
+          eq(transactions.isDeleted, false),
+          gte(transactions.txnDate, from),
+          lte(transactions.txnDate, to),
+        ),
+      ),
+  );
+
+  return db
+    .with(ranked)
+    .select({
+      id: ranked.id,
+      txnDate: ranked.txnDate,
+      title: ranked.title,
+      amount: ranked.amount,
+      note: ranked.note,
+      accountName: ranked.accountName,
+      categoryId: ranked.categoryId,
+      direction: ranked.direction,
+    })
+    .from(ranked)
+    .where(lte(ranked.rank, ENTRIES_PER_CATEGORY))
+    .orderBy(desc(ranked.txnDate), desc(ranked.id));
+}
+
 export type AccountPeriodRow = {
   name: string;
   /** ปิดใช้งานอยู่ไหม — ไฟล์ส่งออกติดป้ายกำกับ เพราะบัญชีนี้ไม่โผล่ในแอปแล้ว */

@@ -1,10 +1,14 @@
+"use client";
+
+import { useState } from "react";
 import Link from "next/link";
-import type { CategoryTotal } from "@/db/queries";
+import type { CategoryTotal, PeriodEntry } from "@/db/queries";
+import { thaiDate } from "@/lib/date";
 import { bahtShort } from "@/lib/money";
 import { cn } from "@/lib/cn";
 
 /**
- * เงินหมดไปกับอะไร และมาจากไหน
+ * เงินหมดไปกับอะไร และมาจากไหน — แตะแถวแล้วกางดูรายการข้างในได้เลย
  *
  * ใช้แถบยาวสั้นเทียบกันแทนกราฟวงกลม เพราะบนจอมือถือแคบๆ วงกลมที่มี
  * หลายชิ้นอ่านสัดส่วนไม่ออกและต้องมีคำอธิบายสีแยกออกไปอีกก้อน
@@ -12,16 +16,19 @@ import { cn } from "@/lib/cn";
  *
  * ความยาวแถบเทียบกับรายการที่มากที่สุดในกลุ่ม ไม่ใช่เทียบกับผลรวม
  * เพราะจุดประสงค์คือ "อะไรใหญ่กว่าอะไร" ไม่ใช่ "แต่ละอันคิดเป็นกี่เปอร์เซ็นต์"
- */
-/**
- * detailQs คือพารามิเตอร์ช่วงเวลาของหน้าสรุปที่กำลังดูอยู่ (เช่น p=month&m=...)
- * แต่ละแถวประกอบเป็นลิงก์เจาะดูรายการข้างในของช่วงเดียวกันเป๊ะ
+ *
+ * ⚠️ การกางใช้ข้อมูลที่แนบมากับหน้าแล้ว ไม่ยิงขอใหม่ตอนกด — กดแล้วกางทันที
+ *    แม้เน็ตหลุด ซึ่งเป็นสภาพปกติของการยืนดูตัวเลขหน้าร้าน
  */
 export function CategoryBreakdown({
   totals,
+  entries,
   detailQs,
 }: {
   totals: CategoryTotal[];
+  /** รายการล่าสุดของทุกประเภทในช่วงนี้ จำกัดต่อประเภทมาแล้วจากฐานข้อมูล */
+  entries: PeriodEntry[];
+  /** พารามิเตอร์ช่วงเวลาของหน้าที่กำลังดู ใช้ต่อลิงก์ดูทั้งหมดของประเภทนั้น */
   detailQs: string;
 }) {
   if (totals.length === 0) return null;
@@ -31,8 +38,20 @@ export function CategoryBreakdown({
 
   return (
     <div className="space-y-3">
-      <Group title="จ่ายไปกับอะไร" rows={outgoing} tone="expense" detailQs={detailQs} />
-      <Group title="รับมาจากไหน" rows={incoming} tone="income" detailQs={detailQs} />
+      <Group
+        title="จ่ายไปกับอะไร"
+        rows={outgoing}
+        entries={entries}
+        tone="expense"
+        detailQs={detailQs}
+      />
+      <Group
+        title="รับมาจากไหน"
+        rows={incoming}
+        entries={entries}
+        tone="income"
+        detailQs={detailQs}
+      />
     </div>
   );
 }
@@ -40,14 +59,22 @@ export function CategoryBreakdown({
 function Group({
   title,
   rows,
+  entries,
   tone,
   detailQs,
 }: {
   title: string;
   rows: CategoryTotal[];
+  entries: PeriodEntry[];
   tone: "income" | "expense";
   detailQs: string;
 }) {
+  /**
+   * กางได้ทีละหลายอัน ไม่ใช่แบบ accordion ที่เปิดอันใหม่แล้วอันเก่าหุบ
+   * เพราะคำถามจริงคือ "ค่าแรงกับค่าของรวมกันเท่าไหร่" ซึ่งต้องเห็นพร้อมกัน
+   */
+  const [open, setOpen] = useState<Set<string>>(new Set());
+
   if (rows.length === 0) return null;
 
   // rows เรียงจากมากไปน้อยมาจาก SQL แล้ว ตัวแรกจึงเป็นตัวที่มากที่สุด
@@ -60,6 +87,14 @@ function Group({
     0,
   );
 
+  const toggle = (key: string) =>
+    setOpen((prev) => {
+      const next = new Set(prev);
+      if (next.has(key)) next.delete(key);
+      else next.add(key);
+      return next;
+    });
+
   return (
     <section className="overflow-hidden rounded-2xl bg-surface shadow-sm">
       <h2 className="border-b border-line px-4 py-2.5 text-xs font-semibold text-ink-soft">
@@ -68,19 +103,30 @@ function Group({
 
       <ul className="divide-y divide-line">
         {rows.map((row) => {
+          const key = `${row.categoryId ?? "none"}-${row.direction}`;
+          const expanded = open.has(key);
           const width = (Number.parseFloat(row.total) / max) * 100;
           const satang = Math.round(Number.parseFloat(row.total) * 100);
           const percent = groupSatang > 0 ? Math.round((satang / groupSatang) * 100) : 0;
 
+          const mine = entries.filter(
+            (e) => e.categoryId === row.categoryId && e.direction === row.direction,
+          );
+          // ประเภทที่รายการเยอะเกินโควตา — บอกตรงๆ ว่าเห็นไม่ครบ พร้อมทางไปดูเต็ม
+          const truncated = row.txnCount > mine.length;
+
           return (
-            <li key={`${row.categoryId ?? "none"}-${row.direction}`}>
-              {/**
-                * ทั้งแถวเป็นลิงก์เจาะเข้าไปดูว่ายอดนี้ประกอบจากรายการไหนบ้าง
-                * — เกิดจากคำถามจริง "ค่าแรง 1,890 คืออะไรบ้าง"
-                */}
-              <Link
-                href={`/summary?${detailQs}&c=${row.categoryId ?? "none"}&cd=${row.direction}`}
-                className="block px-4 py-3 transition active:bg-surface-2"
+            <li key={key}>
+              <button
+                type="button"
+                onClick={() => toggle(key)}
+                aria-expanded={expanded}
+                className={cn(
+                  "block w-full px-4 py-3 text-left transition active:bg-surface-2",
+                  // แถวที่เปิดอยู่เข้มขึ้นนิดเดียว พอให้สายตาจับได้ว่ารายการ
+                  // ข้างล่างเป็นของแถวไหน ตอนกางพร้อมกันหลายอัน
+                  expanded && "bg-surface-2/60",
+                )}
               >
                 <div className="flex items-center justify-between gap-3">
                   <span className="flex min-w-0 items-center gap-1.5">
@@ -101,6 +147,7 @@ function Group({
                     >
                       {bahtShort(row.total)}
                     </span>
+                    {/* ลูกศรหมุนลงตอนกาง — บอกสถานะโดยไม่ต้องพึ่งสี */}
                     <svg
                       viewBox="0 0 24 24"
                       fill="none"
@@ -108,7 +155,10 @@ function Group({
                       strokeWidth={2}
                       strokeLinecap="round"
                       strokeLinejoin="round"
-                      className="size-3.5 text-ink-soft/60"
+                      className={cn(
+                        "size-3.5 text-ink-soft/70 transition-transform",
+                        expanded && "rotate-90",
+                      )}
                       aria-hidden
                     >
                       <path d="M9 18l6-6-6-6" />
@@ -132,7 +182,64 @@ function Group({
                 <div className="mt-1 text-[11px] text-ink-soft">
                   {row.txnCount} รายการ · {percent}% ของฝั่งนี้
                 </div>
-              </Link>
+              </button>
+
+              {expanded && (
+                <div
+                  className={cn(
+                    // เส้นซ้ายหนาสีเดียวกับแถบ บอกว่าก้อนนี้เป็นลูกของแถวข้างบน
+                    // ไม่ใช่ประเภทใหม่ที่โผล่มาแทรก
+                    "border-t border-line bg-surface-2 py-1 pr-4 pl-4",
+                    "border-l-[3px]",
+                    tone === "income" ? "border-l-income/40" : "border-l-expense/40",
+                  )}
+                >
+                  {mine.length === 0 ? (
+                    <p className="py-2 text-xs text-ink-soft">ไม่มีรายการในช่วงนี้</p>
+                  ) : (
+                    <ul className="divide-y divide-line/70">
+                      {mine.map((entry) => (
+                        <li key={entry.id}>
+                          {/* แตะรายการแล้วไปเปิดแผ่นแก้ไขของรายการนั้นที่หน้ารายวัน */}
+                          <Link
+                            href={`/day?d=${entry.txnDate}&t=${entry.id}`}
+                            className="flex items-center gap-3 py-2.5"
+                          >
+                            <span className="min-w-0 flex-1">
+                              <span className="block truncate text-xs text-ink">
+                                {entry.title}
+                              </span>
+                              <span className="block truncate text-[11px] text-ink-soft">
+                                {thaiDate(entry.txnDate)}
+                                {entry.accountName ? ` · ${entry.accountName}` : ""}
+                                {entry.note ? ` · ${entry.note}` : ""}
+                              </span>
+                            </span>
+
+                            <span
+                              className={cn(
+                                "num shrink-0 text-xs font-semibold",
+                                tone === "income" ? "text-income" : "text-expense",
+                              )}
+                            >
+                              {bahtShort(entry.amount)}
+                            </span>
+                          </Link>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+
+                  {truncated && (
+                    <Link
+                      href={`${detailQs}&c=${row.categoryId ?? "none"}&cd=${row.direction}`}
+                      className="flex min-h-touch items-center justify-center text-xs font-semibold text-brand"
+                    >
+                      ดูทั้งหมด {row.txnCount} รายการ →
+                    </Link>
+                  )}
+                </div>
+              )}
             </li>
           );
         })}

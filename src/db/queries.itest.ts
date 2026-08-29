@@ -2,8 +2,10 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { closeTestDb, createSchema, raw, resetData } from "@/test/db";
 import {
   exportTransactionsFlat,
+  ENTRIES_PER_CATEGORY,
   latestTxnDate,
   listCategoryEntries,
+  listPeriodEntries,
   getSummary,
   listAccountsWithBalance,
   listCategoryTotals,
@@ -388,6 +390,49 @@ describe("เจาะดูรายการข้างในประเภ�
     // เดือนกันยาของประเภทเดียวกัน มีของมันเอง ไม่ปนกับสิงหา
     const september = await listCategoryEntries(shopId, { month: "2026-09" }, saleId, "in");
     expect(september.map((r) => r.title)).toEqual(["ขายเดือนหน้า"]);
+  });
+});
+
+describe("รายการที่แนบไปกับหน้าสรุปเพื่อกางดู", () => {
+  it("ได้ทุกประเภทในช่วงเดียว พร้อมบอกว่าแต่ละแถวเป็นของประเภทไหนฝั่งไหน", async () => {
+    const rows = await listPeriodEntries(shopId, { month: "2026-08" });
+
+    const wage = rows.filter((r) => r.categoryId === costId);
+    expect(wage.map((r) => r.title).sort()).toEqual(["ซื้อผัก", "ซื้อเนื้อ"]);
+    expect(wage.every((r) => r.direction === "out")).toBe(true);
+
+    // กลุ่มไม่ระบุประเภทมาด้วย เพราะโผล่เป็นกลุ่มของตัวเองในหน้าสรุป
+    expect(rows.some((r) => r.categoryId === null && r.title === "ขายเบ็ดเตล็ด")).toBe(true);
+  });
+
+  it("ไม่ปนร้านอื่น ไม่ปนรายการที่ลบแล้ว และไม่หลุดช่วง", async () => {
+    const rows = await listPeriodEntries(shopId, { month: "2026-08" });
+    const titles = rows.map((r) => r.title);
+
+    expect(titles).not.toContain("ของร้านอื่น");
+    expect(titles).not.toContain("รายการที่ลบแล้ว");
+    expect(titles).not.toContain("ขายเดือนหน้า");
+    expect(rows.every((r) => r.txnDate.startsWith("2026-08"))).toBe(true);
+  });
+
+  /**
+   * โควตาต้องจำกัด "ต่อประเภท" ไม่ใช่รวมทั้งก้อน — ถ้าตัดรวม ประเภทที่
+   * รายการเยอะจะกินโควตาจนประเภทอื่นไม่เหลือให้กางเลยสักแถว
+   */
+  it("จำกัดต่อประเภท ประเภทที่รายการน้อยจึงไม่ถูกเบียดหาย", async () => {
+    // ใส่รายการซื้อของเข้าร้านเพิ่มให้ทะลุโควตาไปไกลๆ
+    for (let i = 0; i < 40; i++) {
+      await raw`
+        insert into transactions (shop_id, txn_date, direction, amount, title, category_id)
+        values (${shopId}, '2026-08-05', 'out', 10, ${"ของชิ้นที่ " + i}, ${costId})`;
+    }
+
+    const rows = await listPeriodEntries(shopId, { month: "2026-08" });
+    const cost = rows.filter((r) => r.categoryId === costId);
+
+    expect(cost.length).toBe(ENTRIES_PER_CATEGORY);
+    // ประเภทขายหน้าร้านยังอยู่ครบ ไม่โดนเบียดหายไปกับโควตาของอีกประเภท
+    expect(rows.filter((r) => r.categoryId === saleId).length).toBeGreaterThan(0);
   });
 });
 
