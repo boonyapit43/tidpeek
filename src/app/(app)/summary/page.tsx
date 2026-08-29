@@ -288,7 +288,42 @@ function Arrow({
  * เป็นลิงก์ธรรมดา ไม่ใช่ปุ่มที่เรียก JavaScript เบราว์เซอร์จัดการ
  * ดาวน์โหลดเองได้ดีกว่า และไม่โดนบล็อกบนมือถือ
  */
-function ExportLink({ href, label }: { href: string; label: string }) {
+/**
+ * สองทางออกของช่วงที่กำลังดู — ภาพไว้ส่งในแชท ไฟล์ไว้ส่งคนทำบัญชี
+ *
+ * อยู่คู่กันเพราะเป็นคำถามเดียวกัน ("จะเอาสรุปนี้ออกไปยังไง") ต่างกันแค่
+ * ปลายทาง ถ้าแยกกันคนละที่ คนจะหาเจอแค่อันเดียวแล้วคิดว่ามีแค่นั้น
+ */
+function ShareRow({ qs }: { qs: string }) {
+  return (
+    <div className="grid grid-cols-2 gap-2">
+      <OutLink
+        href={`/share?${qs}`}
+        label="ภาพสรุป"
+        icon={
+          <path d="M4 16l4.5-5 3.5 4 3-3.5L20 16M3 5h18v14H3zM8.5 9.5a1 1 0 1 1-2 0 1 1 0 0 1 2 0z" />
+        }
+      />
+      <OutLink
+        href={`/api/export?${qs}`}
+        label="ไฟล์ Excel"
+        icon={
+          <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3" />
+        }
+      />
+    </div>
+  );
+}
+
+function OutLink({
+  href,
+  label,
+  icon,
+}: {
+  href: string;
+  label: string;
+  icon: React.ReactNode;
+}) {
   return (
     <a
       href={href}
@@ -304,7 +339,7 @@ function ExportLink({ href, label }: { href: string; label: string }) {
         className="size-5 shrink-0 text-ink-soft"
         aria-hidden
       >
-        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3" />
+        {icon}
       </svg>
       {label}
     </a>
@@ -406,7 +441,7 @@ async function DayView({ shopId, day }: { shopId: string; day: string }) {
             detailQs={`/summary?p=day&d=${day}`}
           />
 
-          <ExportLink href={`/api/export?p=day&d=${day}`} label="ส่งออกช่วงนี้เป็น Excel" />
+          <ShareRow qs={`p=day&d=${day}`} />
         </>
       )}
     </>
@@ -480,7 +515,7 @@ async function WeekView({ shopId, week }: { shopId: string; week: string }) {
         detailQs={`/summary?p=week&w=${week}`}
       />
 
-      <ExportLink href={`/api/export?p=week&w=${week}`} label="ส่งออกช่วงนี้เป็น Excel" />
+      <ShareRow qs={`p=week&w=${week}`} />
     </>
   );
 }
@@ -537,7 +572,7 @@ async function MonthView({ shopId, month }: { shopId: string; month: string }) {
         detailQs={`/summary?p=month&m=${month}`}
       />
 
-      <ExportLink href={`/api/export?p=month&m=${month}`} label="ส่งออกช่วงนี้เป็น Excel" />
+      <ShareRow qs={`p=month&m=${month}`} />
     </>
   );
 }
@@ -590,7 +625,7 @@ async function YearView({ shopId, year }: { shopId: string; year: string }) {
         detailQs={`/summary?p=year&y=${year}`}
       />
 
-      <ExportLink href={`/api/export?p=year&y=${year}`} label="ส่งออกช่วงนี้เป็น Excel" />
+      <ShareRow qs={`p=year&y=${year}`} />
     </>
   );
 }
