@@ -121,7 +121,7 @@ function buildSummarySheet(wb: ExcelJS.Workbook, input: WorkbookInput) {
   };
 
   /* ---- ภาพรวม ---- */
-  sectionTitle(ws, "ภาพรวม");
+  sectionTitle(ws, "ภาพรวม", "% ของรายรับ");
 
   const income = amountRow(ws, "รายรับ", input.summary.income, INCOME);
   amountRow(ws, "รายจ่าย", input.summary.expense, EXPENSE);
@@ -167,10 +167,15 @@ function buildSummarySheet(wb: ExcelJS.Workbook, input: WorkbookInput) {
   breakdown(ws, "จ่ายไปกับอะไร", input.categories.filter((c) => c.direction === "out"), EXPENSE);
 }
 
-/** หัวข้อคั่นในชีตสรุป — แถบสีแบรนด์เต็มความกว้างสามคอลัมน์ */
-function sectionTitle(ws: ExcelJS.Worksheet, text: string) {
+/**
+ * หัวข้อคั่นในชีตสรุป — แถบสีแบรนด์เต็มความกว้างสามคอลัมน์
+ *
+ * rightLabel คือหัวของคอลัมน์ที่สาม ซึ่งเป็นเปอร์เซ็นต์ ถ้าไม่บอกไว้
+ * คนอ่านจะเห็นเลข 47.8% ลอยอยู่ข้างยอดเงินโดยไม่รู้ว่าเทียบกับอะไร
+ */
+function sectionTitle(ws: ExcelJS.Worksheet, text: string, rightLabel?: string) {
   ws.addRow([]);
-  const row = ws.addRow([text]);
+  const row = ws.addRow([text, "", rightLabel ?? ""]);
   row.height = 20;
 
   for (let c = 1; c <= 3; c++) {
@@ -179,6 +184,10 @@ function sectionTitle(ws: ExcelJS.Worksheet, text: string) {
     cell.font = { name: FONT, size: 11, bold: true, color: { argb: "FFFFFFFF" } };
     cell.alignment = { vertical: "middle" };
   }
+
+  const right = row.getCell(3);
+  right.font = { name: FONT, size: 9, color: { argb: "FFFFFFFF" } };
+  right.alignment = { vertical: "middle", horizontal: "right" };
 }
 
 function amountRow(ws: ExcelJS.Worksheet, label: string, value: string, color: string) {
@@ -202,7 +211,7 @@ function breakdown(
 ) {
   if (rows.length === 0) return;
 
-  sectionTitle(ws, heading);
+  sectionTitle(ws, heading, "สัดส่วน");
 
   const total = rows.reduce((sum, r) => sum + toNumber(r.total), 0);
   const first = ws.rowCount + 1;
@@ -369,7 +378,12 @@ function buildAccountsSheet(wb: ExcelJS.Workbook, input: WorkbookInput) {
     row.getCell("closing").font = { name: FONT, size: 10, bold: true, color: { argb: INK } };
   });
 
-  finishTable(ws, input.accounts.length, 6, { emptyText: "ร้านนี้ยังไม่มีบัญชี" });
+  finishTable(ws, input.accounts.length, 6, {
+    // รวมช่องคงเหลือ ตอบคำถาม "ตอนนี้เงินทั้งร้านมีเท่าไหร่" ซึ่งเป็นตัวเลข
+    // เดียวกับที่หน้าบัญชีในแอปโชว์ไว้บนสุด จะได้กระทบกันได้
+    totalColumn: 6,
+    emptyText: "ร้านนี้ยังไม่มีบัญชี",
+  });
 
   ws.addRow([]);
   footnote(ws, "คงเหลือสิ้นช่วง คือยอด ณ วันสุดท้ายของช่วง ไม่ใช่ยอดวันนี้");
