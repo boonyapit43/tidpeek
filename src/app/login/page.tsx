@@ -30,7 +30,7 @@ export const runtime = "nodejs";
  * ต่างจาก vh ที่นับรวมแถบซึ่งทำให้เนื้อหาล้นออกไปใต้จอ
  */
 export default async function LoginPage() {
-  if (await hasSession()) redirect("/");
+  if (await hasSession()) redirect("/summary");
 
   return (
     <main

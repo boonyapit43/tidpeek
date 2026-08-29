@@ -31,7 +31,9 @@ import {
 import { getShopContext } from "@/lib/shop";
 import { dateSchema, monthSchema, yearSchema } from "@/lib/validation";
 import { cn } from "@/lib/cn";
+import { daysOfMonth, daysOfWeek, monthsOfYear, thaiWeekdayShort } from "@/lib/chart";
 import { BreakdownTable } from "./breakdown-table";
+import { TrendChart, pointTitle, type TrendPoint } from "./trend-chart";
 import { CategoryBreakdown } from "./category-breakdown";
 
 export const dynamic = "force-dynamic";
@@ -57,14 +59,16 @@ export default async function SummaryPage({
   const shopId = context.shop.id;
   const params = await searchParams;
 
+  // ไม่ระบุมุมมองมา = วันนี้ — หน้านี้เป็นหน้าแรกของแอปแล้ว
+  // เปิดมาต้องตอบ "วันนี้เป็นยังไง" ทันที ไม่ใช่ภาพทั้งเดือน
   const view =
-    params.p === "day"
-      ? "day"
-      : params.p === "week"
-        ? "week"
+    params.p === "week"
+      ? "week"
+      : params.p === "month"
+        ? "month"
         : params.p === "year"
           ? "year"
-          : "month";
+          : "day";
 
   // ค่าจาก URL แก้เองได้ ตรวจก่อนใช้เสมอ ไม่ผ่านก็ตกกลับมาเป็นช่วงปัจจุบัน
   const day = dateSchema.safeParse(params.d).data ?? today();
@@ -252,6 +256,33 @@ function ExportLink({ href, label }: { href: string; label: string }) {
   );
 }
 
+/**
+ * ประกอบจุดของกราฟจากแถวที่ฐานข้อมูลคืนมา
+ *
+ * แถวจากฐานมีเฉพาะช่วงที่มีรายการ ต้องเติมช่องว่างให้ครบทุกวัน/เดือน
+ * ไม่งั้นแกนเวลาบิด — เดือนที่ขายแค่สามวันจะได้กราฟสามแท่งชิดกัน
+ * ดูเหมือนขายต่อเนื่องทั้งที่ห่างกันเป็นสัปดาห์
+ */
+function dailyPoints(
+  slots: string[],
+  rows: { txnDate: string; profit: string }[],
+  label: (date: string, index: number) => string,
+): TrendPoint[] {
+  const byDate = new Map(rows.map((r) => [r.txnDate, r.profit]));
+
+  return slots.map((date, i) => {
+    const profit = byDate.get(date) ?? "0";
+
+    return {
+      key: date,
+      label: label(date, i),
+      title: pointTitle(thaiDate(date), profit),
+      profit,
+      href: `/summary?p=day&d=${date}`,
+    };
+  });
+}
+
 /* ------------------------------------------------------------------ */
 /*  รายวัน                                                             */
 /* ------------------------------------------------------------------ */
@@ -337,6 +368,11 @@ async function WeekView({ shopId, week }: { shopId: string; week: string }) {
 
       <SummaryCard summary={summary} title={`สรุปสัปดาห์ ${thaiWeek(week)}`} />
 
+      <TrendChart
+        heading="กำไรรายวัน"
+        points={dailyPoints(daysOfWeek(week), days, (d) => thaiWeekdayShort(d))}
+      />
+
       <BreakdownTable
         heading="แยกรายวัน"
         unitLabel="วันที่"
@@ -379,6 +415,14 @@ async function MonthView({ shopId, month }: { shopId: string; month: string }) {
       />
 
       <SummaryCard summary={summary} title={`สรุปเดือน${thaiMonth(month)}`} />
+
+      <TrendChart
+        heading="กำไรรายวัน"
+        // ป้ายเว้นช่วงทุกเจ็ดวัน — สามสิบเอ็ดช่องบนจอมือถือใส่เลขทุกวันไม่ไหว
+        points={dailyPoints(daysOfMonth(month), days, (d, i) =>
+          i % 7 === 0 ? String(Number(d.slice(-2))) : "",
+        )}
+      />
 
       <BreakdownTable
         heading="แยกรายวัน"
@@ -424,6 +468,11 @@ async function YearView({ shopId, year }: { shopId: string; year: string }) {
 
       <SummaryCard summary={summary} title={`สรุปปี ${thaiYear(year)}`} />
 
+      <TrendChart
+        heading="กำไรรายเดือน"
+        points={monthlyPoints(year, months)}
+      />
+
       <BreakdownTable
         heading="แยกรายเดือน"
         unitLabel="เดือน"
@@ -444,4 +493,23 @@ async function YearView({ shopId, year }: { shopId: string; year: string }) {
       <ExportLink href={`/api/export?p=year&y=${year}`} label="ส่งออกช่วงนี้เป็น Excel" />
     </>
   );
+}
+
+function monthlyPoints(
+  year: string,
+  rows: { month: string; profit: string }[],
+): TrendPoint[] {
+  const byMonth = new Map(rows.map((r) => [r.month, r.profit]));
+
+  return monthsOfYear(year).map((month) => {
+    const profit = byMonth.get(month) ?? "0";
+
+    return {
+      key: month,
+      label: thaiMonthShort(month),
+      title: pointTitle(thaiMonthShort(month), profit),
+      profit,
+      href: `/summary?p=month&m=${month}`,
+    };
+  });
 }

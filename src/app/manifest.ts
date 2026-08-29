@@ -15,7 +15,7 @@ export default function manifest(): MetadataRoute.Manifest {
     // ชื่อใต้ไอคอนบนหน้าโฮม ยาวเกินจะโดนตัดด้วย … จึงใช้ชื่อแอปล้วน
     short_name: "tidpeek",
     description: "บันทึกรายรับรายจ่ายรายวัน สรุปกำไรรายวัน รายเดือน รายปี แยกตามร้าน",
-    start_url: "/",
+    start_url: "/summary",
     // ตรึงตัวตนของแอปไว้ ไม่ให้ผูกกับ start_url — วันที่ย้ายหน้าแรกไป path อื่น
     // Android จะยังรู้ว่าเป็นแอปเดิม ไม่กลายเป็นแอปใหม่ที่ต้องปักซ้ำ
     id: "/",
