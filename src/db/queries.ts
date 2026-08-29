@@ -1066,6 +1066,58 @@ export async function exportTransfersFlat(shopId: string, period: Period) {
     .orderBy(asc(transfers.txnDate), asc(transfers.createdAt));
 }
 
+export type CategoryEntry = {
+  id: string;
+  txnDate: string;
+  title: string;
+  amount: string;
+  note: string | null;
+  accountName: string | null;
+};
+
+/**
+ * รายการที่ประกอบกันเป็นยอดของประเภทหนึ่งในช่วงหนึ่ง
+ *
+ * ตอบคำถามที่ยอดรวมตอบไม่ได้ — "ค่าแรง 1,890 คืออะไรบ้าง" ต้องกดแล้ว
+ * เห็นทีละบรรทัดว่าจ่ายให้ใครวันไหนเท่าไหร่ ไม่ใช่ต้องไปไล่หาในรายวันเอง
+ *
+ * categoryId เป็น null ได้ = รายการที่ไม่ระบุประเภท ซึ่งโผล่ในสรุปเป็น
+ * กลุ่มของตัวเองอยู่แล้ว จึงต้องเจาะดูได้เหมือนกลุ่มอื่น
+ */
+export async function listCategoryEntries(
+  shopId: string,
+  period: Period,
+  categoryId: string | null,
+  direction: Direction,
+): Promise<CategoryEntry[]> {
+  const [from, to] = rangeOf(period);
+
+  return db
+    .select({
+      id: transactions.id,
+      txnDate: transactions.txnDate,
+      title: transactions.title,
+      amount: transactions.amount,
+      note: transactions.note,
+      accountName: accounts.name,
+    })
+    .from(transactions)
+    .leftJoin(accounts, eq(accounts.id, transactions.accountId))
+    .where(
+      and(
+        eq(transactions.shopId, shopId),
+        eq(transactions.isDeleted, false),
+        eq(transactions.direction, direction),
+        categoryId === null
+          ? isNull(transactions.categoryId)
+          : eq(transactions.categoryId, categoryId),
+        gte(transactions.txnDate, from),
+        lte(transactions.txnDate, to),
+      ),
+    )
+    .orderBy(desc(transactions.txnDate), desc(transactions.createdAt));
+}
+
 export type AccountPeriodRow = {
   name: string;
   /** ปิดใช้งานอยู่ไหม — ไฟล์ส่งออกติดป้ายกำกับ เพราะบัญชีนี้ไม่โผล่ในแอปแล้ว */

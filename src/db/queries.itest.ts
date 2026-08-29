@@ -3,6 +3,7 @@ import { closeTestDb, createSchema, raw, resetData } from "@/test/db";
 import {
   exportTransactionsFlat,
   latestTxnDate,
+  listCategoryEntries,
   getSummary,
   listAccountsWithBalance,
   listCategoryTotals,
@@ -358,6 +359,35 @@ describe("ค้นหา", () => {
   it("รายการของร้านอื่นไม่โผล่ในผลค้นหา", async () => {
     const rows = await searchTransactions(shopId, { q: "ร้านอื่น" });
     expect(rows).toHaveLength(0);
+  });
+});
+
+describe("เจาะดูรายการข้างในประเภท", () => {
+  const AUGUST = { month: "2026-08" } as const;
+
+  it("ได้เฉพาะรายการของประเภทนั้น ฝั่งนั้น ในช่วงนั้น เรียงวันใหม่ก่อน", async () => {
+    const rows = await listCategoryEntries(shopId, AUGUST, costId, "out");
+
+    expect(rows.map((r) => r.title)).toEqual(["ซื้อเนื้อ", "ซื้อผัก"]);
+    // ชื่อบัญชีติดมาด้วย ไว้โชว์ว่าเงินออกจากไหน
+    expect(rows[0].accountName).toBe("เงินสด");
+  });
+
+  it("กลุ่มไม่ระบุประเภทก็เจาะดูได้ และไม่ปนรายการของร้านอื่น", async () => {
+    // ของร้านอื่นในชุดข้อมูลก็ไม่มีประเภทเหมือนกัน — ต้องไม่หลุดมา
+    const rows = await listCategoryEntries(shopId, AUGUST, null, "in");
+
+    expect(rows.map((r) => r.title)).toEqual(["ขายเบ็ดเตล็ด"]);
+  });
+
+  it("รายการที่ลบแล้วไม่โผล่ และช่วงเวลาตัดจริง", async () => {
+    // แถวที่ลบแล้ว (99999) เป็นประเภทขายหน้าร้านในสิงหา ต้องไม่อยู่
+    const august = await listCategoryEntries(shopId, AUGUST, saleId, "in");
+    expect(august.map((r) => r.title)).toEqual(["ขายวันอาทิตย์", "ขายวันเสาร์"]);
+
+    // เดือนกันยาของประเภทเดียวกัน มีของมันเอง ไม่ปนกับสิงหา
+    const september = await listCategoryEntries(shopId, { month: "2026-09" }, saleId, "in");
+    expect(september.map((r) => r.title)).toEqual(["ขายเดือนหน้า"]);
   });
 });
 

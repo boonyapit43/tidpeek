@@ -78,6 +78,9 @@ export const weekSchema = dateSchema;
 /* ------------------------------------------------------------------ */
 
 export const directionSchema = z.enum(DIRECTIONS);
+
+/** พารามิเตอร์เจาะดูประเภทในหน้าสรุป — uuid ของประเภท หรือ "none" = ไม่ระบุประเภท */
+export const categoryParamSchema = z.union([z.uuid(), z.literal("none")]);
 export const accountKindSchema = z.enum(ACCOUNT_KINDS);
 
 const nameSchema = z.string().trim().min(1, "ใส่ชื่อด้วย").max(120, "ชื่อยาวเกินไป");

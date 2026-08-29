@@ -1,5 +1,5 @@
 import type { Summary } from "@/db/queries";
-import { baht, bahtShort, profitPercent } from "@/lib/money";
+import { bahtShort, profitPercent } from "@/lib/money";
 import { cn } from "@/lib/cn";
 
 /**
@@ -49,7 +49,8 @@ export function SummaryCard({ summary, title }: { summary: Summary; title: strin
               loss ? "text-expense" : "text-income",
             )}
           >
-            {baht(summary.profit)}
+            {/* รูปแบบเดียวกับรายรับรายจ่ายข้างบน — เดิมช่องนี้โชว์ .00 อยู่ช่องเดียว */}
+            {bahtShort(summary.profit)}
           </div>
         </div>
 

@@ -85,7 +85,9 @@ export function TrendChart({ heading, points }: { heading: string; points: Trend
           {points.map((point) => (
             <span
               key={point.key}
-              className="min-w-0 flex-1 truncate text-center text-[10px] text-ink-soft"
+              // overflow-visible ไม่ใช่ truncate — ช่องของวันแคบกว่าตัวเลขสองหลัก
+              // ถ้าปล่อยให้ตัด ป้ายจะกลายเป็น "1.. 2.." ที่อ่านไม่รู้เรื่อง
+              className="min-w-0 flex-1 overflow-visible text-center text-[10px] whitespace-nowrap text-ink-soft"
             >
               {point.label}
             </span>

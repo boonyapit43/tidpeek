@@ -31,10 +31,17 @@ import {
 } from "@/lib/date";
 import { getShopContext } from "@/lib/shop";
 import { defaultSummaryView } from "@/lib/summary-view";
-import { dateSchema, monthSchema, yearSchema } from "@/lib/validation";
+import {
+  categoryParamSchema,
+  dateSchema,
+  directionSchema,
+  monthSchema,
+  yearSchema,
+} from "@/lib/validation";
 import { cn } from "@/lib/cn";
 import { daysOfMonth, daysOfWeek, monthsOfYear, thaiWeekdayShort } from "@/lib/chart";
 import { BreakdownTable } from "./breakdown-table";
+import { CategoryDetail } from "./category-detail";
 import { TrendChart, pointTitle, type TrendPoint } from "./trend-chart";
 import { CategoryBreakdown } from "./category-breakdown";
 
@@ -53,7 +60,16 @@ export const metadata: Metadata = { title: "สรุป" };
 export default async function SummaryPage({
   searchParams,
 }: {
-  searchParams: Promise<{ p?: string; d?: string; w?: string; m?: string; y?: string }>;
+  searchParams: Promise<{
+    p?: string;
+    d?: string;
+    w?: string;
+    m?: string;
+    y?: string;
+    /** เจาะดูประเภท — uuid หรือ none (ไม่ระบุประเภท) คู่กับ cd บอกฝั่ง */
+    c?: string;
+    cd?: string;
+  }>;
 }) {
   const context = await getShopContext();
   if (!context) return null;
@@ -112,6 +128,35 @@ export default async function SummaryPage({
           : yearOf(now) === year
             ? now
             : `${year}-01-01`;
+
+  /**
+   * โหมดเจาะดูประเภท — แตะแถวในการ์ดแยกประเภทแล้วมาลงตรงนี้
+   * ใช้ช่วงเวลาเดียวกับมุมมองที่กดมาเป๊ะ กลับไปก็ได้หน้าเดิมช่วงเดิม
+   */
+  const drill = categoryParamSchema.safeParse(params.c).data;
+  const drillDirection = directionSchema.safeParse(params.cd).data;
+
+  if (drill !== undefined && drillDirection !== undefined) {
+    const current =
+      view === "day"
+        ? { period: { day } as const, label: thaiDateLong(day), qs: `p=day&d=${day}` }
+        : view === "week"
+          ? { period: { week } as const, label: `สัปดาห์ ${thaiWeek(week)}`, qs: `p=week&w=${week}` }
+          : view === "month"
+            ? { period: { month } as const, label: thaiMonth(month), qs: `p=month&m=${month}` }
+            : { period: { year } as const, label: `ปี ${thaiYear(year)}`, qs: `p=year&y=${year}` };
+
+    return (
+      <CategoryDetail
+        shopId={shopId}
+        categoryId={drill === "none" ? null : drill}
+        direction={drillDirection}
+        period={current.period}
+        periodLabel={current.label}
+        backHref={`/summary?${current.qs}`}
+      />
+    );
+  }
 
   return (
     <div className="space-y-3">
@@ -353,7 +398,7 @@ async function DayView({ shopId, day }: { shopId: string; day: string }) {
             </Link>
           </div>
 
-          <CategoryBreakdown totals={categoryTotals} />
+          <CategoryBreakdown totals={categoryTotals} detailQs={`p=day&d=${day}`} />
 
           <ExportLink href={`/api/export?p=day&d=${day}`} label="ส่งออกช่วงนี้เป็น Excel" />
         </>
@@ -422,7 +467,7 @@ async function WeekView({ shopId, week }: { shopId: string; week: string }) {
         }))}
       />
 
-      <CategoryBreakdown totals={categoryTotals} />
+      <CategoryBreakdown totals={categoryTotals} detailQs={`p=week&w=${week}`} />
 
       <ExportLink href={`/api/export?p=week&w=${week}`} label="ส่งออกช่วงนี้เป็น Excel" />
     </>
@@ -474,7 +519,7 @@ async function MonthView({ shopId, month }: { shopId: string; month: string }) {
         }))}
       />
 
-      <CategoryBreakdown totals={categoryTotals} />
+      <CategoryBreakdown totals={categoryTotals} detailQs={`p=month&m=${month}`} />
 
       <ExportLink href={`/api/export?p=month&m=${month}`} label="ส่งออกช่วงนี้เป็น Excel" />
     </>
@@ -522,7 +567,7 @@ async function YearView({ shopId, year }: { shopId: string; year: string }) {
         }))}
       />
 
-      <CategoryBreakdown totals={categoryTotals} />
+      <CategoryBreakdown totals={categoryTotals} detailQs={`p=year&y=${year}`} />
 
       <ExportLink href={`/api/export?p=year&y=${year}`} label="ส่งออกช่วงนี้เป็น Excel" />
     </>
