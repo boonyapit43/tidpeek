@@ -2,6 +2,7 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { closeTestDb, createSchema, raw, resetData } from "@/test/db";
 import {
   exportTransactionsFlat,
+  latestTxnDate,
   getSummary,
   listAccountsWithBalance,
   listCategoryTotals,
@@ -357,6 +358,21 @@ describe("ค้นหา", () => {
   it("รายการของร้านอื่นไม่โผล่ในผลค้นหา", async () => {
     const rows = await searchTransactions(shopId, { q: "ร้านอื่น" });
     expect(rows).toHaveLength(0);
+  });
+});
+
+describe("วันที่ของรายการล่าสุด", () => {
+  it("ได้วันที่ใหม่สุดของร้าน ไม่นับรายการที่ลบและไม่นับร้านอื่น", async () => {
+    // ชุดข้อมูลมีถึง 2026-12-31 ส่วนแถวที่ลบแล้ว (2026-08-01) กับของร้านอื่นต้องไม่เกี่ยว
+    expect(await latestTxnDate(shopId)).toBe("2026-12-31");
+  });
+
+  it("ร้านที่ไม่มีรายการเลย ได้ null", async () => {
+    expect(await latestTxnDate(otherShopId)).not.toBeNull(); // ร้านอื่นมีหนึ่งแถว
+
+    const [empty] = await raw<{ id: string }[]>`
+      insert into shops (name) values (${"ร้านว่าง"}) returning id`;
+    expect(await latestTxnDate(empty.id)).toBeNull();
   });
 });
 

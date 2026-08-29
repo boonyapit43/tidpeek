@@ -611,6 +611,24 @@ export async function listRecentTitles(
  * เรียงด้วย created_at ไม่ใช่ txn_date เพราะอยากได้ "ที่เพิ่งพิมพ์ไป"
  * ไม่ใช่ "ของวันที่ใหม่ที่สุด" — คนลงรายการย้อนหลังของเมื่อวานได้ตลอด
  */
+/**
+ * วันที่ของรายการล่าสุดของร้าน — ใช้เลือกว่าหน้าสรุปควรเปิดมุมมองไหน
+ *
+ * ดูที่ txn_date (วันของรายการ) ไม่ใช่ created_at เพราะคำถามคือ
+ * "ช่วงไหนมีข้อมูลให้ดู" การลงย้อนหลังของเมื่อวานตอนเช้านี้ ก็คือ
+ * ข้อมูลของเมื่อวาน ไม่ใช่ของวันนี้
+ */
+export async function latestTxnDate(shopId: string): Promise<string | null> {
+  const [row] = await db
+    .select({ txnDate: transactions.txnDate })
+    .from(transactions)
+    .where(and(eq(transactions.shopId, shopId), eq(transactions.isDeleted, false)))
+    .orderBy(desc(transactions.txnDate))
+    .limit(1);
+
+  return row?.txnDate ?? null;
+}
+
 export async function lastUsedAccountId(shopId: string): Promise<string | null> {
   // join บัญชีเพื่อกรองเอาเฉพาะที่ยังเลือกได้จริง — ถ้าบัญชีล่าสุดถูกลบ
   // หรือปิดใช้งานไปแล้ว ให้ถอยไปหารายการก่อนหน้าแทน ไม่ใช่คืน id ตาย

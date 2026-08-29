@@ -3,6 +3,7 @@ import Link from "next/link";
 import { SummaryCard } from "@/components/summary-card";
 import {
   getSummary,
+  latestTxnDate,
   listCategoryTotals,
   listDailyForMonth,
   listDailyForWeek,
@@ -29,6 +30,7 @@ import {
   yearOf,
 } from "@/lib/date";
 import { getShopContext } from "@/lib/shop";
+import { defaultSummaryView } from "@/lib/summary-view";
 import { dateSchema, monthSchema, yearSchema } from "@/lib/validation";
 import { cn } from "@/lib/cn";
 import { daysOfMonth, daysOfWeek, monthsOfYear, thaiWeekdayShort } from "@/lib/chart";
@@ -59,16 +61,23 @@ export default async function SummaryPage({
   const shopId = context.shop.id;
   const params = await searchParams;
 
-  // ไม่ระบุมุมมองมา = วันนี้ — หน้านี้เป็นหน้าแรกของแอปแล้ว
-  // เปิดมาต้องตอบ "วันนี้เป็นยังไง" ทันที ไม่ใช่ภาพทั้งเดือน
+  /**
+   * ไม่ระบุมุมมองมา = ช่วงที่แคบสุดที่มีข้อมูล (ดูกติกาใน summary-view.ts)
+   *
+   * เดิมเปิดที่วันนี้ตายตัว เช้าที่ยังไม่ได้ลงรายการเลยกลายเป็นหน้าว่าง
+   * ทั้งที่ข้อมูลทั้งเดือนอยู่ถัดไปแค่แท็บเดียว query เพิ่มหนึ่งตัวเฉพาะ
+   * ตอนเปิดแบบไม่ระบุมุมมองเท่านั้น กดแท็บเองเมื่อไหร่ไม่มีการเดาใดๆ
+   */
   const view =
-    params.p === "week"
-      ? "week"
-      : params.p === "month"
-        ? "month"
-        : params.p === "year"
-          ? "year"
-          : "day";
+    params.p === "day"
+      ? "day"
+      : params.p === "week"
+        ? "week"
+        : params.p === "month"
+          ? "month"
+          : params.p === "year"
+            ? "year"
+            : defaultSummaryView(await latestTxnDate(shopId), today());
 
   // ค่าจาก URL แก้เองได้ ตรวจก่อนใช้เสมอ ไม่ผ่านก็ตกกลับมาเป็นช่วงปัจจุบัน
   const day = dateSchema.safeParse(params.d).data ?? today();
@@ -300,6 +309,11 @@ async function DayView({ shopId, day }: { shopId: string; day: string }) {
 
   const label = relativeDayLabel(day);
 
+  // ยอดทุกก้อนเป็นศูนย์ = ไม่มีรายการเลย (จำนวนเงินศูนย์บันทึกไม่ได้อยู่แล้ว)
+  const dayIsEmpty = [summary.income, summary.expense, summary.excluded].every(
+    (v) => Number.parseFloat(v) === 0,
+  );
+
   return (
     <>
       <PeriodNav
@@ -311,19 +325,39 @@ async function DayView({ shopId, day }: { shopId: string; day: string }) {
 
       <SummaryCard summary={summary} title={`สรุป${thaiDateLong(day)}`} />
 
-      <div className="rounded-2xl bg-surface p-3 shadow-sm">
+      {dayIsEmpty ? (
+        /**
+         * วันว่างไม่ปล่อยหน้าโล่ง — ปุ่มดูรายการกับปุ่มส่งออกของวันที่ไม่มี
+         * อะไรเลยคือทางตันสองปุ่ม ชี้ไปภาพรวมทั้งเดือนซึ่งมีของให้ดูแทน
+         */
         <Link
-          href={`/day?d=${day}`}
-          className="flex min-h-touch items-center justify-center gap-2 rounded-xl border border-line text-sm font-semibold text-ink transition hover:bg-surface-2"
+          href={`/summary?p=month&m=${monthOf(day)}`}
+          className="block rounded-2xl bg-surface px-4 py-8 text-center shadow-sm"
         >
-          {/* บอกวันตามจริง — ปุ่มที่เขียนว่าวันนี้ทั้งที่กำลังดูเมื่อวานคือคำโกหกเล็กๆ */}
-          ดูรายการของ{label ?? "วันนั้น"}
+          <span className="block text-sm text-ink-soft">
+            ยังไม่มีรายการของ{label ?? "วันนั้น"}
+          </span>
+          <span className="mt-1 block text-sm font-semibold text-brand">
+            ดูภาพรวมทั้งเดือน →
+          </span>
         </Link>
-      </div>
+      ) : (
+        <>
+          <div className="rounded-2xl bg-surface p-3 shadow-sm">
+            <Link
+              href={`/day?d=${day}`}
+              className="flex min-h-touch items-center justify-center gap-2 rounded-xl border border-line text-sm font-semibold text-ink transition hover:bg-surface-2"
+            >
+              {/* บอกวันตามจริง — ปุ่มที่เขียนว่าวันนี้ทั้งที่กำลังดูเมื่อวานคือคำโกหกเล็กๆ */}
+              ดูรายการของ{label ?? "วันนั้น"}
+            </Link>
+          </div>
 
-      <CategoryBreakdown totals={categoryTotals} />
+          <CategoryBreakdown totals={categoryTotals} />
 
-      <ExportLink href={`/api/export?p=day&d=${day}`} label="ส่งออกช่วงนี้เป็น Excel" />
+          <ExportLink href={`/api/export?p=day&d=${day}`} label="ส่งออกช่วงนี้เป็น Excel" />
+        </>
+      )}
     </>
   );
 }
