@@ -1,11 +1,13 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { closeTestDb, createSchema, raw, resetData } from "@/test/db";
+import { addDays, today } from "@/lib/date";
 import {
   exportTransactionsFlat,
-  ENTRIES_PER_CATEGORY,
+  entriesPerCategory,
   latestTxnDate,
   listCategoryEntries,
   listPeriodEntries,
+  listRecentTitles,
   getSummary,
   listAccountsWithBalance,
   listCategoryTotals,
@@ -430,9 +432,88 @@ describe("รายการที่แนบไปกับหน้าสร�
     const rows = await listPeriodEntries(shopId, { month: "2026-08" });
     const cost = rows.filter((r) => r.categoryId === costId);
 
-    expect(cost.length).toBe(ENTRIES_PER_CATEGORY);
+    expect(cost.length).toBe(entriesPerCategory({ month: "2026-08" }));
     // ประเภทขายหน้าร้านยังอยู่ครบ ไม่โดนเบียดหายไปกับโควตาของอีกประเภท
     expect(rows.filter((r) => r.categoryId === saleId).length).toBeGreaterThan(0);
+  });
+
+  /**
+   * โควตาลดหลั่นตามความกว้างของช่วง — จำนวนกลุ่มไม่เปลี่ยนแต่จำนวนรายการ
+   * ต่อกลุ่มโตตามช่วง ถ้าใช้โควตาเดียวกันหมด มุมมองปีจะแนบข้อมูลไปเป็น
+   * ร้อยกิโลไบต์ให้เน็ตมือถือโหลดทิ้ง
+   */
+  it("ช่วงกว้างขึ้น แนบรายการต่อประเภทน้อยลง", async () => {
+    for (let i = 0; i < 40; i++) {
+      await raw`
+        insert into transactions (shop_id, txn_date, direction, amount, title, category_id)
+        values (${shopId}, '2026-08-05', 'out', 10, ${"ของชิ้นที่ " + i}, ${costId})`;
+    }
+
+    const month = await listPeriodEntries(shopId, { month: "2026-08" });
+    const year = await listPeriodEntries(shopId, { year: "2026" });
+
+    const countOf = (rows: { categoryId: string | null }[]) =>
+      rows.filter((r) => r.categoryId === costId).length;
+
+    expect(countOf(month)).toBe(10);
+    expect(countOf(year)).toBe(5);
+  });
+
+  /**
+   * เรียงตามเวลาที่บันทึก ไม่ใช่ตาม id
+   *
+   * id เป็น uuid สุ่ม ถ้าเรียงตามนั้นรายการในวันเดียวกันจะสลับที่กันมั่ว
+   * ทั้งที่ทุกหน้าอื่นในแอปเรียง "ที่พิมพ์ทีหลังขึ้นก่อน" เหมือนกันหมด
+   */
+  it("วันเดียวกันเรียงจากที่พิมพ์ทีหลังขึ้นก่อน", async () => {
+    await raw`delete from transactions where shop_id = ${shopId}`;
+    for (const title of ["พิมพ์ก่อน", "พิมพ์กลาง", "พิมพ์ทีหลัง"]) {
+      await raw`
+        insert into transactions (shop_id, txn_date, direction, amount, title, category_id)
+        values (${shopId}, '2026-08-05', 'out', 10, ${title}, ${costId})`;
+    }
+
+    const rows = await listPeriodEntries(shopId, { month: "2026-08" });
+
+    expect(rows.map((r) => r.title)).toEqual(["พิมพ์ทีหลัง", "พิมพ์กลาง", "พิมพ์ก่อน"]);
+  });
+});
+
+describe("คำแนะนำชื่อรายการในฟอร์มบันทึก", () => {
+  /**
+   * ดูย้อนหลังแค่ครึ่งปี ไม่ใช่ทั้งประวัติ
+   *
+   * เหตุผลหลักคือความเร็ว — ไม่งั้น query นี้กวาดทั้งตารางทุกครั้งที่เปิด
+   * หน้าบันทึก ซึ่งเป็นหน้าที่ถูกเปิดบ่อยที่สุด และแพงขึ้นเรื่อยๆ ทุกปี
+   * ผลพลอยได้คือคำแนะนำดีขึ้น ชื่อที่เลิกใช้ไปแล้วไม่มาเบียดที่ของที่ใช้อยู่
+   */
+  it("ชื่อที่ใช้นานเกินครึ่งปีไม่โผล่มาเบียด", async () => {
+    const recent = addDays(today(), -10);
+    const longAgo = addDays(today(), -400);
+
+    await raw`
+      insert into transactions (shop_id, txn_date, direction, amount, title, category_id)
+      values (${shopId}, ${recent}, 'out', 50, 'ของที่ยังซื้ออยู่', ${costId}),
+             (${shopId}, ${longAgo}, 'out', 50, 'ของที่เลิกซื้อไปแล้ว', ${costId})`;
+
+    const titles = (await listRecentTitles(shopId, "out")).map((t) => t.title);
+
+    expect(titles).toContain("ของที่ยังซื้ออยู่");
+    expect(titles).not.toContain("ของที่เลิกซื้อไปแล้ว");
+  });
+
+  it("เดาประเภทจากที่เคยใช้กับชื่อนั้นบ่อยสุด", async () => {
+    const day = addDays(today(), -3);
+    for (let i = 0; i < 3; i++) {
+      await raw`
+        insert into transactions (shop_id, txn_date, direction, amount, title, category_id)
+        values (${shopId}, ${day}, 'out', 50, 'น้ำแข็ง', ${costId})`;
+    }
+
+    const hit = (await listRecentTitles(shopId, "out")).find((t) => t.title === "น้ำแข็ง");
+
+    expect(hit?.categoryId).toBe(costId);
+    expect(hit?.uses).toBe(3);
   });
 });
 

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import Link from "next/link";
 import type { CategoryTotal, PeriodEntry } from "@/db/queries";
 import { thaiDate } from "@/lib/date";
@@ -75,6 +75,23 @@ function Group({
    */
   const [open, setOpen] = useState<Set<string>>(new Set());
 
+  /**
+   * จัดรายการเข้ากลุ่มครั้งเดียว ไม่ใช่ filter ใหม่ในทุกแถวทุกรอบที่ render
+   *
+   * มุมมองปีมีสามสิบกลุ่มและรายการเป็นร้อย การ filter ต่อแถวคือการไล่
+   * ทั้งกองใหม่สามสิบรอบ ทุกครั้งที่กางหรือหุบสักอัน
+   */
+  const grouped = useMemo(() => {
+    const map = new Map<string, PeriodEntry[]>();
+    for (const e of entries) {
+      const k = `${e.categoryId ?? "none"}-${e.direction}`;
+      const list = map.get(k);
+      if (list) list.push(e);
+      else map.set(k, [e]);
+    }
+    return map;
+  }, [entries]);
+
   if (rows.length === 0) return null;
 
   // rows เรียงจากมากไปน้อยมาจาก SQL แล้ว ตัวแรกจึงเป็นตัวที่มากที่สุด
@@ -109,9 +126,7 @@ function Group({
           const satang = Math.round(Number.parseFloat(row.total) * 100);
           const percent = groupSatang > 0 ? Math.round((satang / groupSatang) * 100) : 0;
 
-          const mine = entries.filter(
-            (e) => e.categoryId === row.categoryId && e.direction === row.direction,
-          );
+          const mine = grouped.get(key) ?? [];
           // ประเภทที่รายการเยอะเกินโควตา — บอกตรงๆ ว่าเห็นไม่ครบ พร้อมทางไปดูเต็ม
           const truncated = row.txnCount > mine.length;
 

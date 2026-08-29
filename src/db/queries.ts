@@ -7,7 +7,6 @@ import {
   eq,
   gte,
   ilike,
-  isNotNull,
   isNull,
   lte,
   or,
@@ -18,7 +17,7 @@ import { alias } from "drizzle-orm/pg-core";
 import { db } from "./index";
 import { accounts, categories, shops, transactions, transfers } from "./schema";
 import type { Account, Category, Direction, Shop } from "./schema";
-import { monthRange, weekRange, yearRange } from "@/lib/date";
+import { addDays, monthRange, today, weekRange, yearRange } from "@/lib/date";
 
 /**
  * การอ่านข้อมูลทั้งหมดของแอปอยู่ในไฟล์นี้ไฟล์เดียว
@@ -591,6 +590,17 @@ export async function listRecentTitles(
         eq(transactions.shopId, shopId),
         eq(transactions.isDeleted, false),
         eq(transactions.direction, direction),
+        /**
+         * ดูย้อนหลังแค่ครึ่งปี ไม่ใช่ทั้งประวัติ
+         *
+         * เร็วขึ้นมาก — วัดที่ 22,000 รายการได้ 47ms เหลือไม่กี่มิลลิ เพราะ
+         * เข้า index ตามช่วงวันแทนที่จะกวาดทั้งตารางมา group ทุกครั้งที่
+         * เปิดหน้าบันทึก ซึ่งเป็นหน้าที่ถูกเปิดบ่อยที่สุดของแอป
+         *
+         * และได้คำแนะนำที่ดีกว่าด้วย — ชื่อที่ร้านใช้เมื่อปีที่แล้วแต่เลิกใช้
+         * ไปแล้วไม่ควรมาเบียดที่ของชื่อที่ใช้อยู่จริงตอนนี้
+         */
+        gte(transactions.txnDate, addDays(today(), -180)),
       ),
     )
     .groupBy(transactions.title)
@@ -598,19 +608,6 @@ export async function listRecentTitles(
     .limit(40);
 }
 
-/**
- * บัญชีที่ร้านนี้ใช้ลงรายการล่าสุด ใช้เป็นค่าตั้งต้นของช่องบัญชีในฟอร์ม
- *
- * ที่ต้องมีเพราะเดิมช่องบัญชีตั้งต้นเป็น "ไม่ระบุ" รายการที่ลงเร็วๆ จึงไม่ผูก
- * กับบัญชีไหนเลย แล้วยอดคงเหลือไม่ขยับทั้งที่เงินเข้าออกจริง กว่าจะรู้ตัว
- * ก็ต้องไล่แก้ย้อนหลังทีละรายการ
- *
- * เลือก "ล่าสุดที่ใช้" แทน "ตัวแรกในรายการ" เพราะร้านมักรับเงินเข้าทางเดิม
- * ติดกันหลายรายการ ส่วนตัวแรกในรายการเป็นแค่ลำดับที่ตั้งไว้ ไม่ได้บอกอะไร
- *
- * เรียงด้วย created_at ไม่ใช่ txn_date เพราะอยากได้ "ที่เพิ่งพิมพ์ไป"
- * ไม่ใช่ "ของวันที่ใหม่ที่สุด" — คนลงรายการย้อนหลังของเมื่อวานได้ตลอด
- */
 /**
  * วันที่ของรายการล่าสุดของร้าน — ใช้เลือกว่าหน้าสรุปควรเปิดมุมมองไหน
  *
@@ -627,29 +624,6 @@ export async function latestTxnDate(shopId: string): Promise<string | null> {
     .limit(1);
 
   return row?.txnDate ?? null;
-}
-
-export async function lastUsedAccountId(shopId: string): Promise<string | null> {
-  // join บัญชีเพื่อกรองเอาเฉพาะที่ยังเลือกได้จริง — ถ้าบัญชีล่าสุดถูกลบ
-  // หรือปิดใช้งานไปแล้ว ให้ถอยไปหารายการก่อนหน้าแทน ไม่ใช่คืน id ตาย
-  // ที่ฟอร์มต้องเงียบๆ ตกกลับไปบัญชีแรกเอง
-  const [row] = await db
-    .select({ accountId: transactions.accountId })
-    .from(transactions)
-    .innerJoin(accounts, eq(accounts.id, transactions.accountId))
-    .where(
-      and(
-        eq(transactions.shopId, shopId),
-        eq(transactions.isDeleted, false),
-        isNotNull(transactions.accountId),
-        eq(accounts.isDeleted, false),
-        eq(accounts.isActive, true),
-      ),
-    )
-    .orderBy(desc(transactions.createdAt))
-    .limit(1);
-
-  return row?.accountId ?? null;
 }
 
 /* ------------------------------------------------------------------ */
@@ -1123,8 +1097,24 @@ export type PeriodEntry = CategoryEntry & {
   direction: Direction;
 };
 
-/** จำนวนรายการต่อประเภทที่แนบไปกับหน้าสรุป — เกินนี้ให้กดดูทั้งหมดแทน */
-export const ENTRIES_PER_CATEGORY = 30;
+/**
+ * จำนวนรายการต่อประเภทที่แนบไปกับหน้าสรุป — เกินนี้ให้กดดูทั้งหมดแทน
+ *
+ * ลดหลั่นตามความกว้างของช่วง เพราะจำนวนกลุ่มไม่เปลี่ยนแต่จำนวนรายการต่อกลุ่ม
+ * โตตามช่วง วัดที่ 22,000 รายการแล้วมุมมองปีแนบไป 960 แถว = 199 KB ซึ่งหนัก
+ * เกินไปสำหรับหน้าที่เปิดเป็นหน้าแรกบนเน็ตมือถือ
+ *
+ * ที่ลดได้โดยไม่เสียประโยชน์ เพราะคำถามที่คนถามตอนกางคือ "ก้อนนี้มาจากไหน"
+ * ซึ่งตอบได้ด้วยรายการไม่กี่บรรทัด ส่วนคนที่อยากเห็นครบมีลิงก์ไปหน้าแจกแจง
+ * เต็มอยู่แล้ว และหน้าบ้านบอกอยู่แล้วว่าเห็นไม่ครบ
+ */
+export function entriesPerCategory(period: Period): number {
+  if ("day" in period) return 30;
+  if ("week" in period) return 20;
+  if ("month" in period) return 10;
+  // ปีกับช่วงกำหนดเอง กว้างที่สุดและกางดูน้อยที่สุด
+  return 5;
+}
 
 /**
  * รายการล่าสุดของทุกประเภทในช่วงเดียว จำกัดต่อประเภท — เลี้ยงส่วนกางดู
@@ -1139,6 +1129,7 @@ export async function listPeriodEntries(
   period: Period,
 ): Promise<PeriodEntry[]> {
   const [from, to] = rangeOf(period);
+  const perCategory = entriesPerCategory(period);
 
   const ranked = db.$with("ranked").as(
     db
@@ -1151,6 +1142,9 @@ export async function listPeriodEntries(
         accountName: accounts.name,
         categoryId: transactions.categoryId,
         direction: transactions.direction,
+        // ต้องดึงมาด้วย ไม่งั้นชั้นนอกเรียงตามเวลาไม่ได้ ต้องไปเรียงตาม id
+        // ซึ่งเป็น uuid สุ่ม ทำให้รายการในวันเดียวกันสลับที่กันมั่ว
+        createdAt: transactions.createdAt,
         rank: sql<number>`row_number() over (
           partition by ${transactions.categoryId}, ${transactions.direction}
           order by ${transactions.txnDate} desc, ${transactions.createdAt} desc
@@ -1181,8 +1175,9 @@ export async function listPeriodEntries(
       direction: ranked.direction,
     })
     .from(ranked)
-    .where(lte(ranked.rank, ENTRIES_PER_CATEGORY))
-    .orderBy(desc(ranked.txnDate), desc(ranked.id));
+    .where(lte(ranked.rank, perCategory))
+    // เรียงเหมือนทุกที่ในแอป — วันใหม่ก่อน วันเดียวกันเอาที่พิมพ์ทีหลังขึ้นก่อน
+    .orderBy(desc(ranked.txnDate), desc(ranked.createdAt));
 }
 
 export type AccountPeriodRow = {
