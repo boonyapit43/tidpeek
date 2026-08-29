@@ -8,7 +8,6 @@ import {
   Input,
   StatusMessage,
   SubmitButton,
-  useKeptChecked,
   useKeptValue,
 } from "@/components/form-parts";
 import { Sheet } from "@/components/sheet";
@@ -66,7 +65,6 @@ function AddCategoryForm({
   const [state, formAction] = useActionState(createCategory, IDLE);
   const nameId = useId();
   const name = useKeptValue();
-  const counts = useKeptChecked(true);
 
   useEffect(() => {
     if (state.status !== "ok") return;
@@ -101,17 +99,23 @@ function AddCategoryForm({
         />
       </Field>
 
-      <label className="flex min-h-touch cursor-pointer items-start gap-3 rounded-xl border border-line p-3">
-        <input
-          {...counts}
-          type="checkbox"
-          name="counts"
-          className="mt-0.5 size-5 shrink-0 accent-[var(--color-brand)]"
-        />
-        <span className="text-sm text-ink">
-          นับเป็น{direction === "in" ? "รายได้" : "รายจ่าย"}ตอนคิดกำไร
-        </span>
-      </label>
+      {/**
+        * ประเภทที่เพิ่มจากตรงนี้นับเป็นกำไรเสมอ
+        *
+        * เดิมมีช่องติ๊กให้เลือกตรงนี้ด้วย แต่จังหวะที่คนกดเพิ่มประเภทคือกลางคัน
+        * ของการลงรายการ กำลังจะพิมพ์ยอดอยู่แล้วเจอว่าไม่มีประเภทที่ต้องการ
+        * ตอนนั้นไม่มีใครหยุดคิดเรื่องนิยามของกำไร ติ๊กอะไรก็ติ๊กไปให้จบ
+        *
+        * ของที่ "ไม่นับเป็นกำไร" มีอยู่ไม่กี่อย่างและเป็นของตั้งครั้งเดียว —
+        * ถอนเข้ากระเป๋าตัวเอง เติมทุน เงินทอนคืน ซึ่งตั้งจากหน้าตั้งค่าได้
+        * และเป็นที่ที่คนอยู่ในอารมณ์จัดระบบพอดี
+        *
+        * ส่งเป็นช่องซ่อนไม่ใช่ตัดออกเฉยๆ เพราะ schema แปลง “ไม่ส่งมา” เป็น
+        * false ตามธรรมเนียมของ checkbox ถ้าตัดทิ้งดื้อๆ ประเภทใหม่ทุกอัน
+        * จะกลายเป็นไม่นับเป็นกำไรโดยไม่มีใครสั่ง แล้วกำไรที่โชว์จะหายไป
+        * ทีละก้อนแบบที่มองไม่ออกว่าเริ่มผิดตั้งแต่ตรงไหน
+        */}
+      <input type="hidden" name="counts" value="on" />
 
       <StatusMessage state={state} />
 

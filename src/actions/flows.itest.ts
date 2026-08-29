@@ -1,6 +1,8 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { createSession, destroySession } from "@/lib/auth";
 import { closeTestDb, createSchema, raw, resetData } from "@/test/db";
+import { getSummary } from "@/db/queries";
+import { today } from "@/lib/date";
 import { IDLE, type ActionState } from "./shared";
 import {
   addDefaultCategories,
@@ -690,5 +692,99 @@ describe("บัญชี", () => {
     expect(row.amount).toBe("60.00");
     // ยังชี้ไปที่บัญชีเดิม แค่ query ไม่แสดงแล้ว ตามรอยเงินย้อนหลังได้
     expect(row.account_id).toBe(cash.id);
+  });
+});
+
+/* ------------------------------------------------------------------ */
+
+/**
+ * ธง counts ของประเภทใหม่ กับกำไรที่หน้าสรุปโชว์
+ *
+ * ธงนี้เป็นค่าเดียวในระบบที่ตั้งผิดแล้วไม่มีอะไรฟ้อง — ยอดคงเหลือของบัญชี
+ * ยังถูก รายการยังอยู่ครบ มีแค่ตัวเลขกำไรที่เงียบๆ หายไปทีละก้อน
+ *
+ * ที่ต้องเทสตรงนี้เพราะ checkbox ที่ไม่ติ๊กกับ checkbox ที่ไม่มีอยู่ ส่งมา
+ * เหมือนกันเป๊ะ (ไม่มีคีย์ใน FormData) ฝั่งเซิร์ฟเวอร์แยกสองอย่างนี้ไม่ออก
+ * ฟอร์มจึงต้องพูดให้ชัดเสมอว่าตั้งใจอะไร
+ */
+describe("ประเภทใหม่กับการนับกำไร", () => {
+  it("ส่ง counts=on มา นับเข้ากำไร", async () => {
+    const shopId = await makeShop();
+
+    const created = ok(
+      await createCategory(IDLE, fd({ shopId, direction: "out", name: "ค่าถุงพลาสติก", counts: "on" })),
+    );
+
+    const [row] = await raw`select counts from categories where id = ${must(created.id, "id ของประเภทที่เพิ่งสร้าง")}`;
+    expect(row.counts).toBe(true);
+  });
+
+  /**
+   * พฤติกรรมของ checkbox ที่ถูกติ๊กออก — ยังต้องเป็นแบบนี้ต่อไป
+   * เพราะหน้าตั้งค่ายังใช้ checkbox จริงอยู่ และนั่นคือวิธีปิดธงนี้
+   */
+  it("ไม่ส่ง counts มาเลย ไม่นับเข้ากำไร", async () => {
+    const shopId = await makeShop();
+
+    const created = ok(
+      await createCategory(IDLE, fd({ shopId, direction: "out", name: "ถอนใช้ส่วนตัว" })),
+    );
+
+    const [row] = await raw`select counts from categories where id = ${must(created.id, "id ของประเภทที่เพิ่งสร้าง")}`;
+    expect(row.counts).toBe(false);
+  });
+
+  /**
+   * เดินทั้งเส้นจากสร้างประเภท → ลงรายการ → อ่านกำไร
+   *
+   * สองรายการจ่ายเท่ากันเป๊ะ ต่างกันแค่ธงของประเภท ตัวที่นับต้องกินกำไร
+   * ตัวที่ไม่นับต้องไม่กิน ส่วนยอดคงเหลือของบัญชีต้องลดเท่ากันทั้งคู่
+   * เพราะเงินออกจากกระเป๋าจริงทั้งสองทาง
+   */
+  it("ธงนี้เปลี่ยนกำไร แต่ไม่แตะยอดคงเหลือของบัญชี", async () => {
+    const shopId = await makeShop();
+
+    const counted = ok(
+      await createCategory(IDLE, fd({ shopId, direction: "out", name: "ค่าวัตถุดิบ", counts: "on" })),
+    );
+    const notCounted = ok(
+      await createCategory(IDLE, fd({ shopId, direction: "out", name: "ถอนใช้ส่วนตัว" })),
+    );
+
+    const day = today();
+
+    ok(
+      await createTransaction(
+        IDLE,
+        entryFormData({
+          shopId,
+          amount: "1000",
+          title: "ซื้อของ",
+          direction: "out",
+          txnDate: day,
+          categoryId: must(counted.id, "id ของประเภทที่นับกำไร"),
+        }),
+      ),
+    );
+
+    ok(
+      await createTransaction(
+        IDLE,
+        entryFormData({
+          shopId,
+          amount: "1000",
+          title: "ถอนไปใช้",
+          direction: "out",
+          txnDate: day,
+          categoryId: must(notCounted.id, "id ของประเภทที่ไม่นับกำไร"),
+        }),
+      ),
+    );
+
+    const summary = await getSummary(shopId, { day });
+
+    // เงินออกจริงสองพัน แต่ที่กินกำไรมีแค่พันเดียว
+    expect(Number(summary.expense)).toBe(1000);
+    expect(Number(summary.profit)).toBe(-1000);
   });
 });

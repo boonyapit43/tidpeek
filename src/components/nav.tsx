@@ -50,7 +50,7 @@ const ITEMS: Item[] = [
     ),
   },
   {
-    href: "/",
+    href: "/entry",
     label: "บันทึก",
     icon: (
       <svg {...iconProps}>
