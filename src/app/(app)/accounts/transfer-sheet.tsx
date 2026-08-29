@@ -137,6 +137,28 @@ function TransferForm({
   }, [state, deleteState]);
 
   // ลบไม่สำเร็จแล้วถอยกลับไปปุ่มปกติ ไม่ค้างอยู่ที่ "ยืนยันลบ"
+  /**
+   * นับรอบของ action ไว้ใช้เป็น key ของช่องเลือก
+   *
+   * React 19 สั่ง form.reset() เองหลัง action ทำงานจบ ซึ่งล้างค่าใน DOM
+   * ของ <select> แต่ไม่ได้บอก React — React จึงยังคิดว่าค่าเดิมอยู่ครบและ
+   * ไม่สั่งวาดใหม่ ผลคือจอโชว์หัวตาราง "เลือก...ก่อน" แต่ค่าที่ฟอร์มจะส่งจริง
+   * ยังเป็นของเดิม — คนเห็นอย่างหนึ่ง ระบบทำอีกอย่าง
+   *
+   * พิสูจน์แล้วว่าเกิดจริง: กดบันทึกพลาดหนึ่งครั้ง ช่องเลือกกลายเป็นว่าง
+   * แต่ปุ่มยังกดได้อยู่ เพราะเงื่อนไขอ่านจาก state ที่ยังมีค่าเต็ม
+   *
+   * เปลี่ยน key ทุกครั้งที่ action จบ = สร้างช่องใหม่จาก state ปัจจุบัน
+   * DOM กับ state จึงกลับมาตรงกันเสมอ
+   */
+  const [formRound, setFormRound] = useState(0);
+  const [seenState, setSeenState] = useState(state);
+
+  if (seenState !== state) {
+    setSeenState(state);
+    setFormRound((n) => n + 1);
+  }
+
   const [seenDelete, setSeenDelete] = useState(deleteState);
   if (seenDelete !== deleteState) {
     setSeenDelete(deleteState);
@@ -174,14 +196,34 @@ function TransferForm({
 
         <Field label="จากบัญชี" htmlFor="transfer-from">
           <Select
+            key={`from-${formRound}`}
             id="transfer-from"
             name="fromAccountId"
             value={from}
-            onChange={(e) => setFrom(e.target.value)}
+            /**
+             * ไม่รับค่าว่างจาก onChange — กติกาเดียวกับช่องวันที่
+             *
+             * React 19 สั่งรีเซ็ตฟอร์มเองหลัง action ทำงานจบ ไม่ว่าจะสำเร็จหรือพลาด
+             * ซึ่งดันช่องเลือกกลับไปที่หัวตารางแล้วยิง onChange ตามมาด้วยค่าว่าง
+             * ถ้ารับไว้ สิ่งที่เลือกจะหายทั้งที่คนไม่ได้แตะ — กดบันทึกพลาดหนึ่งครั้ง
+             * แล้วต้องเลือกใหม่หมด ซึ่งเป็นอาการที่โทษเน็ตแล้วจบ ไม่มีใครเอะใจว่าเป็นบั๊ก
+             *
+             * การล้างค่าตอนบันทึกสำเร็จทำที่บล็อกรีเซ็ตด้วย setState ตรงๆ อยู่แล้ว
+             */
+            onChange={(e) => {
+              if (e.target.value) setFrom(e.target.value);
+            }}
           >
-            <option value="" disabled>
-              — เลือกบัญชีต้นทาง —
-            </option>
+            {/**
+              * เลือกได้ ไม่ได้ disabled ไว้
+              *
+              * React 19 สั่งรีเซ็ตฟอร์มเองหลัง action ทำงานจบ ไม่ว่าจะสำเร็จ
+              * หรือพลาด ซึ่งดันช่องกลับไปที่ตัวเลือกแรก "ที่เลือกได้" —
+              * ถ้าหัวตารางถูกปิดไว้ มันจะข้ามไปลงที่บัญชีจริงตัวแรกแล้วยิง
+              * ออกมาเป็นการเลือกจริง ผลคือกดโอนพลาดหนึ่งครั้ง ต้นทางเปลี่ยนเอง
+              * โดยไม่มีใครแตะ ซึ่งกับการย้ายเงินคือเรื่องใหญ่
+              */}
+            <option value="">— เลือกบัญชีต้นทาง —</option>
             <AccountChoices accounts={accounts} />
           </Select>
         </Field>
@@ -193,14 +235,17 @@ function TransferForm({
 
         <Field label="ไปบัญชี" htmlFor="transfer-to" error={fieldError(state, "toAccountId")}>
           <Select
+            key={`to-${formRound}`}
             id="transfer-to"
             name="toAccountId"
             value={effectiveTo}
-            onChange={(e) => setTo(e.target.value)}
+            // ไม่รับค่าว่าง ด้วยเหตุผลเดียวกับช่องต้นทาง
+            onChange={(e) => {
+              if (e.target.value) setTo(e.target.value);
+            }}
           >
-            <option value="" disabled>
-              — เลือกบัญชีปลายทาง —
-            </option>
+            {/* เลือกได้ ด้วยเหตุผลเดียวกับช่องต้นทาง */}
+            <option value="">— เลือกบัญชีปลายทาง —</option>
             {/* ตัดบัญชีต้นทางออกจากตัวเลือก เลือกซ้ำกันไม่ได้ตั้งแต่แรก */}
             <AccountChoices accounts={accounts.filter((a) => a.id !== from)} />
           </Select>

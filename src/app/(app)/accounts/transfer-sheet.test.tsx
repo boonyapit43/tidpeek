@@ -142,13 +142,21 @@ describe("โอนเงินใหม่", () => {
     expect(labels.some((l) => l?.includes("SCB") && l.includes("10,000"))).toBe(true);
   });
 
-  it("ส่งค่าว่างไม่ได้ — ตัวบอกให้เลือกกดเลือกซ้ำไม่ได้ และไม่มีตัวเลือกไม่ระบุ", () => {
+  /**
+   * หัวตารางเลือกได้ ไม่ได้ปิดไว้ — จำเป็นเพราะ React 19 รีเซ็ตฟอร์มเอง
+   * หลัง action แล้วดันช่องไปที่ตัวเลือกแรกที่เลือกได้ ถ้าปิดหัวตารางไว้
+   * มันจะข้ามไปลงบัญชีจริงตัวแรก (ดูคำอธิบายในไฟล์คอมโพเนนต์)
+   *
+   * ด่านกันการโอนโดยไม่เลือกบัญชีอยู่ที่ปุ่มที่กดไม่ได้ ไม่ใช่ที่การปิดตัวเลือก
+   */
+  it("มีหัวตารางค่าว่างอันเดียวต่อช่อง และไม่มีตัวเลือกที่แปลว่าไม่ระบุ", () => {
     const { from, to } = setup();
 
     for (const select of [from, to]) {
       const empties = [...select.options].filter((o) => o.value === "");
       expect(empties).toHaveLength(1);
-      expect(empties[0].disabled).toBe(true);
+      expect(empties[0].textContent).toContain("เลือกบัญชี");
+      expect([...select.options].some((o) => o.textContent?.includes("ไม่ระบุ"))).toBe(false);
     }
   });
 
@@ -286,5 +294,34 @@ describe("แก้ไขการโอนเดิม", () => {
 
     expect(screen.getByRole("button", { name: "ยืนยันลบถาวร" })).toBeTruthy();
     expect(screen.getByRole("button", { name: "ยกเลิก" })).toBeTruthy();
+  });
+});
+
+/* ------------------------------------------------------------------ */
+
+/**
+ * บันทึกไม่สำเร็จแล้วแผ่นยังเปิดอยู่ — สิ่งที่เลือกไว้ต้องไม่ขยับเอง
+ *
+ * React 19 สั่งรีเซ็ตฟอร์มให้เองหลัง action ทำงานจบ ไม่ว่าจะสำเร็จหรือพลาด
+ * ซึ่งดันช่องเลือกกลับไปที่ตัวเลือกแรกที่เลือกได้ ถ้าหัวตารางถูก disabled ไว้
+ * มันจะข้ามไปลงที่บัญชีจริงตัวแรกแล้วยิงออกมาเป็นการเลือกจริง
+ * ผลคือกดบันทึกพลาดหนึ่งครั้ง ปลายทางเปลี่ยนเองโดยไม่มีใครแตะ
+ */
+describe("บันทึกไม่สำเร็จ", () => {
+  it("บัญชีที่เลือกไว้ต้องอยู่ที่เดิม ไม่เด้งไปตัวแรกเอง", async () => {
+    createTransfer.mockResolvedValue({ status: "error", message: "เน็ตหลุด" });
+
+    const user = userEvent.setup();
+    const { amount, from, to, submit } = setup();
+
+    await user.type(amount, "3000");
+    await user.selectOptions(from, "acc-cash");
+    await user.selectOptions(to, "acc-kt");
+    await user.click(submit);
+
+    await waitFor(() => expect(createTransfer).toHaveBeenCalled());
+
+    expect(from.value).toBe("acc-cash");
+    expect(to.value).toBe("acc-kt");
   });
 });

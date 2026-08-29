@@ -147,7 +147,13 @@ export function EntryForm({
     accountId !== null && accounts.some((a) => a.id === accountId) ? accountId : null;
 
   /**
-   * ล้างช่องที่ต้องกรอกใหม่ทุกครั้ง หลังบันทึกสำเร็จ
+   * ล้างทุกช่องหลังบันทึกสำเร็จ — รวมประเภทกับบัญชีด้วย
+   *
+   * เคยล้างแต่จำนวนเงินกับชื่อรายการ แล้วปล่อยสองช่องนี้ค้างไว้เพื่อให้ลง
+   * รายการติดกันเร็วขึ้น ผลคือบันทึกเสร็จแล้วเหลือค่าเก่าค้างอยู่สองช่อง
+   * ท่ามกลางช่องว่างที่เหลือ ซึ่งอ่านแล้วเหมือนฟอร์มล้างไม่หมดมากกว่า
+   * เหมือนความตั้งใจ และผิดกฎเดียวกับที่เลิกเติมบัญชีที่ใช้ล่าสุดไปแล้ว —
+   * ช่องที่มีค่าค้างอยู่คือช่องที่คนกวาดตาผ่านโดยไม่ได้อ่าน
    *
    * ปรับ state ตอน render โดยเทียบกับค่าที่เห็นล่าสุด ซึ่งเป็นวิธีที่ React
    * แนะนำสำหรับ "แก้ state เมื่อค่าที่รับเข้ามาเปลี่ยน" React จะทิ้งผลของ
@@ -155,9 +161,25 @@ export function EntryForm({
    * ต่างจากการทำใน effect ที่วาดของเก่าลงจอไปแล้วรอบหนึ่งก่อน
    */
   const [seenState, setSeenState] = useState(state);
+  /**
+   * นับรอบของ action ไว้ใช้เป็น key ของช่องเลือก
+   *
+   * React 19 สั่ง form.reset() เองหลัง action ทำงานจบ ซึ่งล้างค่าใน DOM
+   * ของ <select> แต่ไม่ได้บอก React — React จึงยังคิดว่าค่าเดิมอยู่ครบและ
+   * ไม่สั่งวาดใหม่ ผลคือจอโชว์หัวตาราง "เลือก...ก่อน" แต่ค่าที่ฟอร์มจะส่งจริง
+   * ยังเป็นของเดิม — คนเห็นอย่างหนึ่ง ระบบทำอีกอย่าง
+   *
+   * พิสูจน์แล้วว่าเกิดจริง: กดบันทึกพลาดหนึ่งครั้ง ช่องเลือกกลายเป็นว่าง
+   * แต่ปุ่มยังกดได้อยู่ เพราะเงื่อนไขอ่านจาก state ที่ยังมีค่าเต็ม
+   *
+   * เปลี่ยน key ทุกครั้งที่ action จบ = สร้างช่องใหม่จาก state ปัจจุบัน
+   * DOM กับ state จึงกลับมาตรงกันเสมอ
+   */
+  const [formRound, setFormRound] = useState(0);
 
   if (seenState !== state) {
     setSeenState(state);
+    setFormRound((n) => n + 1);
 
     if (state.status === "ok") {
       setAmount("");
@@ -165,7 +187,9 @@ export function EntryForm({
       setNote("");
       // ยุบหมายเหตุกลับด้วย รายการถัดไปส่วนใหญ่ไม่ได้ใช้
       setNoteOpen(false);
-      // การเลือกเมื่อกี้เป็นของรายการที่บันทึกจบไปแล้ว รายการใหม่เดาได้อีก
+      // การเลือกเมื่อกี้เป็นของรายการที่บันทึกจบไปแล้ว รายการใหม่เริ่มใหม่หมด
+      setCategoryId(null);
+      setAccountId(null);
       setCategoryTouched(false);
     }
   }
@@ -259,6 +283,7 @@ export function EntryForm({
         <Field label="ประเภท" htmlFor="category">
           <div className="flex gap-2">
             <Select
+              key={`category-${formRound}`}
               id="category"
               value={
                 effectiveCategoryId === null
@@ -268,7 +293,21 @@ export function EntryForm({
                     : effectiveCategoryId
               }
               onChange={(e) => {
-                setCategoryId(e.target.value === NONE ? "" : e.target.value);
+                /**
+                 * ค่าว่างจากช่องนี้แปลว่า "ยังไม่ได้เลือก" เสมอ ไม่ใช่ "ไม่ระบุ"
+                 *
+                 * ตัวเลือกหัวตารางถูก disabled ไว้ คนกดเลือกเองไม่ได้อยู่แล้ว
+                 * แต่ React 19 สั่งรีเซ็ตฟอร์มให้เองหลัง action ทำงานจบ ซึ่ง
+                 * ดันช่องกลับไปที่ตัวเลือกแรกแล้วยิง onChange ตามมาด้วยค่าว่าง
+                 * ถ้าแปลค่าว่างเป็น "ไม่ระบุ" รายการถัดไปจะขึ้นว่าไม่ระบุประเภท
+                 * เองเงียบๆ ทั้งที่ไม่มีใครไปแตะ — ซึ่งคือบั๊กที่คนใช้เจอจริง
+                 *
+                 * ไม่ระบุมีรหัสของตัวเอง (NONE) ทางเดียวที่จะได้มันคือเลือกเอง
+                 */
+                const picked = e.target.value;
+                if (!picked) return;
+
+                setCategoryId(picked === NONE ? "" : picked);
                 setCategoryTouched(true);
               }}
               className="flex-1"
@@ -277,9 +316,19 @@ export function EntryForm({
                 <option value="">{NO_CATEGORIES_LABEL}</option>
               ) : (
                 <>
-                  <option value="" disabled>
-                    — เลือกประเภทก่อน —
-                  </option>
+                  {/**
+                    * ตัวเลือกหัวตารางเลือกได้ ไม่ได้ disabled ไว้
+                    *
+                    * React 19 สั่งรีเซ็ตฟอร์มเองหลัง action ทำงานจบ ซึ่งดันช่อง
+                    * กลับไปที่ตัวเลือกแรก "ที่เลือกได้" — พอหัวตารางถูกปิดไว้
+                    * มันเลยข้ามไปลงที่ "ไม่ระบุประเภท" แล้วยิงออกมาเป็นการเลือกจริง
+                    * ผลคือรายการถัดไปกลายเป็นไม่ระบุประเภทเองโดยไม่มีใครแตะ
+                    *
+                    * เปิดให้เลือกได้แล้วรีเซ็ตจะมาลงตรงนี้พอดี = ยังไม่ได้เลือก
+                    * ส่วนคนที่กดเลือกเองก็แค่ยกเลิกสิ่งที่เลือกไว้ ปุ่มบันทึกล็อกกลับ
+                    * ซึ่งเป็นพฤติกรรมที่อ่านออก ไม่ใช่ทางตัน
+                    */}
+                  <option value="">— เลือกประเภทก่อน —</option>
                   <option value={NONE}>ไม่ระบุประเภท</option>
                   <CategoryOptionItems categories={visibleCategories} />
                 </>
@@ -310,17 +359,20 @@ export function EntryForm({
 
         <Field label={isIncome ? "เงินเข้าบัญชี" : "จ่ายจากบัญชี"} htmlFor="account">
           <Select
+            key={`account-${formRound}`}
             id="account"
             value={effectiveAccountId ?? ""}
-            onChange={(e) => setAccountId(e.target.value)}
+            // ไม่รับค่าว่าง ด้วยเหตุผลเดียวกับช่องประเภท
+            onChange={(e) => {
+              if (e.target.value) setAccountId(e.target.value);
+            }}
           >
             {accounts.length === 0 ? (
               <option value="">{NO_ACCOUNTS_LABEL}</option>
             ) : (
               <>
-                <option value="" disabled>
-                  — เลือกบัญชีก่อน —
-                </option>
+                {/* เลือกได้ ด้วยเหตุผลเดียวกับช่องประเภท */}
+                <option value="">— เลือกบัญชีก่อน —</option>
                 <AccountOptionItems accounts={accounts} />
               </>
             )}

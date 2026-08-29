@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { cleanup, render, screen } from "@testing-library/react";
+import { cleanup, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import type { AccountWithBalance } from "@/db/queries";
 import type { Category } from "@/db/schema";
@@ -222,11 +222,20 @@ describe("ช่องบัญชี", () => {
     expect(accountSelect.value).toBe("");
   });
 
-  it("ฟอร์มบันทึกใหม่ไม่มีตัวเลือกไม่ระบุบัญชี — เงินทุกรายการต้องมีที่มาที่ไป", () => {
-    const { accountSelect } = setup();
+  /**
+   * ฟอร์มบันทึกใหม่ไม่มีตัวเลือก "ไม่ระบุบัญชี" — เงินทุกรายการต้องมีที่มาที่ไป
+   *
+   * ค่าว่างที่มีอยู่คือหัวตาราง "เลือกบัญชีก่อน" ซึ่งแปลว่ายังไม่ได้เลือก
+   * ไม่ใช่เลือกว่าไม่ระบุ ข้อบังคับจริงจึงอยู่ที่ปุ่มบันทึกที่กดไม่ได้
+   * ไม่ใช่ที่การมี/ไม่มีตัวเลือกค่าว่างในลิสต์
+   */
 
-    const selectable = [...accountSelect.options].filter((o) => !o.disabled);
-    expect(selectable.map((o) => o.value)).not.toContain("");
+  it("ไม่มีตัวเลือกที่แปลว่าไม่ระบุบัญชี มีแต่หัวตารางกับบัญชีจริง", () => {
+    const { accountSelect } = setup();
+    const labels = [...accountSelect.options].map((o) => o.textContent ?? "");
+
+    expect(labels.some((l) => l.includes("ไม่ระบุ"))).toBe(false);
+    expect(labels[0]).toContain("เลือกบัญชีก่อน");
   });
 
   it("ยอดคงเหลือติดอยู่ในชื่อตัวเลือก จะได้เห็นตอนกำลังเลือก", () => {
@@ -306,5 +315,78 @@ describe("ปุ่มบันทึก", () => {
 
     expect(save.className).not.toContain("sticky");
     expect(wrapper?.className ?? "").not.toContain("sticky");
+  });
+});
+
+/* ------------------------------------------------------------------ */
+
+/**
+ * สถานะของฟอร์มหลัง "บันทึกสำเร็จ" — ไม่เคยมีเทสคุมมาก่อน ซึ่งเป็นเหตุผล
+ * ที่บั๊กนี้หลุดไปถึงมือคนใช้: ล้างจำนวนเงินกับชื่อรายการให้ แต่ปล่อยประเภท
+ * กับบัญชีค้างไว้ พอลงรายการที่สองจึงเหลือค่าเก่าอยู่สองช่องท่ามกลางช่องว่าง
+ *
+ * เทสก่อนหน้านี้หยุดที่ "กดปุ่มแล้วเรียก action ถูกไหม" ไม่ได้ดูต่อว่า
+ * หลังจากนั้นฟอร์มอยู่ในสภาพพร้อมลงรายการถัดไปจริงหรือเปล่า
+ */
+describe("หลังบันทึกสำเร็จ ฟอร์มต้องพร้อมลงรายการถัดไป", () => {
+  /**
+   * ต้องดึงช่องเลือกใหม่หลังบันทึก ห้ามใช้ตัวที่หยิบไว้ตอนแรก
+   *
+   * เพราะช่องเลือกถูกสร้างใหม่ทุกครั้งที่ action จบ (ดู formRound ในฟอร์ม)
+   * ตัวเดิมกลายเป็นก้อนที่หลุดออกจากหน้าไปแล้ว ค่าที่อ่านได้จึงเป็นของเก่า
+   * ค้างอยู่ ไม่ใช่สิ่งที่คนใช้เห็นบนจอ
+   */
+  const selects = () => ({
+    category: screen.getByLabelText("ประเภท") as HTMLSelectElement,
+    account: screen.getByLabelText(/บัญชี/) as HTMLSelectElement,
+  });
+
+  const saveOne = async (user: ReturnType<typeof userEvent.setup>) => {
+    const f = setup();
+
+    await user.type(f.amount, "120");
+    await user.type(f.title, "ซื้อของ");
+    await user.selectOptions(f.categorySelect, "cat-cost");
+    await user.selectOptions(f.accountSelect, "acc-cash");
+    await user.click(f.save);
+
+    return f;
+  };
+
+  it("ล้างทุกช่อง รวมประเภทกับบัญชี ไม่ใช่ล้างแค่บางช่อง", async () => {
+    const user = userEvent.setup();
+    const f = await saveOne(user);
+
+    await waitFor(() => {
+      expect((f.amount as HTMLInputElement).value).toBe("");
+    });
+
+    expect((f.title as HTMLInputElement).value).toBe("");
+
+    const now = selects();
+    expect(now.category.value).toBe("");
+    expect(now.account.value).toBe("");
+  });
+
+  it("กลับไปขึ้นว่าเลือกก่อน เหมือนตอนเปิดหน้ามาใหม่", async () => {
+    const user = userEvent.setup();
+    await saveOne(user);
+
+    await waitFor(() => {
+      const now = selects();
+      expect(now.category.options[now.category.selectedIndex].textContent).toContain(
+        "เลือกประเภทก่อน",
+      );
+      expect(now.account.options[now.account.selectedIndex].textContent).toContain(
+        "เลือกบัญชีก่อน",
+      );
+    });
+  });
+
+  it("ปุ่มบันทึกกลับไปกดไม่ได้ จนกว่าจะกรอกรายการใหม่ครบ", async () => {
+    const user = userEvent.setup();
+    const f = await saveOne(user);
+
+    await waitFor(() => expect(f.save.disabled).toBe(true));
   });
 });
