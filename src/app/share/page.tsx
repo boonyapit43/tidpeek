@@ -57,7 +57,6 @@ export default async function SharePage({
     listCategoryTotals(shop.id, period),
   ]);
 
-  const txnCount = categories.reduce((sum, c) => sum + c.txnCount, 0);
 
   /**
    * เอาเฉพาะประเภทที่นับเป็นกำไร ให้ลิสต์บวกกันแล้วเท่าแถบรวมของการ์ดนั้น
@@ -85,14 +84,18 @@ export default async function SharePage({
        * และยังไม่กว้างจนสามใบห่างกันเกินกว่าจะอ่านเป็นภาพเดียว
        */}
       <section className="w-full max-w-[62rem] rounded-2xl bg-surface-2 p-3 shadow-xl sm:p-4">
-        <header className="flex items-start justify-between gap-3 px-1 pb-3">
-          <div className="min-w-0">
-            <h1 className="truncate text-lg font-bold tracking-tight text-ink">{shop.name}</h1>
-            <p className="text-xs text-ink-soft">ภาพรวมรายรับ – รายจ่าย</p>
-          </div>
+        <header className="flex items-center justify-between gap-4 px-1 pb-3">
+          <h1 className="min-w-0 truncate text-xl font-bold tracking-tight text-ink">
+            {shop.name}
+          </h1>
 
-          {/* วันที่เป็นข้อความเฉยๆ ไม่ใช่ตัวเลือก เพราะทุกอย่างในกรอบนี้ติดไปในรูป */}
-          <p className="shrink-0 pt-0.5 text-sm font-medium text-ink-soft">{label}</p>
+          {/**
+            * วันที่เป็นข้อความเฉยๆ ไม่ใช่ตัวเลือก เพราะทุกอย่างในกรอบนี้ติดไปในรูป
+            *
+            * ตัวใหญ่และสีเข้มเท่าชื่อร้าน เพราะเป็นสองอย่างที่ทำให้ภาพอธิบาย
+            * ตัวเองได้ตอนไปอยู่ในแชท — ร้านไหน ของวันไหน
+            */}
+          <p className="shrink-0 text-lg font-bold text-ink">{label}</p>
         </header>
 
         {/* สามการ์ดเรียงกันบนจอกว้าง จอแคบให้ภาพรวมอยู่บนแล้วสองฝั่งเรียงลงมา
@@ -105,7 +108,7 @@ export default async function SharePage({
           />
 
           <BreakdownPanel
-            title="รับมาจากไหน"
+            title="รายรับ"
             tone="in"
             rows={earning}
             total={summary.income}
@@ -113,7 +116,7 @@ export default async function SharePage({
           />
 
           <BreakdownPanel
-            title="ใช้ไปกับอะไร"
+            title="รายจ่าย"
             tone="out"
             rows={spending}
             total={summary.expense}
@@ -121,20 +124,19 @@ export default async function SharePage({
           />
         </div>
 
-        <footer className="flex items-baseline justify-between gap-3 px-1 pt-3 text-[11px] text-ink-soft">
-          <span className="num">{txnCount} รายการ</span>
-
-          {Number.parseFloat(summary.excluded) > 0 && (
-            <span>
-              ไม่นับเป็นกำไรอีก{" "}
-              <span className="num font-semibold">{bahtShort(summary.excluded)}</span> บาท
-            </span>
-          )}
-
-          <span>
-            ข้อมูลจาก <span className="font-semibold text-brand">tidpeek</span>
-          </span>
-        </footer>
+        {/**
+          * เหลือบรรทัดเดียวที่ขาดไม่ได้ — ยอดที่ไม่ถูกนับเป็นกำไร
+          *
+          * ตัดจำนวนรายการกับชื่อแอปออกตามที่สั่ง แต่บรรทัดนี้ต้องอยู่ ไม่งั้น
+          * เงินที่เดินจริงบางก้อนจะไม่ปรากฏที่ไหนเลยบนภาพ แล้วคนอ่านจะบวก
+          * ตัวเลขตามไม่ได้ว่าทำไมยอดรวมสองฝั่งไม่เท่าเงินที่เข้าออกจริง
+          */}
+        {Number.parseFloat(summary.excluded) > 0 && (
+          <p className="px-1 pt-2.5 text-xs text-ink-soft">
+            ไม่นับเป็นกำไรอีก{" "}
+            <span className="num font-semibold">{bahtShort(summary.excluded)}</span> บาท
+          </p>
+        )}
       </section>
 
       {/**

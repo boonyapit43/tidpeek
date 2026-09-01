@@ -4,32 +4,25 @@ import { cn } from "@/lib/cn";
 import type { BreakdownRow } from "./breakdown-rows";
 
 /**
- * การ์ดย่อยบนภาพสรุป — สามใบเรียงกัน ภาพรวม · รับมาจากไหน · ใช้ไปกับอะไร
+ * การ์ดย่อยบนภาพสรุป — สามใบเรียงกัน ภาพรวม · รายรับ · รายจ่าย
  *
  * ผังนี้เจ้าของร้านออกแบบมาเอง แยกเป็นสามใบมีช่องไฟคั่นแทนลิสต์ต่อกันยาวๆ
- * และปิดท้ายแต่ละใบด้วยแถบยอดรวมพื้นสีอ่อน ซึ่งทำให้ยอดรวมอ่านเป็นข้อสรุป
- * ไม่ใช่แค่บรรทัดสุดท้ายของลิสต์
+ * แต่ละใบมีเส้นคั่นหัวกับเนื้อ และสองใบขวาปิดท้ายด้วยแถบยอดรวมพื้นสีอ่อน
+ * ซึ่งทำให้ยอดรวมอ่านเป็นข้อสรุป ไม่ใช่แค่บรรทัดสุดท้ายของลิสต์
+ *
+ * ตัวหนังสือใหญ่กว่าที่ใช้ในแอปทั่วไปโดยตั้งใจ เพราะภาพนี้ถูกส่งเข้าแชทแล้ว
+ * ถูกย่อตามความกว้างของช่อง ขนาดที่พออ่านบนจอจึงเล็กเกินไปในรูป
  */
 
-/* ------------------------------------------------------------------ */
+const stroke = {
+  fill: "none",
+  stroke: "currentColor",
+  strokeWidth: 2,
+  strokeLinecap: "round",
+  strokeLinejoin: "round",
+} as const;
 
 /** วงกลมไอคอนหัวการ์ด บอกทิศทางของเงินโดยไม่ต้องอ่านหัวข้อ */
-function HeadIcon({ tone, children }: { tone: "in" | "out" | "neutral"; children: React.ReactNode }) {
-  return (
-    <span
-      aria-hidden
-      className={cn(
-        "flex size-7 shrink-0 items-center justify-center rounded-full",
-        tone === "in" && "bg-income-soft text-income",
-        tone === "out" && "bg-expense-soft text-expense",
-        tone === "neutral" && "bg-brand-soft text-brand",
-      )}
-    >
-      {children}
-    </span>
-  );
-}
-
 function PanelHead({
   tone,
   icon,
@@ -40,20 +33,23 @@ function PanelHead({
   children: React.ReactNode;
 }) {
   return (
-    <div className="flex items-center gap-2.5 px-3.5 pt-3.5 pb-1">
-      <HeadIcon tone={tone}>{icon}</HeadIcon>
-      <h2 className="text-sm font-bold text-ink">{children}</h2>
+    // เส้นคั่นหัวกับเนื้อ ทำให้แต่ละการ์ดอ่านเป็นสองส่วนชัดเจน
+    <div className="flex items-center gap-2.5 border-b border-line px-4 py-3">
+      <span
+        aria-hidden
+        className={cn(
+          "flex size-8 shrink-0 items-center justify-center rounded-full",
+          tone === "in" && "bg-income-soft text-income",
+          tone === "out" && "bg-expense-soft text-expense",
+          tone === "neutral" && "bg-brand-soft text-brand",
+        )}
+      >
+        {icon}
+      </span>
+      <h2 className="text-base font-bold text-ink">{children}</h2>
     </div>
   );
 }
-
-const stroke = {
-  fill: "none",
-  stroke: "currentColor",
-  strokeWidth: 2,
-  strokeLinecap: "round",
-  strokeLinejoin: "round",
-} as const;
 
 /* ------------------------------------------------------------------ */
 
@@ -68,10 +64,9 @@ const stroke = {
  * ถ้าตรึงวงไว้ที่รายรับเสมอ เดือนที่จ่ายมากกว่าขาย ส่วนโค้งแดงจะยาวเกิน
  * หนึ่งวงแล้ววนไปทับตัวเอง ซึ่งวาดออกมาแล้วดูเหมือนจ่ายไปนิดเดียว
  *
- * ⚠️ เปอร์เซ็นต์ขึ้นเฉพาะบรรทัดที่เป็นส่วนโค้งจริง
- *    บรรทัดที่เป็น "ทั้งวง" ไม่มีเปอร์เซ็นต์ เพราะมันคือร้อยเปอร์เซ็นต์
- *    เคยพลาดมาแล้วสองรอบ — เอา 26% ของก้อนที่ขาดไปแปะไว้ที่บรรทัดรายจ่าย
- *    ซึ่งเป็นทั้งวง คนอ่านเห็นแล้วงงว่าทำไมรายจ่ายมีแค่ 26%
+ * สามบรรทัดใต้วงไม่มีเปอร์เซ็นต์ มีแต่ยอด — เคยใส่แล้วสับสนสองรอบ เพราะ
+ * บรรทัดที่เป็น "ทั้งวง" กับบรรทัดที่เป็นส่วนโค้งใช้ฐานคนละตัว เอาออกแล้ว
+ * เหลือเปอร์เซ็นต์ที่เดียวคือกลางวง ซึ่งอ่านคู่กับวงตรงหน้าได้เลย
  */
 export function OverviewPanel({
   income,
@@ -94,38 +89,24 @@ export function OverviewPanel({
   const hasRing = slices.length > 0;
 
   /**
-   * ปัดให้สองส่วนรวมกันได้ 100 พอดี
+   * เปอร์เซ็นต์ของยอดสุทธิ = ส่วนโค้งที่สอง
    *
-   * ปัดแยกกันแล้ว 46.5% กับ 53.5% จะกลายเป็น 47% กับ 54% ซึ่งรวมได้ 101%
-   * บนวงที่มีแค่สองส่วนแบ่งกันทั้งวง คนอ่านบวกตามแล้วเจอว่าเกิน
+   * ปัดจากส่วนแรกแล้วลบออกจากร้อย ไม่ปัดตรงๆ เพราะสองส่วนต้องรวมกันได้
+   * ร้อยพอดี — ปัดแยกกันแล้ว 46.5 กับ 53.5 จะกลายเป็น 47 กับ 54 รวมได้ 101
    */
-  const firstPercent = hasRing ? Math.round(slices[0].fraction * 100) : 0;
-  const percents = [firstPercent, hasRing ? 100 - firstPercent : 0];
+  const netPercent = hasRing ? 100 - Math.round(slices[0].fraction * 100) : 0;
 
   /**
    * สามบรรทัดเรียงเหมือนกันเสมอ — เขียวรายรับก่อน แดงรายจ่าย ปิดท้ายด้วยสุทธิ
    * ลำดับคงที่ทำให้คนที่ดูภาพนี้ทุกวันกวาดตาหาตัวเลขได้จากตำแหน่งเดิม
-   *
-   * ตัวไหนเป็นทั้งวงจะไม่มีเปอร์เซ็นต์ ซึ่งสลับกันตามว่ากำไรหรือขาดทุน
    */
   const lines = [
-    {
-      label: "รายรับ",
-      value: income,
-      tone: "in" as const,
-      percent: loss ? percents[0] : null,
-    },
-    {
-      label: "รายจ่าย",
-      value: expense,
-      tone: "out" as const,
-      percent: loss ? null : percents[0],
-    },
+    { label: "รายรับ", value: income, tone: "in" as const, net: false },
+    { label: "รายจ่าย", value: expense, tone: "out" as const, net: false },
     {
       label: loss ? "ขาดทุนสุทธิ" : "กำไรสุทธิ",
       value: profit,
       tone: loss ? ("out" as const) : ("in" as const),
-      percent: percents[1],
       net: true,
     },
   ];
@@ -138,11 +119,11 @@ export function OverviewPanel({
         ภาพรวม
       </PanelHead>
 
-      <div className="flex flex-1 flex-col items-center justify-center px-3.5 py-3">
+      <div className="flex flex-1 flex-col items-center justify-center px-4 py-4">
         <div className="relative">
           <svg
             viewBox="0 0 42 42"
-            className="size-[8.5rem]"
+            className="size-[9rem]"
             role="img"
             aria-label={`รายรับ ${bahtShort(income)} รายจ่าย ${bahtShort(expense)} ${
               loss ? "ขาดทุนสุทธิ" : "กำไรสุทธิ"
@@ -188,22 +169,22 @@ export function OverviewPanel({
               className={cn(
                 "num leading-none font-bold tracking-tight",
                 /**
-                 * ช่องว่างกลางวงกว้างราว 87px คงที่ แต่ยอดยาวไม่เท่ากัน
+                 * ช่องว่างกลางวงกว้างราว 92px คงที่ แต่ยอดยาวไม่เท่ากัน
                  * ปล่อยขนาดเดียวแล้วยอดหลักหมื่นมีสตางค์จะทะลุขอบวงออกไป
                  * ซึ่งเจอจริงตอนทดสอบที่ยอด 84,316.25
                  */
-                netText.length > 11 ? "text-sm" : netText.length > 7 ? "text-base" : "text-xl",
+                netText.length > 11 ? "text-base" : netText.length > 7 ? "text-lg" : "text-2xl",
                 loss ? "text-expense" : "text-income",
               )}
             >
               {netText}
             </span>
-            <span className="mt-1 text-[10px] leading-none text-ink-soft">
+            <span className="mt-1.5 text-[11px] leading-none text-ink-soft">
               {loss ? "ขาดทุนสุทธิ" : "กำไรสุทธิ"}
             </span>
             {hasRing && (
-              <span className="num mt-0.5 text-[10px] leading-none text-ink-soft">
-                {percents[1]}%
+              <span className="num mt-1 text-[11px] leading-none font-semibold text-ink-soft">
+                {netPercent}%
               </span>
             )}
           </div>
@@ -215,14 +196,14 @@ export function OverviewPanel({
           <div
             key={line.label}
             className={cn(
-              "flex items-baseline gap-2 rounded-lg px-2.5 py-1.5 text-xs",
-              line.net ? "border-t border-line pt-2" : "bg-surface-2",
+              "flex items-baseline gap-2.5 rounded-lg px-3 py-2 text-sm",
+              line.net ? "mt-1 border-t border-line pt-2.5" : "bg-surface-2",
             )}
           >
             <span
               aria-hidden
               className={cn(
-                "size-2 shrink-0 self-center rounded-[2px]",
+                "size-2.5 shrink-0 self-center rounded-[3px]",
                 line.tone === "in" ? "bg-income" : "bg-expense",
               )}
             />
@@ -230,16 +211,11 @@ export function OverviewPanel({
             <dd
               className={cn(
                 "num shrink-0 font-bold",
-                line.net && "text-sm",
+                line.net ? "text-lg" : "text-base",
                 line.tone === "in" ? "text-income" : "text-expense",
               )}
             >
               {bahtShort(line.value)}
-            </dd>
-            {/* ช่องเปอร์เซ็นต์กว้างคงที่ทุกบรรทัด ยอดของทุกบรรทัดจึงอยู่ตรงกัน
-                แม้บรรทัดที่เป็นทั้งวงจะไม่มีเปอร์เซ็นต์ */}
-            <dd className="num w-7 shrink-0 text-right text-ink-soft">
-              {line.percent === null ? "" : `${line.percent}%`}
             </dd>
           </div>
         ))}
@@ -278,16 +254,21 @@ export function BreakdownPanel({
       </PanelHead>
 
       {rows.length === 0 ? (
-        <p className="flex-1 px-3.5 py-8 text-center text-xs text-ink-soft">{empty}</p>
+        <p className="flex-1 px-4 py-10 text-center text-sm text-ink-soft">{empty}</p>
       ) : (
-        <ul className="flex-1 px-3.5 py-1.5">
+        <ul className="flex-1 px-4 py-2">
           {rows.map((row) => (
-            <li key={row.key} className="flex items-baseline gap-2 py-1.5 text-xs">
+            <li key={row.key} className="flex items-baseline gap-2.5 py-1.5 text-sm">
               <span className="min-w-0 flex-1 truncate text-ink">{row.name}</span>
-              <span className={cn("num shrink-0 font-bold", income ? "text-income" : "text-expense")}>
+              <span
+                className={cn(
+                  "num shrink-0 text-base font-bold",
+                  income ? "text-income" : "text-expense",
+                )}
+              >
                 {bahtShort(row.total)}
               </span>
-              <span className="num w-7 shrink-0 text-right text-ink-soft">{row.percent}%</span>
+              <span className="num w-9 shrink-0 text-right text-ink-soft">{row.percent}%</span>
             </li>
           ))}
         </ul>
@@ -295,16 +276,16 @@ export function BreakdownPanel({
 
       <div
         className={cn(
-          "mt-auto flex items-baseline justify-between gap-3 px-3.5 py-2.5",
+          "mt-auto flex items-baseline justify-between gap-3 px-4 py-3",
           income ? "bg-income-wash" : "bg-expense-wash",
         )}
       >
-        <span className="text-xs font-semibold text-ink">
+        <span className="text-sm font-semibold text-ink">
           {income ? "รวมรายรับ" : "รวมรายจ่าย"}
         </span>
         <span
           className={cn(
-            "num text-base font-bold tracking-tight",
+            "num text-xl font-bold tracking-tight",
             income ? "text-income" : "text-expense",
           )}
         >
@@ -319,7 +300,7 @@ export function BreakdownPanel({
 
 function PieIcon() {
   return (
-    <svg viewBox="0 0 24 24" className="size-4" {...stroke}>
+    <svg viewBox="0 0 24 24" className="size-[18px]" {...stroke}>
       <path d="M21 12a9 9 0 1 1-9-9v9h9Z" />
     </svg>
   );
@@ -328,7 +309,7 @@ function PieIcon() {
 /** ลูกศรชี้ลง = เงินเข้ากระเป๋า */
 function ArrowInIcon() {
   return (
-    <svg viewBox="0 0 24 24" className="size-4" {...stroke}>
+    <svg viewBox="0 0 24 24" className="size-[18px]" {...stroke}>
       <path d="M12 5v14M19 12l-7 7-7-7" />
     </svg>
   );
@@ -337,7 +318,7 @@ function ArrowInIcon() {
 /** ลูกศรชี้ออกเฉียงขึ้น = เงินออกจากร้าน */
 function ArrowOutIcon() {
   return (
-    <svg viewBox="0 0 24 24" className="size-4" {...stroke}>
+    <svg viewBox="0 0 24 24" className="size-[18px]" {...stroke}>
       <path d="M7 17 17 7M9 7h8v8" />
     </svg>
   );
