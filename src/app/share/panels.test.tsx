@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { afterEach, describe, expect, it } from "vitest";
 import { cleanup, render } from "@testing-library/react";
-import { NetDonut } from "./donut";
+import { OverviewPanel } from "./panels";
 import { breakdownRows } from "./breakdown-rows";
 
 /**
@@ -21,22 +21,25 @@ const arcs = () =>
 const center = () =>
   document.querySelector(".pointer-events-none")?.textContent ?? "";
 
-/** บรรทัดสรุปใต้วง คู่ [ชื่อ, ยอด, เปอร์เซ็นต์] และมีชิปสีไหม */
+/**
+ * สามบรรทัดใต้วง — ชื่อ ยอด เปอร์เซ็นต์ และสีของชิป
+ *
+ * เปอร์เซ็นต์ว่าง = บรรทัดนั้นคือ "ทั้งวง" ซึ่งเป็นร้อยเปอร์เซ็นต์อยู่แล้ว
+ * ไม่ใช่ส่วนโค้งของวง
+ */
 const summary = () =>
   [...document.querySelectorAll("dl > div")].map((row) => ({
     label: row.querySelector("dt")?.textContent ?? "",
     value: row.querySelectorAll("dd")[0]?.textContent ?? "",
     percent: row.querySelectorAll("dd")[1]?.textContent ?? "",
-    chip: row.querySelector("span[aria-hidden]")?.className.includes("bg-")
-      ? row.querySelector("span[aria-hidden]")!.className.includes("bg-income")
-        ? "เขียว"
-        : "แดง"
-      : null,
+    chip: row.querySelector("span[aria-hidden]")!.className.includes("bg-income")
+      ? "เขียว"
+      : "แดง",
   }));
 
 describe("วงแหวนตอนมีกำไร", () => {
   const profit = () =>
-    render(<NetDonut income="100000" expense="30000" profit="70000" />);
+    render(<OverviewPanel income="100000" expense="30000" profit="70000" />);
 
   it("โชว์กำไรสุทธิไว้กลางวง", () => {
     profit();
@@ -54,11 +57,12 @@ describe("วงแหวนตอนมีกำไร", () => {
    *
    * รายรับคือ "ทั้งวง" ไม่ใช่ส่วนโค้งไหน จึงต้องไม่มีชิปสี
    */
-  it("ชิปสีตรงกับส่วนโค้ง รายรับที่เป็นทั้งวงไม่มีชิป", () => {
+  it("เปอร์เซ็นต์ขึ้นเฉพาะบรรทัดที่เป็นส่วนโค้งจริง", () => {
     profit();
 
+    // เดือนที่กำไร วงคือรายรับ บรรทัดรายรับจึงไม่มีเปอร์เซ็นต์
     expect(summary()).toEqual([
-      { label: "รายรับ", value: "100,000", percent: "", chip: null },
+      { label: "รายรับ", value: "100,000", percent: "", chip: "เขียว" },
       { label: "รายจ่าย", value: "30,000", percent: "30%", chip: "แดง" },
       { label: "กำไรสุทธิ", value: "70,000", percent: "70%", chip: "เขียว" },
     ]);
@@ -81,15 +85,21 @@ describe("วงแหวนตอนมีกำไร", () => {
    * เขียวกับแดงเป็นคู่ที่คนตาบอดสีแยกไม่ออก ถ้าวงบอกด้วยสีอย่างเดียว
    * คนกลุ่มนั้นอ่านภาพไม่ได้เลย — กติกาเดียวกับทั้งแอป
    */
-  it("ทุกส่วนโค้งมีชื่อกับยอดกำกับ ไม่เหลือแต่วงเปล่า", () => {
+  it("ทุกบรรทัดมีชื่อกับยอดกำกับ ไม่เหลือแต่วงเปล่า", () => {
     profit();
 
-    const labelled = summary().filter((r) => r.chip !== null);
-    expect(labelled).toHaveLength(arcs().length);
-    for (const row of labelled) {
+    for (const row of summary()) {
       expect(row.label).not.toBe("");
       expect(row.value).not.toBe("");
     }
+  });
+
+  /** สองส่วนโค้งของวง ต้องมีสองบรรทัดที่มีเปอร์เซ็นต์พอดี */
+  it("จำนวนบรรทัดที่มีเปอร์เซ็นต์ เท่ากับจำนวนส่วนโค้ง", () => {
+    profit();
+
+    const withPercent = summary().filter((r) => r.percent !== "");
+    expect(withPercent).toHaveLength(arcs().length);
   });
 
   /**
@@ -124,7 +134,7 @@ describe("วงแหวนตอนขาดทุน", () => {
    * ถ้าตรึงวงไว้ที่รายรับเสมอ ชิ้นแดงจะยาวเกินหนึ่งวงแล้ววนไปทับตัวเอง
    * ซึ่งวาดออกมาแล้วอ่านไม่ได้ความ และดูเหมือนจ่ายไปแค่นิดเดียว
    */
-  const loss = () => render(<NetDonut income="40000" expense="100000" profit="-60000" />);
+  const loss = () => render(<OverviewPanel income="40000" expense="100000" profit="-60000" />);
 
   it("โชว์ขาดทุนสุทธิไว้กลางวง", () => {
     loss();
@@ -137,12 +147,20 @@ describe("วงแหวนตอนขาดทุน", () => {
    * ตอนขาดทุนวงคือรายจ่าย บรรทัดแรกจึงต้องเป็นรายจ่าย ไม่ใช่รายรับ
    * และชิปสียังต้องตรงกับส่วนโค้งเหมือนเดิม
    */
-  it("ทั้งวงคือรายจ่าย ชิปสียังตรงกับส่วนโค้ง", () => {
+  it("ลำดับบรรทัดคงที่ และเปอร์เซ็นต์ย้ายไปอยู่ที่ถูก", () => {
     loss();
 
+    /**
+     * เดือนที่ขาดทุน วงคือรายจ่าย บรรทัดรายจ่ายจึงไม่มีเปอร์เซ็นต์
+     * ส่วนลำดับยังเป็น รายรับ → รายจ่าย → สุทธิ เหมือนเดือนที่กำไรเป๊ะ
+     * คนที่ดูภาพนี้ทุกวันจึงหาตัวเลขจากตำแหน่งเดิมได้เสมอ
+     *
+     * ⚠️ เคยพลาดตรงนี้สองรอบ — เอาเปอร์เซ็นต์ของก้อนที่ขาดไปแปะไว้ที่
+     *    บรรทัดรายจ่ายซึ่งเป็นทั้งวง คนอ่านเห็นแล้วงงว่าทำไมรายจ่ายมี 26%
+     */
     expect(summary()).toEqual([
-      { label: "รายจ่าย", value: "100,000", percent: "", chip: null },
       { label: "รายรับ", value: "40,000", percent: "40%", chip: "เขียว" },
+      { label: "รายจ่าย", value: "100,000", percent: "", chip: "แดง" },
       { label: "ขาดทุนสุทธิ", value: "-60,000", percent: "60%", chip: "แดง" },
     ]);
   });
@@ -171,7 +189,7 @@ describe("วงแหวนตอนขาดทุน", () => {
 
 describe("ช่วงที่ยังไม่มีเงินเดินเลย", () => {
   it("ไม่วาดส่วนโค้ง แต่ยังบอกยอดศูนย์ตามตรง", () => {
-    render(<NetDonut income="0" expense="0" profit="0" />);
+    render(<OverviewPanel income="0" expense="0" profit="0" />);
 
     expect(arcs()).toHaveLength(0);
     expect(center()).toContain("กำไรสุทธิ");
