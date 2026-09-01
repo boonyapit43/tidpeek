@@ -10,6 +10,7 @@ import {
   createCategory,
   createShop,
   deleteAccount,
+  deleteCategory,
   deleteShop,
   updateAccount,
 } from "./settings";
@@ -757,7 +758,7 @@ describe("ประเภทใหม่กับการนับกำไร"
     const shopId = await makeShop();
 
     const created = ok(
-      await createCategory(IDLE, fd({ shopId, direction: "out", name: "ถอนใช้ส่วนตัว" })),
+      await createCategory(IDLE, fd({ shopId, direction: "out", name: "ให้พนักงานยืม" })),
     );
 
     const [row] = await raw`select counts from categories where id = ${must(created.id, "id ของประเภทที่เพิ่งสร้าง")}`;
@@ -778,7 +779,7 @@ describe("ประเภทใหม่กับการนับกำไร"
       await createCategory(IDLE, fd({ shopId, direction: "out", name: "ค่าวัตถุดิบ", counts: "on" })),
     );
     const notCounted = ok(
-      await createCategory(IDLE, fd({ shopId, direction: "out", name: "ถอนใช้ส่วนตัว" })),
+      await createCategory(IDLE, fd({ shopId, direction: "out", name: "ให้พนักงานยืม" })),
     );
 
     const day = today();
@@ -866,5 +867,65 @@ describe("แยกร้านขาดกันที่ระดับฐา�
     const [{ count }] = await raw`
       select count(*)::int as count from transactions where account_id = ${theirs.id}`;
     expect(count).toBe(0);
+  });
+});
+
+/* ------------------------------------------------------------------ */
+
+/**
+ * ชื่อซ้ำในร้านเดียวกันสร้างไม่ได้ แต่คนละร้านใช้ชื่อเดียวกันได้
+ *
+ * เจ้าของร้านถามเองว่า "พอแยกร้านกันอาจจะเกิดชื่อซ้ำได้" — ซึ่งถูก และตอน
+ * นั้นยังไม่มี unique อะไรเลยนอกจาก primary key แปลว่าร้านเดียวกันสร้าง
+ * "ค่าแรง" ซ้ำสองอันได้ แล้วยอดจะถูกแยกเป็นสองก้อนในหน้าสรุปโดยไม่มีอะไรบอก
+ */
+describe("ชื่อซ้ำ", () => {
+  it("ร้านเดียวกันสร้างประเภทชื่อซ้ำไม่ได้ และบอกเหตุผลเป็นภาษาคน", async () => {
+    const shopId = await makeShop();
+
+    const state = await createCategory(
+      IDLE,
+      fd({ shopId, direction: "out", name: "ค่าแรง", counts: "on" }),
+    );
+
+    expect(state.status).toBe("error");
+    if (state.status === "error") expect(state.message).toContain("มีประเภทชื่อนี้อยู่แล้ว");
+  });
+
+  it("คนละร้านใช้ชื่อเดียวกันได้", async () => {
+    const a = await makeShop("ร้านหนึ่ง");
+    const b = await makeShop("ร้านสอง");
+
+    // ทั้งสองร้านได้ "ค่าแรง" จากชุดตั้งต้นของตัวเอง อยู่ร่วมกันได้
+    const [{ count }] = await raw`
+      select count(*)::int as count from categories
+      where name = 'ค่าแรง' and is_deleted = false and shop_id in (${a}, ${b})`;
+    expect(count).toBe(2);
+  });
+
+  it("ร้านเดียวกันสร้างบัญชีชื่อซ้ำไม่ได้", async () => {
+    const shopId = await makeShop();
+
+    const state = await createAccount(
+      IDLE,
+      fd({ shopId, name: "เงินสด", kind: "cash", bank: "", accountNo: "", openingBalance: "0" }),
+    );
+
+    expect(state.status).toBe("error");
+    if (state.status === "error") expect(state.message).toContain("มีบัญชีชื่อนี้อยู่แล้ว");
+  });
+
+  /**
+   * ลบแล้วสร้างชื่อเดิมใหม่ได้ — unique index มีเงื่อนไข is_deleted = false
+   * ถ้าไม่มีเงื่อนไขนั้น ชื่อที่เคยใช้แล้วลบไปจะกลับมาใช้ไม่ได้ตลอดกาล
+   */
+  it("ลบประเภทแล้วสร้างชื่อเดิมใหม่ได้", async () => {
+    const shopId = await makeShop();
+
+    const [existing] = await raw<{ id: string }[]>`
+      select id from categories where shop_id = ${shopId} and name = 'ค่าแรง' limit 1`;
+    ok(await deleteCategory(IDLE, fd({ shopId, id: existing.id })));
+
+    ok(await createCategory(IDLE, fd({ shopId, direction: "out", name: "ค่าแรง", counts: "on" })));
   });
 });

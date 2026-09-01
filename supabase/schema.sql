@@ -254,3 +254,13 @@ alter table transfers    enable row level security;
 --    update transactions set is_deleted = false, updated_at = now()
 --     where id = 'ใส่ id ที่ได้จากด้านบน';
 -- ============================================================
+
+-- ชื่อซ้ำในร้านเดียวกันสร้างไม่ได้ แต่คนละร้านใช้ชื่อเดียวกันได้
+-- (shop_id เป็นส่วนหนึ่งของกุญแจ)
+--
+-- where is_deleted = false ทำให้ลบแล้วสร้างชื่อเดิมใหม่ได้ ไม่ติดของเก่า
+-- ที่ลบไปแล้วตลอดกาล
+create unique index if not exists uq_categories_live
+  on categories (shop_id, direction, name) where is_deleted = false;
+create unique index if not exists uq_accounts_live
+  on accounts (shop_id, name) where is_deleted = false;

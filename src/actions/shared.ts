@@ -88,15 +88,43 @@ function isNextControlFlow(error: unknown): boolean {
   );
 }
 
+/**
+ * ข้อความของ error รวมทั้งสายที่มันห่อกันมา
+ *
+ * drizzle ห่อ error ของ Postgres ไว้อีกชั้น ตัว message ชั้นนอกเป็นแค่
+ * "Failed query: insert into ..." ส่วนเหตุผลจริง (เช่นชื่อ unique index
+ * ที่ชน) อยู่ใน cause — อ่านแค่ชั้นนอกจะแยกไม่ออกว่าซ้ำที่ตารางไหน
+ */
+function fullMessage(error: unknown, depth = 0): string {
+  if (!(error instanceof Error)) return String(error);
+  // กันสายที่วนกลับมาหาตัวเอง ซึ่งจะทำให้ฟังก์ชันนี้ไม่มีวันจบ
+  if (depth > 4) return error.message;
+
+  return error.cause ? `${error.message} ${fullMessage(error.cause, depth + 1)}` : error.message;
+}
+
 /** แปลความผิดพลาดที่เจอบ่อยเป็นภาษาที่คนหน้าร้านอ่านแล้วรู้ว่าต้องทำอะไร */
 function describe(error: unknown): string {
-  const message = error instanceof Error ? error.message : String(error);
+  const message = fullMessage(error);
 
   if (/ETIMEDOUT|ECONNREFUSED|ENOTFOUND|EAI_AGAIN|Connection terminated|fetch failed/i.test(message)) {
     return "ต่อฐานข้อมูลไม่ได้ ตรวจสัญญาณเน็ตแล้วลองใหม่";
   }
   if (/timeout/i.test(message)) {
     return "เซิร์ฟเวอร์ตอบช้าเกินไป ลองใหม่อีกครั้ง";
+  }
+  /**
+   * ชื่อซ้ำในร้านเดียวกัน — บอกให้ตรงว่าซ้ำที่ไหน ไม่ใช่ "มีข้อมูลนี้อยู่แล้ว"
+   * ลอยๆ ซึ่งคนอ่านแล้วไม่รู้ว่าต้องไปแก้อะไร
+   *
+   * ชื่อ index มาจาก unique index ที่สร้างไว้บนฐานข้อมูล — คนละร้านใช้ชื่อ
+   * เดียวกันได้ ที่ห้ามคือซ้ำกันเองในร้านเดียว
+   */
+  if (/uq_categories_live/i.test(message)) {
+    return "มีประเภทชื่อนี้อยู่แล้วในร้านนี้ ใช้ชื่ออื่นหรือเปิดใช้งานอันเดิม";
+  }
+  if (/uq_accounts_live/i.test(message)) {
+    return "มีบัญชีชื่อนี้อยู่แล้วในร้านนี้ ใช้ชื่ออื่นหรือเปิดใช้งานอันเดิม";
   }
   if (/duplicate key|unique constraint/i.test(message)) {
     return "มีข้อมูลนี้อยู่แล้ว";
