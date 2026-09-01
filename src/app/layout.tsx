@@ -1,4 +1,5 @@
 import type { Metadata, Viewport } from "next";
+import { getTheme } from "@/lib/theme";
 import "./globals.css";
 
 /**
@@ -41,9 +42,19 @@ export const viewport: Viewport = {
   ],
 };
 
-export default function RootLayout({ children }: { children: React.ReactNode }) {
+export default async function RootLayout({ children }: { children: React.ReactNode }) {
+  /**
+   * ธีมที่เลือกไว้ถูกปั๊มลงบน <html> ตั้งแต่บนเซิร์ฟเวอร์
+   *
+   * ถ้าไปอ่าน cookie ฝั่ง browser แล้วค่อยเซ็ต หน้าจะวาดด้วยธีมของเครื่อง
+   * ก่อนหนึ่งเฟรมแล้วกระพริบเปลี่ยน ซึ่งเห็นชัดมากตอนเปิดแอปในที่มืด
+   *
+   * ไม่มีค่า = ไม่ปั๊มอะไรเลย ปล่อยให้ prefers-color-scheme ทำงานตามปกติ
+   */
+  const theme = await getTheme();
+
   return (
-    <html lang="th">
+    <html lang="th" data-theme={theme ?? undefined}>
       <body className="antialiased">{children}</body>
     </html>
   );

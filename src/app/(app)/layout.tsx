@@ -1,8 +1,11 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
+import { logout } from "@/actions/auth";
 import { Nav } from "@/components/nav";
+import { ThemeToggle } from "@/components/theme-toggle";
 import { hasSession } from "@/lib/auth";
 import { getSelectedShop } from "@/lib/shop";
+import { getTheme } from "@/lib/theme";
 
 // ทุกหน้าในกลุ่มนี้อ่าน cookie และข้อมูลสด จึงต้อง render ตอนมีคำขอเสมอ
 export const dynamic = "force-dynamic";
@@ -31,7 +34,7 @@ export const runtime = "nodejs";
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
   if (!(await hasSession())) redirect("/login");
 
-  const shop = await getSelectedShop();
+  const [shop, theme] = await Promise.all([getSelectedShop(), getTheme()]);
 
   // ยังไม่ได้เลือกร้าน หรือร้านที่เคยเลือกถูกลบ/ปิดไปแล้ว
   // เด้งไปให้เลือกใหม่ ไม่เดาร้านให้เอง
@@ -71,6 +74,40 @@ export default async function AppLayout({ children }: { children: React.ReactNod
             </svg>
             <span className="sr-only">เปลี่ยนร้าน</span>
           </Link>
+
+          {/**
+            * ปุ่มสองอันที่ใช้นานๆ ครั้ง แต่ต้องหาเจอโดยไม่ต้องเดา
+            *
+            * ก่อนหน้านี้ไม่มีปุ่มสลับธีมเลย ธีมมืดตามเครื่องอย่างเดียว และ
+            * ออกจากระบบซ่อนอยู่ในหน้าเลือกร้าน ซึ่งต้องกดชื่อร้านเข้าไปก่อน
+            * ถึงจะเจอ — เจ้าของร้านหาไม่เจอทั้งคู่
+            *
+            * ดันไปชิดขวาด้วย ml-auto ให้ชื่อร้านได้พื้นที่ที่เหลือทั้งหมด
+            */}
+          <div className="ml-auto flex shrink-0 items-center">
+            <ThemeToggle saved={theme} />
+
+            <form action={logout}>
+              <button
+                type="submit"
+                aria-label="ออกจากระบบ"
+                className="flex size-11 items-center justify-center rounded-lg text-white/85 transition hover:bg-white/10 active:bg-white/15"
+              >
+                <svg
+                  viewBox="0 0 24 24"
+                  className="size-5"
+                  aria-hidden
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth={2}
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                >
+                  <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4M16 17l5-5-5-5M21 12H9" />
+                </svg>
+              </button>
+            </form>
+          </div>
         </div>
       </header>
 
