@@ -5,6 +5,7 @@ import {
   daysOfWeek,
   eachDay,
   monthsOfYear,
+  donutSlices,
   thaiWeekdayShort,
 } from "./chart";
 
@@ -113,5 +114,88 @@ describe("ตัวย่อวันในสัปดาห์", () => {
   it("ไม่เลื่อนวันตาม timezone ของเครื่องที่รัน", () => {
     // เทสรันบน TZ=UTC โดยตั้งใจ ถ้าคำนวณผ่านเวลาท้องถิ่นจะเพี้ยนบนเครื่องไทย
     expect(thaiWeekdayShort("2026-01-01")).toBe("พฤ");
+  });
+});
+
+/* ------------------------------------------------------------------ */
+
+/**
+ * โดนัทสัดส่วนของภาพสรุป
+ *
+ * หน่วยที่คืนออกมาเป็น 1/100 ของเส้นรอบวง เพราะฝั่ง SVG ตั้ง pathLength="100"
+ * เทสจึงตรวจได้ว่าทุกชิ้นบวกกับร่องแล้วลงตัวพอดีหนึ่งวง ไม่มีชิ้นล้นไปทับกัน
+ */
+describe("แบ่งวงแหวนตามสัดส่วน", () => {
+  const totalDrawn = (slices: { length: number }[], gap: number) =>
+    slices.reduce((sum, s) => sum + s.length, 0) + gap * slices.filter((s) => s.length > 0).length;
+
+  it("สองชิ้นเท่ากัน ได้ส่วนโค้งเท่ากันและอยู่คนละครึ่งวง", () => {
+    const [a, b] = donutSlices([100, 100], 0);
+
+    expect(a.fraction).toBe(0.5);
+    expect(b.fraction).toBe(0.5);
+    expect(a.length).toBe(50);
+    expect(b.length).toBe(50);
+    expect(a.offset).toBe(0);
+    expect(b.offset).toBe(50);
+  });
+
+  /**
+   * ร่องระหว่างชิ้นต้องถูกหักออกจากพื้นที่ก่อนแบ่ง
+   *
+   * ถ้าไม่หัก ผลรวมของส่วนโค้งบวกร่องจะเกินหนึ่งวง แล้วชิ้นสุดท้ายจะวนไป
+   * ทับชิ้นแรก ซึ่งบนจอเห็นเป็นสีผิดตรงหัววง
+   */
+  it("รวมส่วนโค้งกับร่องแล้วพอดีหนึ่งวง ไม่ล้น", () => {
+    const gap = 1.5;
+    const slices = donutSlices([50, 30, 15, 5], gap);
+
+    expect(totalDrawn(slices, gap)).toBeCloseTo(100, 6);
+  });
+
+  it("ชิ้นเดียวเต็มวง ไม่เว้นร่องให้ขาดวิ่น", () => {
+    const [only] = donutSlices([1234.56]);
+
+    expect(only.fraction).toBe(1);
+    expect(only.length).toBe(100);
+    expect(only.offset).toBe(0);
+  });
+
+  /**
+   * ชิ้นจิ๋วต้องยังเห็นว่ามีอยู่ ไม่ใช่หายไปกลืนกับร่อง
+   * ประเภทที่จ่ายไปยี่สิบบาทจากแสนบาท ยังต้องมีเส้นบางๆ ให้เห็น
+   */
+  it("ชิ้นที่เล็กมาก ยังวาดให้เห็น", () => {
+    const [big, tiny] = donutSlices([100000, 20]);
+
+    expect(tiny.fraction).toBeLessThan(0.001);
+    expect(tiny.length).toBeGreaterThan(0);
+    // และไม่ไปเบียดชิ้นใหญ่จนสัดส่วนดูผิด
+    expect(big.length).toBeGreaterThan(90);
+  });
+
+  it("ไม่มีเงินเลย ไม่ต้องวาดวง", () => {
+    expect(donutSlices([])).toEqual([]);
+    expect(donutSlices([0, 0])).toEqual([]);
+  });
+
+  /**
+   * ค่าติดลบไม่มีที่ยืนในวงกลม — ปัดเป็นศูนย์ ไม่ใช่ลากส่วนโค้งย้อนกลับ
+   * ซึ่งจะทำให้ชิ้นถัดไปเริ่มผิดที่ทั้งวง
+   */
+  it("ค่าติดลบถูกปัดทิ้ง ไม่ทำให้ทั้งวงเพี้ยน", () => {
+    const slices = donutSlices([100, -50, 100], 0);
+
+    expect(slices[1].length).toBe(0);
+    expect(slices[0].fraction).toBeCloseTo(0.5, 6);
+    expect(slices[2].fraction).toBeCloseTo(0.5, 6);
+    expect(slices[2].offset).toBeCloseTo(50, 6);
+  });
+
+  it("ชิ้นที่เป็นศูนย์ไม่กินร่อง ชิ้นถัดไปจึงต่อกันพอดี", () => {
+    const gap = 2;
+    const slices = donutSlices([60, 0, 40], gap);
+
+    expect(totalDrawn(slices, gap)).toBeCloseTo(100, 6);
   });
 });

@@ -4,27 +4,30 @@ import { redirect } from "next/navigation";
 import { getSummary, listCategoryTotals } from "@/db/queries";
 import { hasSession } from "@/lib/auth";
 import { resolvePeriod } from "@/lib/export-period";
-import { bahtShort, profitPercent } from "@/lib/money";
+import { bahtShort } from "@/lib/money";
 import { getSelectedShop } from "@/lib/shop";
 import { cn } from "@/lib/cn";
+import { NetDonut } from "./donut";
+import { spendRows } from "./spend-rows";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
 
 export const metadata: Metadata = { title: "ภาพสรุป" };
 
-/** จำนวนประเภทต่อฝั่งที่ใส่ในภาพ — เกินนี้รวบเป็นบรรทัดเดียว */
-const TOP_CATEGORIES = 5;
-
 /**
  * ภาพสรุปสำหรับแคปหน้าจอส่งต่อ
  *
  * ทำไมต้องแยกหน้า ไม่ให้แคปหน้าสรุปเอา — หน้าสรุปมีแท็บสี่อัน ลูกศรเลื่อนช่วง
  * ปุ่มส่งออก และเมนูล่าง ซึ่งติดมาในภาพหมดและไม่มีความหมายกับคนรับ
- * แถมยาวเกินหนึ่งหน้าจอ ต้องแคปสามรูปถึงจะครบ
  *
- * หน้านี้จึงตัดทุกอย่างที่กดได้ออก เหลือเฉพาะตัวเลขที่คนรับต้องอ่าน
- * และย่อให้จบในหน้าจอเดียวเพื่อให้แคปรูปเดียวจบ
+ * มีของอยู่สองอย่างเท่านั้น วงแหวนบอกว่าได้เท่าไหร่เหลือเท่าไหร่ กับลิสต์บอกว่า
+ * เงินไปกับอะไร — เคยใส่กราฟแท่งรายวันกับวงแหวนแยกสีตามประเภทไว้ด้วย
+ * แล้วเจ้าของร้านบอกให้เอาออก มันดูยาก ซึ่งถูก: ภาพที่ส่งเข้าแชทมีเวลาให้มอง
+ * ไม่กี่วินาที ของที่ต้องเพ่งถึงจะเข้าใจ เท่ากับไม่ได้อยู่ในภาพ
+ *
+ * วางเป็นแนวนอน เพราะภาพที่ส่งเข้าแชทถูกย่อตามความกว้างของช่องแชท
+ * ภาพแนวตั้งจึงถูกย่อจนตัวเลขอ่านไม่ออก ส่วนภาพแนวนอนได้ความกว้างเต็มช่อง
  *
  * ⚠️ ชื่อร้านกับช่วงเวลาต้องอยู่ในภาพเสมอ เพราะพอรูปไปอยู่ในแชทแล้ว
  *    มันต้องอธิบายตัวเองได้ คนรับไม่มีทางรู้ว่าเป็นของร้านไหนวันไหน
@@ -56,77 +59,82 @@ export default async function SharePage({
     listCategoryTotals(shop.id, period),
   ]);
 
-  const loss = Number.parseFloat(summary.profit) < 0;
-  const percent = profitPercent(summary.profit, summary.income);
   const txnCount = categories.reduce((sum, c) => sum + c.txnCount, 0);
 
+  /**
+   * เอาเฉพาะประเภทที่นับเป็นกำไร ให้ลิสต์บวกกันแล้วเท่ายอดรายจ่ายในวง
+   *
+   * ยอดรายจ่ายนับเฉพาะของที่ติดธง counts อยู่แล้ว ถ้าลิสต์ใส่ทุกประเภท
+   * ผลบวกของลิสต์จะไม่เท่ายอดที่วงบอก — เจอจริงตอนทดสอบ ลิสต์บวกได้
+   * 40,880.75 แต่ยอดรายจ่ายคือ 30,880.75 เพราะมี "ถอนเข้ากระเป๋าตัวเอง"
+   * ปนอยู่ ซึ่งเป็นตัวเลขที่ขัดกันเองบนภาพที่ตั้งใจส่งให้เจ้าของร้านอ่าน
+   *
+   * ของที่ถูกกันออกไม่ได้หายไปจากภาพ — รวมเป็นยอดเดียวอยู่ที่แถบล่าง
+   */
+  const spending = spendRows(
+    categories.filter((c) => c.counts && c.direction === "out"),
+    summary.expense,
+  );
+
   return (
-    <main className="bg-app-band flex min-h-dvh flex-col items-center px-4 py-6">
+    <main className="bg-app-band flex min-h-dvh flex-col items-center justify-center px-3 py-5">
       {/**
-       * การ์ดกว้างสุด 26rem — พอดีจอมือถือและยังอ่านออกตอนย่อในแชท
-       * ถ้าปล่อยเต็มความกว้างบนจอคอม ตัวเลขจะกระจายห่างกันจนอ่านเป็นชุดไม่ได้
+       * การ์ดกว้างสุด 42rem — กว้างพอให้วงกับลิสต์ยืนคู่กันโดยชื่อประเภทไม่ถูกตัด
+       * และยังไม่กว้างจนสองฝั่งห่างกันเกินกว่าจะอ่านเป็นภาพเดียว
        */}
-      <section className="w-full max-w-[26rem] overflow-hidden rounded-3xl bg-surface shadow-xl">
-        <header className="border-b border-line px-5 pt-5 pb-4">
-          <h1 className="text-lg font-bold text-ink">{shop.name}</h1>
-          <p className="mt-0.5 text-sm text-ink-soft">{label}</p>
+      <section className="w-full max-w-[42rem] overflow-hidden rounded-2xl bg-surface shadow-xl">
+        <header className="flex items-baseline justify-between gap-3 border-b border-line px-4 py-2.5">
+          <h1 className="min-w-0 truncate text-base font-bold text-ink">{shop.name}</h1>
+          <p className="shrink-0 text-xs text-ink-soft">{label}</p>
         </header>
 
-        <div className="grid grid-cols-2 divide-x divide-line border-b border-line">
-          <Cell label="รายรับ" value={bahtShort(summary.income)} tone="text-income" />
-          <Cell label="รายจ่าย" value={bahtShort(summary.expense)} tone="text-expense" />
-        </div>
-
-        <div
-          className={cn(
-            "flex items-end justify-between gap-3 border-b border-line px-5 py-4",
-            loss ? "bg-expense-wash" : "bg-income-wash",
-          )}
-        >
-          <div>
-            <div className={cn("text-xs font-medium", loss ? "text-expense" : "text-income")}>
-              {loss ? "ขาดทุน" : "กำไร"}
-            </div>
-            <div
-              className={cn(
-                "num mt-0.5 text-3xl font-bold tracking-tight",
-                loss ? "text-expense" : "text-income",
-              )}
-            >
-              {/* รูปแบบเดียวกับรายรับรายจ่ายข้างบน ไม่ให้มีช่องเดียวที่โชว์ .00 */}
-              {bahtShort(summary.profit)}
-            </div>
+        {/* วงซ้าย ลิสต์ขวา เรียงกันตลอด ไม่ยุบเป็นแนวตั้ง เพราะทั้งหน้ามีไว้
+            เพื่อให้ได้ภาพแนวนอน สองช่องนี้แคบพอจะอยู่ในจอมือถือแนวตั้งได้ */}
+        <div className="grid grid-cols-[minmax(0,auto)_minmax(0,1fr)] divide-x divide-line">
+          <div className="px-3 py-4 sm:px-4">
+            <NetDonut income={summary.income} expense={summary.expense} profit={summary.profit} />
           </div>
 
-          {percent !== null && (
-            <div className={cn("text-right", loss ? "text-expense" : "text-income")}>
-              <div className="num text-xl font-bold">{percent.toFixed(1)}</div>
-              <div className="text-[11px]">% ของรายรับ</div>
-            </div>
-          )}
+          <div className="min-w-0 px-3 py-3 sm:px-4">
+            <h2 className="text-[10px] font-semibold tracking-wide text-ink-soft uppercase">
+              ใช้ไปกับอะไร
+            </h2>
+
+            {spending.length === 0 ? (
+              <p className="py-8 text-center text-xs text-ink-soft">ช่วงนี้ยังไม่มีรายจ่าย</p>
+            ) : (
+              <ul className="mt-1.5 space-y-1">
+                {spending.map((row) => (
+                  <li key={row.key} className="flex items-baseline gap-1.5 text-xs sm:gap-2">
+                    <span className="min-w-0 flex-1 truncate text-ink">{row.name}</span>
+                    <span className="num shrink-0 font-semibold text-expense">
+                      {bahtShort(row.total)}
+                    </span>
+                    {/**
+                      * เปอร์เซ็นต์หายไปบนจอแคบ ไม่ใช่ข้อมูลที่ขาดไม่ได้ — ยอดบอกขนาดอยู่แล้ว
+                      * ส่วนชื่อประเภทที่ถูกตัดเหลือ "ค่..." ไม่ได้บอกอะไรกับคนอ่านเลย
+                      */}
+                    <span className="num hidden w-8 shrink-0 text-right text-ink-soft sm:inline">
+                      {row.percent}%
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
         </div>
 
-        <Breakdown
-          title="จ่ายไปกับอะไร"
-          rows={categories.filter((c) => c.direction === "out")}
-          tone="text-expense"
-        />
-        <Breakdown
-          title="รับมาจากไหน"
-          rows={categories.filter((c) => c.direction === "in")}
-          tone="text-income"
-        />
+        <footer className="flex items-baseline justify-between gap-3 border-t border-line px-4 py-1.5 text-[10px] text-ink-soft">
+          <span>{txnCount} รายการ</span>
 
-        {Number.parseFloat(summary.excluded) > 0 && (
-          <p className="border-t border-line px-5 py-2.5 text-xs text-ink-soft">
-            ไม่นับเป็นกำไรอีก{" "}
-            <span className="num font-semibold">{bahtShort(summary.excluded)}</span> บาท
-            (เช่นเติมทุน หรือถอนใช้ส่วนตัว)
-          </p>
-        )}
+          {Number.parseFloat(summary.excluded) > 0 && (
+            <span>
+              ไม่นับเป็นกำไรอีก{" "}
+              <span className="num font-semibold">{bahtShort(summary.excluded)}</span> บาท
+            </span>
+          )}
 
-        <footer className="border-t border-line px-5 py-2.5 text-[11px] text-ink-soft">
-          {txnCount} รายการ · tidpeek
+          <span>tidpeek</span>
         </footer>
       </section>
 
@@ -136,71 +144,13 @@ export default async function SharePage({
        */}
       <Link
         href="/summary"
-        className="mt-5 inline-flex min-h-touch items-center rounded-xl bg-white/15 px-4 text-sm font-medium text-white backdrop-blur-sm transition hover:bg-white/25"
+        className={cn(
+          "mt-4 inline-flex min-h-touch items-center rounded-xl bg-white/15 px-4",
+          "text-sm font-medium text-white backdrop-blur-sm transition hover:bg-white/25",
+        )}
       >
         กลับไปหน้าสรุป
       </Link>
     </main>
-  );
-}
-
-function Cell({ label, value, tone }: { label: string; value: string; tone: string }) {
-  return (
-    <div className="px-5 py-3.5">
-      <div className="text-xs text-ink-soft">{label}</div>
-      <div className={cn("num mt-0.5 text-xl font-bold", tone)}>{value}</div>
-    </div>
-  );
-}
-
-/**
- * แจกแจงประเภท เอาแค่ห้าอันดับแรก ที่เหลือรวบเป็นบรรทัดเดียว
- *
- * เพราะเป้าหมายคือให้จบในหน้าจอเดียว ร้านที่มีสิบห้าประเภทจะได้ภาพยาวเกิน
- * จนต้องแคปสองรูป ซึ่งเสียจุดประสงค์ของหน้านี้ไปเลย
- */
-function Breakdown({
-  title,
-  rows,
-  tone,
-}: {
-  title: string;
-  rows: { categoryId: string | null; name: string; total: string; counts: boolean }[];
-  tone: string;
-}) {
-  if (rows.length === 0) return null;
-
-  const shown = rows.slice(0, TOP_CATEGORIES);
-  const rest = rows.slice(TOP_CATEGORIES);
-  const restTotal = rest.reduce((sum, r) => sum + Number.parseFloat(r.total), 0);
-
-  return (
-    <div className="border-t border-line px-5 py-3">
-      <h2 className="text-xs font-semibold text-ink-soft">{title}</h2>
-
-      <ul className="mt-1.5 space-y-1">
-        {shown.map((row) => (
-          <li
-            key={`${row.categoryId ?? "none"}-${title}`}
-            className="flex items-baseline justify-between gap-3 text-sm"
-          >
-            <span className="min-w-0 truncate text-ink">
-              {row.name}
-              {!row.counts && <span className="text-xs text-ink-soft"> (ไม่นับ)</span>}
-            </span>
-            <span className={cn("num shrink-0 font-semibold", tone)}>
-              {bahtShort(row.total)}
-            </span>
-          </li>
-        ))}
-
-        {rest.length > 0 && (
-          <li className="flex items-baseline justify-between gap-3 text-sm text-ink-soft">
-            <span>อีก {rest.length} ประเภท</span>
-            <span className="num shrink-0">{bahtShort(restTotal)}</span>
-          </li>
-        )}
-      </ul>
-    </div>
   );
 }

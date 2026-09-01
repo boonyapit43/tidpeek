@@ -91,3 +91,66 @@ export function thaiWeekdayShort(date: string): string {
   const [y, m, d] = date.split("-").map(Number);
   return WEEKDAYS[new Date(Date.UTC(y, m - 1, d)).getUTCDay()];
 }
+
+/* ------------------------------------------------------------------ */
+/*  โดนัทสัดส่วน                                                        */
+/* ------------------------------------------------------------------ */
+
+export type DonutSlice = {
+  /** สัดส่วนจริงของชิ้นนี้ 0–1 ไว้เขียนเป็นเปอร์เซ็นต์กำกับ */
+  fraction: number;
+  /** ความยาวส่วนโค้งที่วาดจริง หน่วยเป็น 1/100 ของเส้นรอบวง */
+  length: number;
+  /** ระยะจากจุดเริ่ม (สิบสองนาฬิกา) หน่วยเดียวกัน */
+  offset: number;
+};
+
+/**
+ * แบ่งวงแหวนตามสัดส่วน — คณิตล้วน แยกจากคอมโพเนนต์เพื่อให้เทสได้
+ *
+ * คืนค่าเป็นหน่วย 1/100 ของเส้นรอบวง เพราะฝั่ง SVG ตั้ง pathLength="100"
+ * ไว้ ทำให้ไม่ต้องรู้รัศมีจริงเลย เปลี่ยนขนาดวงแล้วสัดส่วนไม่เพี้ยน
+ *
+ * ⚠️ ใช้กับค่าที่บวกกันแล้วมีความหมายเท่านั้น (ยอดจ่ายแยกตามประเภท)
+ *    ห้ามเอาไปใช้กับกำไรรายวันซึ่งมีค่าติดลบ — วงกลมบอกส่วนของทั้งหมด
+ *    ค่าติดลบไม่มีที่ยืนในนั้น
+ */
+export function donutSlices(values: number[], gap = 1.5): DonutSlice[] {
+  const usable = values.map((v) => Math.max(v, 0));
+  const total = usable.reduce((sum, v) => sum + v, 0);
+  if (total <= 0) return [];
+
+  const drawn = usable.filter((v) => v > 0).length;
+
+  /**
+   * ชิ้นเดียวไม่ต้องเว้นร่อง เพราะไม่มีชิ้นข้างๆ ให้แยกออกจากกัน
+   * ถ้าเว้น จะได้วงแหวนที่ขาดวิ่นหนึ่งช่องโดยไม่มีเหตุผล
+   */
+  const gapEach = drawn > 1 ? gap : 0;
+
+  /**
+   * ร่องกินพื้นที่รวมเท่ากับ gap × จำนวนชิ้น ต้องหักออกก่อนแบ่ง ไม่งั้น
+   * ชิ้นสุดท้ายจะล้นไปทับชิ้นแรก
+   */
+  const arcSpace = 100 - gapEach * drawn;
+
+  /**
+   * ชิ้นเล็กมากยังต้องเห็นว่ามีอยู่ ไม่ใช่หายไปกลืนกับร่อง
+   * ค่านี้เล็กพอที่จะไม่ทำให้สัดส่วนของชิ้นใหญ่ดูผิด
+   */
+  const minArc = 0.8;
+
+  let cursor = 0;
+
+  return usable.map((value) => {
+    const fraction = value / total;
+
+    if (value <= 0) return { fraction: 0, length: 0, offset: cursor };
+
+    const length = Math.max(fraction * arcSpace, minArc);
+    const slice = { fraction, length, offset: cursor };
+
+    cursor += length + gapEach;
+    return slice;
+  });
+}
