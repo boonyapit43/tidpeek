@@ -50,9 +50,9 @@ async function main() {
       .values({ name: "ร้านหลัก", sortOrder: 1 })
       .returning({ id: shops.id });
 
-    // บัญชีผูกกับร้าน ส่วนประเภทเป็นของกลาง — เหตุผลอยู่ใน createShop
+    // ทั้งบัญชีและประเภทผูกกับร้าน ไม่มีของกลางอีกแล้ว
     await tx.insert(accounts).values(defaultAccountRows(shop.id));
-    await tx.insert(categories).values(defaultCategoryRows(null));
+    await tx.insert(categories).values(defaultCategoryRows(shop.id));
   });
 
   console.log(

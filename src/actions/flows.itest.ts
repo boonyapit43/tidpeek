@@ -207,12 +207,31 @@ describe("ร้านใหม่ต้องใช้งานได้ทั�
     expect(count).toBe(0);
   });
 
-  it("ร้านที่สองใช้ประเภทชุดเดิมร่วมกัน ไม่ได้ของซ้ำอีกชุด", async () => {
-    await makeShop("ร้านหนึ่ง");
-    await makeShop("ร้านสอง");
+  /**
+   * แต่ละร้านได้ชุดประเภทของตัวเอง ไม่ใช้ร่วมกัน
+   *
+   * เดิมชุดตั้งต้นถูกใส่เป็น "ของกลาง" ครั้งเดียวแล้วทุกร้านเห็นเหมือนกัน
+   * เจ้าของร้านขอให้แยกขาด 100% เพราะของกลางทำให้ร้านหนึ่งแก้ชื่อประเภท
+   * แล้วอีกร้านเปลี่ยนตามโดยไม่ได้ตั้งใจ
+   */
+  it("แต่ละร้านได้ชุดประเภทของตัวเอง ไม่ปนกัน", async () => {
+    const a = await makeShop("ร้านหนึ่ง");
+    const b = await makeShop("ร้านสอง");
 
     const [{ count }] = await raw`select count(*)::int as count from categories`;
-    expect(count).toBe(15);
+    expect(count).toBe(30);
+
+    // และไม่มีแถวไหนที่ไม่ผูกร้าน
+    const [{ orphan }] = await raw`
+      select count(*)::int as orphan from categories where shop_id is null`;
+    expect(orphan).toBe(0);
+
+    const [{ mine }] = await raw`
+      select count(*)::int as mine from categories where shop_id = ${a}`;
+    const [{ theirs }] = await raw`
+      select count(*)::int as theirs from categories where shop_id = ${b}`;
+    expect(mine).toBe(15);
+    expect(theirs).toBe(15);
   });
 
   it("บัญชีเงินสดของแต่ละร้านแยกกัน ไม่ใช่ลิ้นชักเดียวกัน", async () => {
@@ -464,7 +483,7 @@ describe("กันข้อมูลข้ามร้าน", () => {
 /* ------------------------------------------------------------------ */
 
 describe("ลบร้าน", () => {
-  it("ลบร้านแล้วรายการของร้านนั้นหายตาม แต่ประเภทกลางไม่ถูกแตะ", async () => {
+  it("ลบร้านแล้วของร้านนั้นหายตาม อีกร้านไม่กระทบเลย", async () => {
     const a = await makeShop("ร้านหนึ่ง");
     const b = await makeShop("ร้านสอง");
 
@@ -481,8 +500,13 @@ describe("ลบร้าน", () => {
 
     expect(counts.txnDeleted).toBe(1);
     expect(counts.txnLeft).toBe(1);
-    // ประเภทเป็นของกลาง ร้านสองยังใช้อยู่
-    expect(counts.catDeleted).toBe(0);
+
+    // ประเภทของร้านที่ถูกลบหายตามทั้งชุด ของอีกร้านอยู่ครบ
+    expect(counts.catDeleted).toBe(15);
+    const [{ left }] = await raw`
+      select count(*)::int as left from categories where shop_id = ${b} and not is_deleted`;
+    expect(left).toBe(15);
+
     // บัญชีเงินสดผูกกับร้านหนึ่ง จึงถูกลบตาม
     expect(counts.accDeleted).toBe(1);
   });
@@ -493,16 +517,16 @@ describe("ลบร้าน", () => {
    * การโอนของร้านที่ลบไปจึงยังเดินยอดของบัญชีกลางต่อ เป็นเงินก้อนที่
    * ไม่มีหน้าไหนในแอปอธิบายได้ว่ามาจากไหน เพราะร้านต้นเรื่องหายไปแล้ว
    */
-  it("ลบร้านแล้วการโอนของร้านหายตาม ยอดบัญชีกลางไม่ค้างเงินผี", async () => {
+  it("ลบร้านแล้วการโอนของร้านหายตาม ไม่ค้างเป็นเงินผี", async () => {
     const a = await makeShop("ร้านหนึ่ง");
     await makeShop("ร้านสอง");
 
-    // บัญชีกลางที่ทุกร้านเห็น กับบัญชีเงินสดของร้านที่กำลังจะลบ
+    // สองบัญชีของร้านเดียวกัน — ตอนนี้ไม่มีบัญชีข้ามร้านอีกแล้ว
     const [shared] = await raw<{ id: string }[]>`
       insert into accounts (shop_id, name, kind)
-      values (null, 'SCB กลาง', 'bank') returning id`;
+      values (${a}, 'SCB', 'bank') returning id`;
     const [own] = await raw<{ id: string }[]>`
-      select id from accounts where shop_id = ${a} limit 1`;
+      select id from accounts where shop_id = ${a} and name <> 'SCB' limit 1`;
 
     ok(
       await createTransfer(
@@ -529,7 +553,7 @@ describe("ลบร้าน", () => {
                as "sharedDelta"`;
 
     expect(row.left).toBe(0);
-    // เงิน 5000 ที่โอนเข้าบัญชีกลาง ต้องหายไปพร้อมร้าน ไม่ค้างเป็นเงินผี
+    // เงิน 5000 ที่โอนไปมา ต้องหายไปพร้อมร้าน ไม่ค้างเดินยอดต่อ
     expect(Number(row.sharedDelta)).toBe(0);
   });
 
@@ -652,7 +676,14 @@ describe("เติมชุดประเภทตั้งต้นย้อ�
 /* ------------------------------------------------------------------ */
 
 describe("บัญชี", () => {
-  it("บัญชีที่ติ๊กใช้ร่วม ทุกร้านเห็น", async () => {
+  /**
+   * บัญชีเป็นของร้านเดียวเสมอ ไม่มีตัวเลือกใช้ร่วมอีกแล้ว
+   *
+   * ของเดิมมีช่องติ๊ก "ใช้ร่วมกันทุกร้าน" ซึ่งทำให้ยอดคงเหลือรวมเงินของ
+   * อีกร้านเข้ามาด้วย อธิบายให้คนอ่านเข้าใจยากมาก และเปิดช่องให้รายการ
+   * ของร้านหนึ่งไปโผล่ในหน้าบัญชีของอีกร้าน
+   */
+  it("บัญชีที่สร้างในร้านหนึ่ง อีกร้านไม่เห็น", async () => {
     const a = await makeShop("ร้านหนึ่ง");
     const b = await makeShop("ร้านสอง");
 
@@ -666,13 +697,12 @@ describe("บัญชี", () => {
           bank: "",
           accountNo: "",
           openingBalance: "0",
-          shared: "on",
         }),
       ),
     );
 
-    const seenByB = await accountsOf(b);
-    expect(seenByB.map((r) => r.name)).toContain("กสิกร");
+    expect((await accountsOf(a)).map((r) => r.name)).toContain("กสิกร");
+    expect((await accountsOf(b)).map((r) => r.name)).not.toContain("กสิกร");
   });
 
   it("ลบบัญชีแล้วรายการเก่ายังอยู่ครบ", async () => {
@@ -786,5 +816,55 @@ describe("ประเภทใหม่กับการนับกำไร"
     // เงินออกจริงสองพัน แต่ที่กินกำไรมีแค่พันเดียว
     expect(Number(summary.expense)).toBe(1000);
     expect(Number(summary.profit)).toBe(-1000);
+  });
+});
+
+/* ------------------------------------------------------------------ */
+
+/**
+ * ฐานข้อมูลเป็นคนกันเอง ไม่ใช่โค้ด
+ *
+ * โค้ดกรองด้วย shop_id = ร้านนี้ อยู่แล้ว แต่การกรองอย่างเดียวกันการถอย
+ * กลับไม่ได้ — ลองแล้วจริง: เอาเงื่อนไข "ของกลาง" กลับใส่เข้าไปในโค้ด
+ * เทสทั้ง 131 ข้อยังเขียวหมด เพราะไม่มีแถวไหนเป็นค่าว่างให้เงื่อนไขนั้นแมตช์
+ *
+ * ตัวกันจริงจึงต้องเป็น not null ที่ฐานข้อมูล ซึ่งทำให้แถวของกลาง
+ * "สร้างไม่ได้" ไม่ใช่แค่ "มองไม่เห็น" — เทสสองข้อนี้ยืนยันว่าด่านนั้นมีอยู่จริง
+ */
+describe("แยกร้านขาดกันที่ระดับฐานข้อมูล", () => {
+  it("สร้างบัญชีที่ไม่ผูกร้านไม่ได้", async () => {
+    await expect(
+      raw`insert into accounts (shop_id, name, kind) values (null, 'บัญชีลอย', 'bank')`,
+    ).rejects.toThrow();
+  });
+
+  it("สร้างประเภทที่ไม่ผูกร้านไม่ได้", async () => {
+    await expect(
+      raw`insert into categories (shop_id, direction, name) values (null, 'out', 'ประเภทลอย')`,
+    ).rejects.toThrow();
+  });
+
+  /**
+   * ลงรายการโดยอ้างบัญชีของร้านอื่นไม่ได้
+   *
+   * ด่านนี้อยู่ที่ชั้น action (isAccountVisible) ไม่ใช่ที่ฐานข้อมูล เพราะ
+   * ฐานข้อมูลไม่รู้ว่ารายการกับบัญชีต้องเป็นร้านเดียวกัน — จึงต้องมีเทส
+   */
+  it("ลงรายการโดยอ้างบัญชีของร้านอื่นไม่ได้", async () => {
+    const a = await makeShop("ร้านหนึ่ง");
+    const b = await makeShop("ร้านสอง");
+
+    const [theirs] = await accountsOf(b);
+
+    const state = await createTransaction(
+      IDLE,
+      entryFormData({ shopId: a, amount: "50", title: "แอบใช้บัญชีร้านอื่น", accountId: theirs.id }),
+    );
+
+    expect(state.status).toBe("error");
+
+    const [{ count }] = await raw`
+      select count(*)::int as count from transactions where account_id = ${theirs.id}`;
+    expect(count).toBe(0);
   });
 });

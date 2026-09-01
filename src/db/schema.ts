@@ -99,7 +99,19 @@ export const accounts = pgTable(
   "accounts",
   {
     id: uuid("id").primaryKey().defaultRandom(),
-    shopId: uuid("shop_id").references(() => shops.id, { onDelete: "cascade" }),
+    /**
+     * ผูกร้านเสมอ ห้ามว่าง
+     *
+     * เคยยอมให้ว่างได้ แปลว่า "ของกลางที่ทุกร้านเห็น" แต่เจ้าของร้าน
+     * ต้องการให้แยกขาดจากกัน 100% — ของกลางทำให้ตอบไม่ได้ว่าอันไหน
+     * เป็นของร้านไหน และเปิดช่องให้ข้อมูลของร้านหนึ่งไปโผล่อีกร้าน
+     *
+     * บังคับที่ฐานข้อมูลด้วย not null ไม่ใช่แค่ที่โค้ด เพื่อให้ต่อให้โค้ด
+     * ในอนาคตเผลอเขียนค่าว่าง ฐานข้อมูลก็ปฏิเสธเอง
+     */
+    shopId: uuid("shop_id")
+      .notNull()
+      .references(() => shops.id, { onDelete: "cascade" }),
     name: text("name").notNull(),
     kind: text("kind").$type<AccountKind>().notNull().default("bank"),
     bank: text("bank"),
@@ -132,7 +144,10 @@ export const categories = pgTable(
   "categories",
   {
     id: uuid("id").primaryKey().defaultRandom(),
-    shopId: uuid("shop_id").references(() => shops.id, { onDelete: "cascade" }),
+    /** ผูกร้านเสมอ ห้ามว่าง — เหตุผลเดียวกับตารางบัญชี */
+    shopId: uuid("shop_id")
+      .notNull()
+      .references(() => shops.id, { onDelete: "cascade" }),
     direction: text("direction").$type<Direction>().notNull(),
     name: text("name").notNull(),
     counts: boolean("counts").notNull().default(true),

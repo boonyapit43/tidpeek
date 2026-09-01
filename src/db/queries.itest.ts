@@ -60,13 +60,13 @@ async function seed() {
 
   const [sale] = await raw`
     insert into categories (shop_id, direction, name, counts)
-    values (null, 'in', 'ขายหน้าร้าน', true) returning id`;
+    values (${shopId}, 'in', 'ขายหน้าร้าน', true) returning id`;
   const [cost] = await raw`
     insert into categories (shop_id, direction, name, counts)
-    values (null, 'out', 'ซื้อของเข้าร้าน', true) returning id`;
+    values (${shopId}, 'out', 'ซื้อของเข้าร้าน', true) returning id`;
   const [topUp] = await raw`
     insert into categories (shop_id, direction, name, counts)
-    values (null, 'in', 'เติมทุน', false) returning id`;
+    values (${shopId}, 'in', 'เติมทุน', false) returning id`;
   saleId = sale.id;
   costId = cost.id;
   topUpId = topUp.id;
@@ -270,22 +270,39 @@ describe("ยอดคงเหลือของบัญชี", () => {
    * เอง ได้ 0 เสมอโดยไม่มี error — ถ้าเทียบแค่ "คืนค่าเป็น string ไหม"
    * จะไม่มีวันเจอ ต้องเทียบตัวเลขจริงเท่านั้น
    */
-  it("บัญชีที่ใช้ร่วม รวมเงินของทุกร้านที่ใช้บัญชีนั้น", async () => {
-    const [shared] = await raw`
+  it("ยอดคงเหลือ = ยอดตั้งต้น บวกเงินเข้า ลบเงินออก ตรงเป๊ะ", async () => {
+    const [acc] = await raw`
       insert into accounts (shop_id, name, kind, opening_balance)
-      values (null, 'บัญชีร่วม', 'bank', 50) returning id`;
+      values (${shopId}, 'บัญชีทดสอบ', 'bank', 50) returning id`;
 
     await raw`
       insert into transactions (shop_id, txn_date, direction, amount, title, account_id)
-      values (${shopId}, '2026-08-01', 'in', 300, 'ร้านนี้', ${shared.id})`;
+      values (${shopId}, '2026-08-01', 'in', 300, 'เงินเข้า', ${acc.id})`;
     await raw`
       insert into transactions (shop_id, txn_date, direction, amount, title, account_id)
-      values (${otherShopId}, '2026-08-01', 'in', 700, 'ร้านอื่น', ${shared.id})`;
+      values (${shopId}, '2026-08-02', 'out', 120, 'เงินออก', ${acc.id})`;
 
-    const account = (await listAccountsWithBalance(shopId)).find((a) => a.id === shared.id)!;
+    const account = (await listAccountsWithBalance(shopId)).find((a) => a.id === acc.id)!;
 
-    // ยอดในบัญชีจริงคือเงินของทั้งสองร้านรวมกัน บวกยอดตั้งต้น
-    expect(n(account.balance)).toBe(1050);
+    // 50 + 300 − 120
+    expect(n(account.balance)).toBe(230);
+  });
+
+  /**
+   * บัญชีของร้านอื่นต้องไม่โผล่มาเลย ไม่ใช่โผล่มาแต่ยอดเป็นศูนย์
+   *
+   * เดิมมีบัญชี "ของกลาง" (shop_id ว่าง) ที่ทุกร้านเห็นและยอดรวมเงินของ
+   * ทุกร้านเข้าด้วยกัน เอาออกแล้วเพราะเจ้าของร้านต้องการให้แยกขาด 100%
+   */
+  it("บัญชีของร้านอื่นไม่โผล่ในลิสต์ของร้านนี้", async () => {
+    const [theirs] = await raw`
+      insert into accounts (shop_id, name, kind, opening_balance)
+      values (${otherShopId}, 'บัญชีร้านอื่น', 'bank', 9999) returning id`;
+
+    const mine = await listAccountsWithBalance(shopId);
+
+    expect(mine.map((a) => a.id)).not.toContain(theirs.id);
+    expect(mine.map((a) => a.name)).not.toContain("บัญชีร้านอื่น");
   });
 
   it("ยอดคงเหลือไม่ได้เท่ากับยอดตั้งต้นเฉยๆ — subquery ต้องทำงานจริง", async () => {

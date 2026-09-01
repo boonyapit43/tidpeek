@@ -134,15 +134,15 @@ export async function createShop(_prev: ActionState, formData: FormData): Promis
         .values({ name: parsed.data.name, sortOrder })
         .returning({ id: shops.id });
 
+      /**
+       * ร้านใหม่ได้ทั้งบัญชีและประเภทตั้งต้นเป็นของตัวเอง
+       *
+       * เดิมประเภทถูกใส่เป็น "ของกลาง" ครั้งเดียวแล้วทุกร้านใช้ร่วมกัน
+       * เลิกทำแบบนั้นแล้ว — แต่ละร้านมีชุดของตัวเองที่แก้ได้อิสระ
+       * ร้านหนึ่งเปลี่ยนชื่อประเภทหรือปิดใช้งาน อีกร้านไม่กระทบ
+       */
       await tx.insert(accounts).values(defaultAccountRows(shop.id));
-
-      const [sharedCategory] = await tx
-        .select({ id: categories.id })
-        .from(categories)
-        .where(and(isNull(categories.shopId), eq(categories.isDeleted, false)))
-        .limit(1);
-
-      if (!sharedCategory) await tx.insert(categories).values(defaultCategoryRows(null));
+      await tx.insert(categories).values(defaultCategoryRows(shop.id));
     });
 
     revalidateAll();
@@ -261,7 +261,7 @@ export async function createAccount(_prev: ActionState, formData: FormData): Pro
 
     await db.insert(accounts).values({
       // shopId ว่าง = บัญชีกลางที่ทุกร้านใช้ร่วมกัน
-      shopId: input.shared ? null : input.shopId,
+      shopId: input.shopId,
       name: input.name,
       kind: input.kind,
       bank: input.bank,
@@ -302,7 +302,7 @@ export async function updateAccount(_prev: ActionState, formData: FormData): Pro
         bank: input.bank,
         accountNo: input.accountNo,
         openingBalance: input.openingBalance,
-        shopId: input.shared ? null : input.shopId,
+        shopId: input.shopId,
         updatedAt: new Date(),
       })
       .where(accountScope(input.shopId, input.id))
@@ -425,12 +425,7 @@ export async function addDefaultCategories(
     const existing = await db
       .select({ direction: categories.direction, name: categories.name })
       .from(categories)
-      .where(
-        and(
-          eq(categories.isDeleted, false),
-          or(isNull(categories.shopId), eq(categories.shopId, shopId)),
-        ),
-      );
+      .where(and(eq(categories.isDeleted, false), eq(categories.shopId, shopId)));
 
     // " " กันชื่อที่มีขีดกลางไปชนกับตัวคั่นเอง เป็นอักขระที่ไม่มีในชื่อจริง
     const key = (c: { direction: string; name: string }) => `${c.direction} ${c.name}`;
@@ -441,7 +436,7 @@ export async function addDefaultCategories(
       nextCategorySortOrder(shopId, "out"),
     ]);
 
-    const rows = defaultCategoryRows(null)
+    const rows = defaultCategoryRows(shopId)
       .filter((c) => !taken.has(key(c)))
       // sortOrder ที่ติดมาคือลำดับภายในชุดตั้งต้น เลื่อนทั้งชุดไปต่อท้ายของเดิม
       .map((c) => ({

@@ -60,7 +60,7 @@ const ACCOUNTS: AccountWithBalance[] = [
 const CATEGORIES: Category[] = [
   {
     id: "cat-1",
-    shopId: null,
+    shopId: "shop-1",
     direction: "in",
     name: "ขายหน้าร้าน",
     counts: true,

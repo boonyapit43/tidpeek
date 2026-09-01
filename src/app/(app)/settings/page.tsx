@@ -32,7 +32,7 @@ export default async function SettingsPage() {
   const [accounts, categories, hasDefaults] = await Promise.all([
     listAllAccountsForShop(shop.id),
     listAllCategories(shop.id),
-    hasDefaultCategories(),
+    hasDefaultCategories(shop.id),
   ]);
 
   return (

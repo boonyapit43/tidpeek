@@ -48,7 +48,7 @@ const account = (id: string, name: string, extra: Partial<AccountWithBalance> = 
 const category = (id: string, name: string, direction: "in" | "out", counts = true) =>
   ({
     id,
-    shopId: null,
+    shopId: "shop-1",
     direction,
     name,
     counts,

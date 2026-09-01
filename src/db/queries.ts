@@ -229,9 +229,15 @@ const accountSelection = () => ({
   balance: balanceExpr,
 });
 
-/** บัญชีกลาง (shop_id ว่าง) ทุกร้านเห็น ส่วนบัญชีที่ผูกร้านเห็นเฉพาะร้านนั้น */
+/**
+ * บัญชีของร้านนี้เท่านั้น
+ *
+ * เคยมีบัญชี "ของกลาง" ที่ทุกร้านเห็น เอาออกแล้ว — เจ้าของร้านต้องการ
+ * ให้แยกขาด 100% และบัญชีที่ใช้ร่วมกันทำให้ยอดคงเหลือรวมเงินของอีกร้าน
+ * เข้ามาด้วย ซึ่งอธิบายให้คนอ่านเข้าใจยากมาก
+ */
 const visibleToShop = (shopId: string) =>
-  and(eq(accounts.isDeleted, false), or(isNull(accounts.shopId), eq(accounts.shopId, shopId)));
+  and(eq(accounts.isDeleted, false), eq(accounts.shopId, shopId));
 
 /**
  * บัญชีที่ร้านนี้มองเห็น พร้อมยอดคงเหลือที่คำนวณสดทุกครั้ง
@@ -260,11 +266,9 @@ export async function listAllAccountsForShop(shopId: string): Promise<AccountWit
 /*  ประเภท                                                             */
 /* ------------------------------------------------------------------ */
 
+/** ประเภทของร้านนี้เท่านั้น — เหตุผลเดียวกับบัญชี */
 const categoryVisibleToShop = (shopId: string) =>
-  and(
-    eq(categories.isDeleted, false),
-    or(isNull(categories.shopId), eq(categories.shopId, shopId)),
-  );
+  and(eq(categories.isDeleted, false), eq(categories.shopId, shopId));
 
 export async function listCategories(shopId: string): Promise<Category[]> {
   return db
@@ -290,11 +294,11 @@ export async function listCategories(shopId: string): Promise<Category[]> {
  * ใช้ตัดสินว่าจะโชว์ปุ่ม "เพิ่มชุดตั้งต้น" ในหน้าตั้งค่าไหม กดครั้งเดียวแล้ว
  * ปุ่มจะหายไปเอง ไม่ค้างเป็นปุ่มที่กดแล้วไม่เกิดอะไรขึ้น
  */
-export async function hasDefaultCategories(): Promise<boolean> {
+export async function hasDefaultCategories(shopId: string): Promise<boolean> {
   const [row] = await db
     .select({ id: categories.id })
     .from(categories)
-    .where(and(isNull(categories.shopId), eq(categories.isDeleted, false)))
+    .where(categoryVisibleToShop(shopId))
     .limit(1);
 
   return Boolean(row);

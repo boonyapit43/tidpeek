@@ -91,7 +91,7 @@ describe("การ์ดร้าน", () => {
 
     const [topUp] = await raw`
       insert into categories (shop_id, direction, name, counts)
-      values (null, 'in', 'เติมทุน', false) returning id`;
+      values (${shopId}, 'in', 'เติมทุน', false) returning id`;
 
     await addTxn(shopId, TODAY, "in", "500");
     await addTxn(shopId, TODAY, "in", "9000", topUp.id); // ไม่นับเป็นกำไร

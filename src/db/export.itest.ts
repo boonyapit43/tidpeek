@@ -35,10 +35,10 @@ async function seed() {
 
   const [sale] = await raw`
     insert into categories (shop_id, direction, name, counts)
-    values (null, 'in', 'ขายหน้าร้าน', true) returning id`;
+    values (${shopId}, 'in', 'ขายหน้าร้าน', true) returning id`;
   const [cost] = await raw`
     insert into categories (shop_id, direction, name, counts)
-    values (null, 'out', 'ซื้อของเข้าร้าน', true) returning id`;
+    values (${shopId}, 'out', 'ซื้อของเข้าร้าน', true) returning id`;
 
   const rows: [string, string, string, string, string, string][] = [
     // ก่อนช่วงที่จะส่งออก — ต้องไม่โผล่ในคอลัมน์ "ในช่วง" แต่ต้องอยู่ใน closing

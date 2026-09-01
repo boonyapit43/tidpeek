@@ -16,7 +16,6 @@ import {
   Select,
   StatusMessage,
   SubmitButton,
-  useKeptChecked,
   useKeptValue,
 } from "./form-parts";
 import { Sheet } from "./sheet";
@@ -80,7 +79,6 @@ function AddAccountForm({ shopId, onDone }: { shopId: string; onDone: () => void
     <form action={formAction} className="space-y-4">
       <input type="hidden" name="shopId" value={shopId} />
       <AccountFields />
-      <SharedToggle defaultChecked={false} />
       <StatusMessage state={state} />
       <SubmitButton className="w-full" pendingLabel="กำลังเพิ่ม">
         เพิ่มบัญชี
@@ -130,7 +128,6 @@ function EditAccountForm({
         <input type="hidden" name="id" value={account.id} />
 
         <AccountFields account={account} />
-        <SharedToggle defaultChecked={account.shopId === null} />
 
         {/* ยอดคงเหลือปัจจุบันวางไว้ให้เทียบตอนแก้ยอดตั้งต้น เพราะแก้แล้ว
             ยอดนี้จะขยับตามทันที (ยอดคงเหลือคำนวณสดจากยอดตั้งต้นเสมอ) */}
@@ -224,18 +221,3 @@ function AccountFields({ account }: { account?: AccountWithBalance }) {
   );
 }
 
-function SharedToggle({ defaultChecked }: { defaultChecked: boolean }) {
-  const shared = useKeptChecked(defaultChecked);
-
-  return (
-    <label className="flex min-h-touch cursor-pointer items-start gap-3 rounded-xl border border-line p-3">
-      <input
-        {...shared}
-        type="checkbox"
-        name="shared"
-        className="mt-0.5 size-5 shrink-0 accent-[var(--color-brand)]"
-      />
-      <span className="text-sm text-ink">ใช้ร่วมกันทุกร้าน</span>
-    </label>
-  );
-}

@@ -66,7 +66,10 @@ create table if not exists shops (
 -- ถ้าปล่อยให้ Postgres ตั้งชื่อเอง (xxx_fkey) drizzle จะพยายามรื้อสร้างใหม่
 create table if not exists accounts (
   id              uuid primary key default gen_random_uuid(),
-  shop_id         uuid,
+  -- ผูกร้านเสมอ ห้ามว่าง — เคยยอมให้ว่างได้ แปลว่า "ของกลางที่ทุกร้านเห็น"
+  -- เจ้าของร้านขอให้แยกขาด 100% บังคับที่ฐานข้อมูลเพื่อให้ต่อให้โค้ดในอนาคต
+  -- เผลอเขียนค่าว่าง ฐานข้อมูลก็ปฏิเสธเอง
+  shop_id         uuid not null,
   name            text not null,
   kind            text not null default 'bank',
   bank            text,
@@ -91,7 +94,8 @@ create table if not exists accounts (
 --    ไม่งั้นยอดในแอปจะไม่ตรงกับยอดในแอปธนาคาร
 create table if not exists categories (
   id         uuid primary key default gen_random_uuid(),
-  shop_id    uuid,
+  -- ผูกร้านเสมอ ห้ามว่าง — เหตุผลเดียวกับตารางบัญชี
+  shop_id    uuid not null,
   direction  text not null,
   name       text not null,
   counts     boolean not null default true,

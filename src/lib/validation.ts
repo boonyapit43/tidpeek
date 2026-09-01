@@ -222,8 +222,6 @@ export const createAccountSchema = z.object({
   bank: optionalText(80),
   accountNo: optionalText(40),
   openingBalance: openingBalanceSchema,
-  // "1" = ใช้ร่วมทุกร้าน (shop_id เป็น null)
-  shared: z.union([z.literal("on"), z.literal("")]).optional().transform((v) => v === "on"),
 });
 
 export const updateAccountSchema = z.object({
@@ -234,7 +232,6 @@ export const updateAccountSchema = z.object({
   bank: optionalText(80),
   accountNo: optionalText(40),
   openingBalance: openingBalanceSchema,
-  shared: z.union([z.literal("on"), z.literal("")]).optional().transform((v) => v === "on"),
 });
 
 /* ------------------------------------------------------------------ */

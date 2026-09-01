@@ -109,7 +109,7 @@ export const DEFAULT_ACCOUNTS: { name: string; kind: AccountKind }[] = [
  * sortOrder นับแยกฝั่งรับกับฝั่งจ่าย เพื่อให้ลำดับในแต่ละดรอปดาวน์เริ่มที่ 1
  * ไม่ใช่ฝั่งจ่ายเริ่มที่ 14 ต่อจากฝั่งรับ
  */
-export function defaultCategoryRows(shopId: string | null) {
+export function defaultCategoryRows(shopId: string) {
   let inOrder = 0;
   let outOrder = 0;
 
@@ -120,6 +120,6 @@ export function defaultCategoryRows(shopId: string | null) {
   }));
 }
 
-export function defaultAccountRows(shopId: string | null) {
+export function defaultAccountRows(shopId: string) {
   return DEFAULT_ACCOUNTS.map((a, i) => ({ ...a, shopId, sortOrder: i + 1 }));
 }

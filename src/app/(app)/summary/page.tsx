@@ -4,7 +4,6 @@ import Link from "next/link";
 import { SummaryCard } from "@/components/summary-card";
 import {
   getSummary,
-  latestTxnDate,
   listPeriodEntries,
   listCategoryTotals,
   listDailyForMonth,
@@ -33,7 +32,7 @@ import {
 } from "@/lib/date";
 import { moreHref, rowsToShow } from "@/lib/paging";
 import { getShopContext } from "@/lib/shop";
-import { defaultSummaryView } from "@/lib/summary-view";
+import { DEFAULT_SUMMARY_VIEW } from "@/lib/summary-view";
 import {
   categoryParamSchema,
   dateSchema,
@@ -83,13 +82,8 @@ export default async function SummaryPage({
   const shopId = context.shop.id;
   const params = await searchParams;
 
-  /**
-   * ไม่ระบุมุมมองมา = ช่วงที่แคบสุดที่มีข้อมูล (ดูกติกาใน summary-view.ts)
-   *
-   * เดิมเปิดที่วันนี้ตายตัว เช้าที่ยังไม่ได้ลงรายการเลยกลายเป็นหน้าว่าง
-   * ทั้งที่ข้อมูลทั้งเดือนอยู่ถัดไปแค่แท็บเดียว query เพิ่มหนึ่งตัวเฉพาะ
-   * ตอนเปิดแบบไม่ระบุมุมมองเท่านั้น กดแท็บเองเมื่อไหร่ไม่มีการเดาใดๆ
-   */
+  // ไม่ระบุมุมมองมา = สัปดาห์ (เหตุผลอยู่ใน summary-view.ts)
+  // กดแท็บเองเมื่อไหร่ก็ได้ตามที่กดเสมอ ไม่มีการเดาใดๆ
   const view =
     params.p === "day"
       ? "day"
@@ -99,7 +93,7 @@ export default async function SummaryPage({
           ? "month"
           : params.p === "year"
             ? "year"
-            : defaultSummaryView(await latestTxnDate(shopId), today());
+            : DEFAULT_SUMMARY_VIEW;
 
   // ค่าจาก URL แก้เองได้ ตรวจก่อนใช้เสมอ ไม่ผ่านก็ตกกลับมาเป็นช่วงปัจจุบัน
   const day = dateSchema.safeParse(params.d).data ?? today();
