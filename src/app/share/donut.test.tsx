@@ -1,8 +1,8 @@
 // @vitest-environment jsdom
 import { afterEach, describe, expect, it } from "vitest";
-import { cleanup, render, screen } from "@testing-library/react";
+import { cleanup, render } from "@testing-library/react";
 import { NetDonut } from "./donut";
-import { spendRows } from "./spend-rows";
+import { breakdownRows } from "./breakdown-rows";
 
 /**
  * วงแหวนรายรับ–รายจ่าย บนภาพที่ตั้งใจส่งให้เจ้าของร้านอ่าน
@@ -17,6 +17,23 @@ const ring = () => document.querySelector("svg[role=img]") as SVGElement;
 const arcs = () =>
   [...ring().querySelectorAll("circle")].filter((c) => c.getAttribute("pathLength") === "100");
 
+/** ตัวเลขกลางวง แยกจากบรรทัดสรุปข้างล่างซึ่งมีตัวเลขเดียวกัน */
+const center = () =>
+  document.querySelector(".pointer-events-none")?.textContent ?? "";
+
+/** บรรทัดสรุปใต้วง คู่ [ชื่อ, ยอด, เปอร์เซ็นต์] และมีชิปสีไหม */
+const summary = () =>
+  [...document.querySelectorAll("dl > div")].map((row) => ({
+    label: row.querySelector("dt")?.textContent ?? "",
+    value: row.querySelectorAll("dd")[0]?.textContent ?? "",
+    percent: row.querySelectorAll("dd")[1]?.textContent ?? "",
+    chip: row.querySelector("span[aria-hidden]")?.className.includes("bg-")
+      ? row.querySelector("span[aria-hidden]")!.className.includes("bg-income")
+        ? "เขียว"
+        : "แดง"
+      : null,
+  }));
+
 describe("วงแหวนตอนมีกำไร", () => {
   const profit = () =>
     render(<NetDonut income="100000" expense="30000" profit="70000" />);
@@ -24,8 +41,38 @@ describe("วงแหวนตอนมีกำไร", () => {
   it("โชว์กำไรสุทธิไว้กลางวง", () => {
     profit();
 
-    expect(screen.getByText("70,000")).toBeTruthy();
-    expect(screen.getByText("กำไรสุทธิ")).toBeTruthy();
+    expect(center()).toContain("70,000");
+    expect(center()).toContain("กำไรสุทธิ");
+  });
+
+  /**
+   * กฎที่สำคัญที่สุดของคอมโพเนนต์นี้ — ชิปสีต้องตรงกับส่วนโค้ง
+   *
+   * เคยพลาดมาแล้ว ป้ายเขียวเขียนว่า "รายรับ 20,914" ทั้งที่ส่วนโค้งเขียว
+   * คือกำไรสุทธิ 3,010 คนอ่านเห็นวงเขียวนิดเดียวแล้วงงว่าทำไมรายรับดูน้อย
+   * ทั้งที่ตัวเลขข้างๆ บอกว่าสองหมื่น
+   *
+   * รายรับคือ "ทั้งวง" ไม่ใช่ส่วนโค้งไหน จึงต้องไม่มีชิปสี
+   */
+  it("ชิปสีตรงกับส่วนโค้ง รายรับที่เป็นทั้งวงไม่มีชิป", () => {
+    profit();
+
+    expect(summary()).toEqual([
+      { label: "รายรับ", value: "100,000", percent: "", chip: null },
+      { label: "รายจ่าย", value: "30,000", percent: "30%", chip: "แดง" },
+      { label: "กำไรสุทธิ", value: "70,000", percent: "70%", chip: "เขียว" },
+    ]);
+  });
+
+  /**
+   * สามบรรทัดต้องบวกลบกันลงตัว เพราะคนอ่านจะลองคิดตามด้วยตา
+   * บรรทัดแรกลบบรรทัดสอง ต้องเท่าบรรทัดสาม
+   */
+  it("สามบรรทัดบวกลบกันได้ลงตัว", () => {
+    profit();
+
+    const [whole, out, left] = summary().map((r) => Number(r.value.replace(/,/g, "")));
+    expect(whole - out).toBe(left);
   });
 
   /**
@@ -34,13 +81,15 @@ describe("วงแหวนตอนมีกำไร", () => {
    * เขียวกับแดงเป็นคู่ที่คนตาบอดสีแยกไม่ออก ถ้าวงบอกด้วยสีอย่างเดียว
    * คนกลุ่มนั้นอ่านภาพไม่ได้เลย — กติกาเดียวกับทั้งแอป
    */
-  it("มีชื่อกับยอดของทั้งรายรับและรายจ่ายกำกับไว้", () => {
+  it("ทุกส่วนโค้งมีชื่อกับยอดกำกับ ไม่เหลือแต่วงเปล่า", () => {
     profit();
 
-    expect(screen.getByText("รายรับ")).toBeTruthy();
-    expect(screen.getByText("100,000")).toBeTruthy();
-    expect(screen.getByText("รายจ่าย")).toBeTruthy();
-    expect(screen.getByText("30,000")).toBeTruthy();
+    const labelled = summary().filter((r) => r.chip !== null);
+    expect(labelled).toHaveLength(arcs().length);
+    for (const row of labelled) {
+      expect(row.label).not.toBe("");
+      expect(row.value).not.toBe("");
+    }
   });
 
   /**
@@ -80,8 +129,22 @@ describe("วงแหวนตอนขาดทุน", () => {
   it("โชว์ขาดทุนสุทธิไว้กลางวง", () => {
     loss();
 
-    expect(screen.getByText("-60,000")).toBeTruthy();
-    expect(screen.getByText("ขาดทุนสุทธิ")).toBeTruthy();
+    expect(center()).toContain("-60,000");
+    expect(center()).toContain("ขาดทุนสุทธิ");
+  });
+
+  /**
+   * ตอนขาดทุนวงคือรายจ่าย บรรทัดแรกจึงต้องเป็นรายจ่าย ไม่ใช่รายรับ
+   * และชิปสียังต้องตรงกับส่วนโค้งเหมือนเดิม
+   */
+  it("ทั้งวงคือรายจ่าย ชิปสียังตรงกับส่วนโค้ง", () => {
+    loss();
+
+    expect(summary()).toEqual([
+      { label: "รายจ่าย", value: "100,000", percent: "", chip: null },
+      { label: "รายรับ", value: "40,000", percent: "40%", chip: "เขียว" },
+      { label: "ขาดทุนสุทธิ", value: "-60,000", percent: "60%", chip: "แดง" },
+    ]);
   });
 
   it("ไม่มีส่วนโค้งไหนยาวเกินหนึ่งวง", () => {
@@ -111,7 +174,8 @@ describe("ช่วงที่ยังไม่มีเงินเดิน�
     render(<NetDonut income="0" expense="0" profit="0" />);
 
     expect(arcs()).toHaveLength(0);
-    expect(screen.getByText("กำไรสุทธิ")).toBeTruthy();
+    expect(center()).toContain("กำไรสุทธิ");
+    expect(summary().map((r) => r.value)).toEqual(["0", "0", "0"]);
   });
 });
 
@@ -132,7 +196,7 @@ describe("ลิสต์ว่าเงินไปกับอะไร", () =
   });
 
   it("คิดสัดส่วนจากยอดรายจ่ายรวม ไม่ใช่จากผลบวกของลิสต์", () => {
-    const rows = spendRows([cat("a", "ค่าแรง", "5000"), cat("b", "ค่าของ", "5000")], "10000");
+    const rows = breakdownRows([cat("a", "ค่าแรง", "5000"), cat("b", "ค่าของ", "5000")], "10000");
 
     expect(rows.map((r) => r.percent)).toEqual([50, 50]);
   });
@@ -146,7 +210,7 @@ describe("ลิสต์ว่าเงินไปกับอะไร", () =
   it("เกินหกประเภท รวบส่วนที่เหลือเป็นบรรทัดเดียว ยอดยังครบ", () => {
     const many = Array.from({ length: 9 }, (_, i) => cat(`c${i}`, `ประเภท ${i}`, "1000"));
 
-    const rows = spendRows(many, "9000");
+    const rows = breakdownRows(many, "9000");
     const sum = rows.reduce((total, r) => total + Number.parseFloat(r.total), 0);
 
     expect(rows).toHaveLength(7);
@@ -158,17 +222,17 @@ describe("ลิสต์ว่าเงินไปกับอะไร", () =
   it("หกประเภทพอดี ไม่มีบรรทัดรวบ", () => {
     const six = Array.from({ length: 6 }, (_, i) => cat(`c${i}`, `ประเภท ${i}`, "1000"));
 
-    expect(spendRows(six, "6000")).toHaveLength(6);
+    expect(breakdownRows(six, "6000")).toHaveLength(6);
   });
 
   it("ยังไม่มีรายจ่าย ไม่หารด้วยศูนย์จนได้ NaN", () => {
-    const rows = spendRows([cat("a", "ค่าแรง", "0")], "0");
+    const rows = breakdownRows([cat("a", "ค่าแรง", "0")], "0");
 
     expect(rows[0].percent).toBe(0);
   });
 
   it("กลุ่มไม่ระบุประเภทก็อยู่ในลิสต์ได้ ไม่ชนกุญแจกับใคร", () => {
-    const rows = spendRows(
+    const rows = breakdownRows(
       [{ categoryId: null, name: "ไม่ระบุประเภท", total: "500" }],
       "500",
     );
