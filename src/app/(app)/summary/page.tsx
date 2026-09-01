@@ -47,6 +47,7 @@ import { BreakdownTable } from "./breakdown-table";
 import { CategoryDetail } from "./category-detail";
 import { TrendChart, pointTitle, type TrendPoint } from "./trend-chart";
 import { CategoryBreakdown } from "./category-breakdown";
+import { PeriodJump, type SummaryView } from "./period-jump";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -231,12 +232,23 @@ function ViewToggle({
 }
 
 /** แถบเลื่อนช่วงเวลา ใช้ร่วมกันทั้งสามโหมด */
+/**
+ * ลูกศรเลื่อนทีละช่วง กับชื่อช่วงตรงกลางที่แตะแล้วกระโดดไปช่วงไหนก็ได้
+ *
+ * ลูกศรใช้กับการดูช่วงถัดไปถัดมา ส่วนการย้อนไปปีก่อนๆ ใช้ปฏิทินที่ชื่อช่วง
+ * ไม่ต้องกดลูกศรเป็นสิบๆ ครั้ง
+ */
 function PeriodNav({
+  view,
+  anchor,
   label,
   sublabel,
   prevHref,
   nextHref,
 }: {
+  view: SummaryView;
+  /** วันที่ในช่วงที่ดูอยู่ ใช้เปิดปฏิทินให้ตรงที่ */
+  anchor: string;
   label: string;
   sublabel?: string;
   prevHref: string;
@@ -246,10 +258,7 @@ function PeriodNav({
     <div className="flex items-center gap-2">
       <Arrow href={prevHref} direction="prev" label="ช่วงก่อนหน้า" />
 
-      <div className="min-w-0 flex-1 text-center">
-        <div className="truncate text-sm font-semibold text-ink">{label}</div>
-        {sublabel && <div className="truncate text-xs text-ink-soft">{sublabel}</div>}
-      </div>
+      <PeriodJump view={view} anchor={anchor} label={label} sublabel={sublabel} />
 
       <Arrow href={nextHref} direction="next" label="ช่วงถัดไป" />
     </div>
@@ -411,6 +420,8 @@ async function DayView({ shopId, day }: { shopId: string; day: string }) {
   return (
     <>
       <PeriodNav
+        view="day"
+        anchor={day}
         label={label ?? thaiDateLong(day)}
         sublabel={label ? thaiDateLong(day) : undefined}
         prevHref={`/summary?p=day&d=${addDays(day, -1)}`}
@@ -493,6 +504,8 @@ async function WeekView({ shopId, week }: { shopId: string; week: string }) {
   return (
     <>
       <PeriodNav
+        view="week"
+        anchor={week}
         label={label ?? thaiWeek(week)}
         sublabel={label ? thaiWeek(week) : undefined}
         prevHref={`/summary?p=week&w=${addWeeks(week, -1)}`}
@@ -547,6 +560,8 @@ async function MonthView({ shopId, month }: { shopId: string; month: string }) {
   return (
     <>
       <PeriodNav
+        view="month"
+        anchor={`${month}-01`}
         label={thaiMonth(month)}
         prevHref={`/summary?p=month&m=${addMonths(month, -1)}`}
         nextHref={`/summary?p=month&m=${addMonths(month, 1)}`}
@@ -604,6 +619,8 @@ async function YearView({ shopId, year }: { shopId: string; year: string }) {
   return (
     <>
       <PeriodNav
+        view="year"
+        anchor={`${year}-01-01`}
         label={`ปี ${thaiYear(year)}`}
         prevHref={`/summary?p=year&y=${addYears(year, -1)}`}
         nextHref={`/summary?p=year&y=${addYears(year, 1)}`}
