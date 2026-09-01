@@ -97,33 +97,39 @@ describe("วงแหวนตอนมีกำไร", () => {
   });
 
   /**
-   * เปอร์เซ็นต์กลางวงคือส่วนแบ่งของยอดสุทธิ ต้องตรงกับส่วนโค้งที่วาดจริง
-   * ไม่ใช่ตัวเลขที่คิดแยกจากกัน
+   * ไม่มีเปอร์เซ็นต์ที่ไหนเลยในการ์ดนี้
+   *
+   * ผลรวมของวง (รายรับบวกรายจ่าย) ไม่ได้แปลว่าอะไร เปอร์เซ็นต์ที่คิดจากมัน
+   * จึงเป็นตัวเลขที่ไม่มีความหมาย ส่วนตัวเลขจริงอยู่ครบในสามบรรทัดใต้วงแล้ว
    */
-  it("เปอร์เซ็นต์กลางวงตรงกับความยาวส่วนโค้งของสุทธิ", () => {
+  it("ไม่มีเปอร์เซ็นต์ในการ์ดภาพรวมเลย", () => {
     profit();
 
-    // กำไร 70,000 จากรายรับ 100,000 = 70%
-    expect(center()).toContain("70%");
-
-    const netArc = Number(arcs()[1].getAttribute("stroke-dasharray")?.split(" ")[0]);
-    expect(Math.round(netArc)).toBeGreaterThan(67);
-    expect(Math.round(netArc)).toBeLessThan(71);
+    expect(center()).not.toContain("%");
+    expect(document.querySelector("dl")?.textContent).not.toContain("%");
   });
 
   /**
-   * วง = รายรับ ชิ้นแดง = รายจ่าย
-   * รายจ่าย 30,000 จากรายรับ 100,000 คือ 30% ของวง
+   * กฎที่สำคัญที่สุดของวงนี้ — เขียวคือรายรับ แดงคือรายจ่าย เทียบกันตรงๆ
+   *
+   * รายรับ 100,000 กับรายจ่าย 30,000 เขียวจึงกินราวสามในสี่ของวง
+   *
+   * ⚠️ เคยทำเป็น วง = รายรับ แล้วให้เขียวเป็นกำไรสุทธิ ซึ่งทำให้เขียวเล็ก
+   *    กว่าแดงทั้งที่ขายได้มากกว่าจ่าย เจ้าของร้านอ่านผิดสามครั้งติด
+   *    ห้ามเปลี่ยนกลับ
    */
-  it("ส่วนโค้งของรายจ่ายกินพื้นที่ตามสัดส่วนของรายรับ", () => {
+  it("เขียวคือรายรับ ยาวกว่าแดงเมื่อขายได้มากกว่าจ่าย", () => {
     profit();
 
-    const [expenseArc] = arcs();
-    const length = Number(expenseArc.getAttribute("stroke-dasharray")?.split(" ")[0]);
+    const [green, red] = arcs().map((a) =>
+      Number(a.getAttribute("stroke-dasharray")?.split(" ")[0]),
+    );
 
-    // หักร่องระหว่างสองชิ้นออกแล้ว ยังต้องอยู่แถวๆ 30%
-    expect(length).toBeGreaterThan(27);
-    expect(length).toBeLessThan(30);
+    expect(green).toBeGreaterThan(red);
+
+    // 100,000 จาก 130,000 = 77% หักร่องแล้วยังต้องอยู่แถวๆ นั้น
+    expect(green).toBeGreaterThan(73);
+    expect(green).toBeLessThan(77);
   });
 
   it("อ่านออกด้วยเสียงได้ครบทั้งสามตัวเลข", () => {
@@ -180,15 +186,19 @@ describe("วงแหวนตอนขาดทุน", () => {
     }
   });
 
-  it("ส่วนโค้งของรายรับกินพื้นที่ตามสัดส่วนของรายจ่าย", () => {
+  /** ขายได้น้อยกว่าจ่าย แดงต้องยาวกว่าเขียว อ่านออกทันทีว่าเดือนนี้แย่ */
+  it("แดงยาวกว่าเขียวเมื่อจ่ายมากกว่าขาย", () => {
     loss();
 
-    // ขายมา 40,000 จากที่จ่ายไป 100,000 = 40% ของวง
-    const [incomeArc] = arcs();
-    const length = Number(incomeArc.getAttribute("stroke-dasharray")?.split(" ")[0]);
+    const [green, red] = arcs().map((a) =>
+      Number(a.getAttribute("stroke-dasharray")?.split(" ")[0]),
+    );
 
-    expect(length).toBeGreaterThan(37);
-    expect(length).toBeLessThan(40);
+    expect(red).toBeGreaterThan(green);
+
+    // 40,000 จาก 140,000 = 29%
+    expect(green).toBeGreaterThan(26);
+    expect(green).toBeLessThan(30);
   });
 });
 
