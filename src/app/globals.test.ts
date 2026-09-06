@@ -67,3 +67,100 @@ describe("โทเคนโหมดมืดสองสโคปต้อง�
     expect(css).toContain(':root:not([data-theme="light"])');
   });
 });
+
+/* ------------------------------------------------------------------ */
+
+/**
+ * สีแถบสถานะต้องตรงกับสีแถบหัวแอป
+ *
+ * สีเดียวกันนี้ถูกเขียนไว้สามที่คนละรูปแบบ
+ *
+ *   globals.css   --band-from            เป็น oklch()
+ *   layout.tsx    viewport.themeColor    เป็น hex
+ *   manifest.ts   theme_color            เป็น hex
+ *
+ * ต้องเป็น hex ในสองที่หลังเพราะ meta tag กับ manifest รับได้แค่ hex
+ * แปลว่าวันหนึ่งจะมีคนแก้สีที่ globals.css แล้วลืมอีกสองที่ ผลคือแถบสถานะ
+ * เป็นคนละสีกับแถบหัวที่อยู่ใต้มัน เห็นเป็นเส้นแบ่งคาจอ ซึ่งเป็นอาการที่
+ * มองไม่เห็นตอนพัฒนาบนคอม เพราะเบราว์เซอร์บนเดสก์ท็อปไม่ใช้ค่าพวกนี้เลย
+ *
+ * เทสนี้แปลง oklch กลับเป็น sRGB แล้วเทียบกับ hex ที่เขียนไว้จริง
+ */
+
+/** oklch → sRGB 0-255 ตามสูตรของ Björn Ottosson */
+function oklchToRgb(L: number, C: number, hDeg: number): [number, number, number] {
+  const h = (hDeg * Math.PI) / 180;
+  const a = C * Math.cos(h);
+  const b = C * Math.sin(h);
+
+  const l = (L + 0.3963377774 * a + 0.2158037573 * b) ** 3;
+  const m = (L - 0.1055613458 * a - 0.0638541728 * b) ** 3;
+  const s = (L - 0.0894841775 * a - 1.291485548 * b) ** 3;
+
+  const linear = [
+    4.0767416621 * l - 3.3077115913 * m + 0.2309699292 * s,
+    -1.2684380046 * l + 2.6097574011 * m - 0.3413193965 * s,
+    -0.0041960863 * l - 0.7034186147 * m + 1.707614701 * s,
+  ];
+
+  return linear.map((v) => {
+    const g = v <= 0.0031308 ? 12.92 * v : 1.055 * Math.abs(v) ** (1 / 2.4) - 0.055;
+    return Math.max(0, Math.min(255, Math.round(g * 255)));
+  }) as [number, number, number];
+}
+
+const hexToRgb = (hex: string): [number, number, number] => [
+  parseInt(hex.slice(1, 3), 16),
+  parseInt(hex.slice(3, 5), 16),
+  parseInt(hex.slice(5, 7), 16),
+];
+
+/** ดึงค่า oklch ของโทเคนหนึ่งจากบล็อกที่ให้มา */
+function bandFrom(block: string): [number, number, number] {
+  const m = block.match(/--band-from:\s*oklch\(([\d.]+)\s+([\d.]+)\s+([\d.]+)\)/);
+  if (!m) throw new Error("ไม่เจอ --band-from ในบล็อกที่ให้มา");
+  return [Number(m[1]), Number(m[2]), Number(m[3])];
+}
+
+/** ดึง hex ที่ผูกกับ prefers-color-scheme ค่าหนึ่งออกจากไฟล์ */
+function themeColorFor(source: string, scheme: "light" | "dark"): string {
+  const at = source.indexOf(`prefers-color-scheme: ${scheme})`);
+  if (at < 0) throw new Error(`ไม่เจอ themeColor ของโหมด ${scheme} ใน layout.tsx`);
+
+  // ค่าสีตัวแรกที่โผล่หลังชื่อโหมด คือค่าของโหมดนั้น
+  const m = source.slice(at).match(/#[0-9a-fA-F]{6}/);
+  if (!m) throw new Error(`เจอโหมด ${scheme} แต่ไม่เจอค่าสีตามหลัง`);
+  return m[0].toLowerCase();
+}
+
+describe("สีแถบสถานะตรงกับสีแถบหัวแอป", () => {
+  const layout = readFileSync("src/app/layout.tsx", "utf8");
+  const manifest = readFileSync("src/app/manifest.ts", "utf8");
+
+  /**
+   * ยอมให้ต่างได้ช่องละ 2 จากการปัดเศษตอนแปลงสี
+   * ถ้าลืมแก้ไฟล์ใดไฟล์หนึ่งจริงๆ ค่าจะต่างกันเป็นสิบขึ้นไป จับได้แน่นอน
+   */
+  const ต้องใกล้กัน = (got: number[], want: number[], ที่ไหน: string) => {
+    got.forEach((v, i) => {
+      expect(Math.abs(v - want[i]), `${ที่ไหน} ช่องที่ ${i}`).toBeLessThanOrEqual(2);
+    });
+  };
+
+  it("โหมดสว่าง — themeColor ตรงกับ --band-from", () => {
+    const fromCss = oklchToRgb(...bandFrom(blockAfter(":root")));
+    ต้องใกล้กัน(hexToRgb(themeColorFor(layout, "light")), fromCss, "layout.tsx โหมดสว่าง");
+  });
+
+  it("โหมดมืด — themeColor ตรงกับ --band-from", () => {
+    const fromCss = oklchToRgb(...bandFrom(blockAfter(':root[data-theme="dark"]')));
+    ต้องใกล้กัน(hexToRgb(themeColorFor(layout, "dark")), fromCss, "layout.tsx โหมดมืด");
+  });
+
+  it("theme_color ใน manifest ตรงกับโหมดสว่าง", () => {
+    const m = manifest.match(/theme_color:\s*"(#[0-9a-fA-F]{6})"/);
+    expect(m, "ไม่เจอ theme_color ใน manifest.ts").not.toBeNull();
+    const fromCss = oklchToRgb(...bandFrom(blockAfter(":root")));
+    ต้องใกล้กัน(hexToRgb(m![1].toLowerCase()), fromCss, "manifest.ts");
+  });
+});

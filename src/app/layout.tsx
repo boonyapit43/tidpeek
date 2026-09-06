@@ -38,9 +38,24 @@ export const viewport: Viewport = {
   // ต้องมีคู่กับ env(safe-area-inset-*) ใน CSS ไม่งั้นเนื้อหาจะโดนบัง
   viewportFit: "cover",
   // ห้ามใส่ maximumScale หรือ userScalable=false — คนสายตาไม่ดีต้องซูมได้
+
+  /**
+   * สีแถบสถานะ ต้องเท่ากับ --band-from ของแต่ละโหมด ไม่ใช่สีพื้นหน้า
+   *
+   * สิ่งที่อยู่ติดกับแถบสถานะคือแถบหัวแอป ซึ่งติดหนึบอยู่บนสุดเสมอ
+   * ไม่ใช่พื้นหลังของหน้า เคยตั้งเป็นสีพื้นหน้า (ขาว) ซึ่งทำให้เห็นเส้น
+   * แบ่งคาจอระหว่างแถบสถานะขาวกับแถบหัวสีเข้มที่อยู่ใต้มันทันที
+   * ตรงข้ามกับที่ตั้งใจไว้ใน (app)/layout.tsx ว่าให้ไล่ต่อกันเป็นผืนเดียว
+   *
+   * หน้า /share ก็ใช้สีเดียวกันนี้เป็นพื้นทั้งหน้า จึงต่อเนื่องด้วย
+   * เหลือแค่หน้าล็อกอินกับหน้าเลือกร้านที่พื้นสว่าง ซึ่งเปิดวันละครั้ง
+   *
+   * ⚠️ แก้ที่นี่แล้วต้องแก้ --band-from ใน globals.css และ theme_color
+   *    ใน manifest.ts ให้ตรงกันทั้งสามที่
+   */
   themeColor: [
-    { media: "(prefers-color-scheme: light)", color: "#ffffff" },
-    { media: "(prefers-color-scheme: dark)", color: "#16181d" },
+    { media: "(prefers-color-scheme: light)", color: "#3e3633" },
+    { media: "(prefers-color-scheme: dark)", color: "#2d2725" },
   ],
 };
 
