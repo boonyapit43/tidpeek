@@ -1,19 +1,24 @@
 /**
- * สร้างไฟล์ไอคอน PNG ทั้งหมดจากต้นฉบับ SVG ไฟล์เดียว
+ * สร้างไฟล์ไอคอนทุกขนาดจากภาพต้นฉบับไฟล์เดียว
  *
- *   npm i -D sharp
  *   node scripts/gen-icons.mjs
- *   npm uninstall sharp
  *
- * ตั้งใจไม่เก็บ sharp ไว้ใน devDependencies ถาวร เพราะมันมี binary ของ
- * ระบบปฏิบัติการติดมาด้วยราว 30MB และใช้แค่ตอนแก้ไอคอนซึ่งนานๆ ครั้ง
- * ผลลัพธ์เป็นไฟล์ PNG ที่ commit ไว้แล้ว ตอน build ปกติจึงไม่ต้องมีอะไรเพิ่ม
+ * ต้นฉบับคือ assets/app-icon.png — ภาพจัตุรัสเต็มขอบ ไม่มีมุมโค้ง ไม่มีขอบขาว
+ * แก้ลายที่ไฟล์นั้นแล้วรันสคริปต์นี้ใหม่ อย่าแก้ไฟล์ PNG ปลายทางโดยตรง
+ *
+ * ⚠️ ต้นฉบับต้องเต็มขอบเสมอ ห้ามมีมุมโค้งติดมาในภาพ
+ *    ทั้ง iOS และ Android โค้งมุมให้เองตอนแสดงผล ถ้าภาพมีมุมโค้งมาแล้ว
+ *    จะโดนโค้งซ้อนอีกชั้นจนเห็นขอบพื้นหลังเป็นกรอบคั่นรอบไอคอน
+ *
+ * sharp ไม่ได้อยู่ใน dependencies ของโปรเจกต์ แต่ next ลากมาให้อยู่แล้ว
+ * สำหรับ next/image ถ้าวันหนึ่งมันหายไป ให้ลง `npm i -D sharp` ชั่วคราว
+ * ผลลัพธ์เป็นไฟล์ PNG ที่ commit ไว้ ตอน build ปกติจึงไม่ต้องมีอะไรเพิ่ม
  *
  * ทำไมไม่ generate ตอน runtime ด้วย next/og: เพราะจะกลายเป็น route ที่ต้อง
  * ประมวลผลทุกครั้งที่มีคนขอไอคอน ซึ่งเปลืองโดยไม่จำเป็นสำหรับภาพที่ไม่เคย
  * เปลี่ยน และเพิ่มของที่ต้องทำงานได้บนโฮสต์ปลายทาง
  */
-import { mkdir, writeFile } from "node:fs/promises";
+import { writeFile } from "node:fs/promises";
 import { join } from "node:path";
 
 const { default: sharp } = await import("sharp").catch(() => {
@@ -22,67 +27,83 @@ const { default: sharp } = await import("sharp").catch(() => {
 });
 
 const root = process.cwd();
+const SOURCE = join(root, "assets", "app-icon.png");
 
-const GRADIENT = `
-  <defs>
-    <linearGradient id="g" x1="0" y1="0" x2="1" y2="1">
-      <stop offset="0" stop-color="#4F46E5" />
-      <stop offset="1" stop-color="#7C3AED" />
-    </linearGradient>
-  </defs>`;
-
-/** ปีก — ชิ้นเดียวกับใน src/app/icon.svg */
-const MARK = `
-  <path fill="#fff" d="M104 352
-    C 112 254 178 174 288 136
-    C 246 192 224 246 218 292
-    C 268 222 326 182 400 162
-    C 356 222 328 274 314 318
-    C 352 284 384 268 418 262
-    C 372 336 268 374 138 374
-    C 112 374 102 368 104 352 Z" />`;
-
-/** แบบปกติ — มุมโค้งในตัว ใช้กับ favicon และไอคอนของ iOS */
-const standard = `<svg viewBox="0 0 512 512" xmlns="http://www.w3.org/2000/svg">
-  ${GRADIENT}
-  <rect width="512" height="512" rx="120" fill="url(#g)" />
-  ${MARK}
-</svg>`;
+const master = sharp(SOURCE);
+const { width, height } = await master.metadata();
+if (width !== height) {
+  console.error(`ต้นฉบับต้องเป็นจัตุรัส แต่ได้ ${width}×${height}`);
+  process.exit(1);
+}
 
 /**
- * แบบ maskable — พื้นเต็มขอบไม่มีมุมโค้ง
+ * แบบ maskable สำหรับ Android
  *
- * Android จะตัดไอคอนเป็นทรงอะไรก็ได้ตามธีมของเครื่อง (วงกลม สี่เหลี่ยม หยดน้ำ)
- * ถ้าส่งแบบมุมโค้งไปให้ จะโดนตัดซ้อนอีกชั้นจนมุมกุด
- * แบบนี้จึงให้พื้นเต็มผืนแล้วย่อลายให้อยู่ในวงปลอดภัยตรงกลาง 80%
- * ไม่ว่าเครื่องจะตัดเป็นทรงไหน ลายก็ไม่โดนบั่น
+ * Android ตัดไอคอนเป็นทรงอะไรก็ได้ตามธีมของเครื่อง — วงกลม สี่เหลี่ยม หยดน้ำ
+ * มาตรฐานรับประกันแค่วงกลมกลางภาพขนาด 80% ของด้านว่าจะไม่โดนตัด
+ *
+ * ลายของร้านกางปีกออกเกือบเต็มความกว้าง ถ้าส่งภาพเต็มไปตรงๆ ปลายปีกทั้ง
+ * สองข้างหายแน่นอน จึงย่อทั้งภาพลงเหลือ 76% แล้ววางกลาง
+ *
+ * ส่วนที่เหลือรอบนอกเติมด้วยการยืดพิกเซลริมสุดออกไป (clamp to edge)
+ * ไม่ใช่ทาสีพื้นทับ เพราะพื้นแดงของต้นฉบับไล่เฉดอยู่ ถ้าทาสีเดียวจะเห็น
+ * เป็นกรอบสี่เหลี่ยมซ้อนอยู่ในไอคอน
  */
-const maskable = `<svg viewBox="0 0 512 512" xmlns="http://www.w3.org/2000/svg">
-  ${GRADIENT}
-  <rect width="512" height="512" fill="url(#g)" />
-  <g transform="translate(64 64) scale(0.75)">${MARK}</g>
-</svg>`;
+async function maskable(size) {
+  const SAFE = 0.76;
+  const inner = Math.round(size * SAFE);
+  const pad = Math.round((size - inner) / 2);
+
+  const small = await sharp(SOURCE).resize(inner, inner).removeAlpha().raw().toBuffer();
+
+  const out = Buffer.alloc(size * size * 3);
+  for (let y = 0; y < size; y++) {
+    const sy = Math.min(inner - 1, Math.max(0, y - pad));
+    for (let x = 0; x < size; x++) {
+      const sx = Math.min(inner - 1, Math.max(0, x - pad));
+      const s = (sy * inner + sx) * 3;
+      const o = (y * size + x) * 3;
+      out[o] = small[s];
+      out[o + 1] = small[s + 1];
+      out[o + 2] = small[s + 2];
+    }
+  }
+
+  return sharp(out, { raw: { width: size, height: size, channels: 3 } }).png(PNG).toBuffer();
+}
+
+/**
+ * บีบเป็น PNG แบบจานสี 128 สี
+ *
+ * ลายนี้เป็นภาพไล่เฉด ไม่ใช่รูปทรงสีแบน เก็บสีเต็มแล้วไฟล์ 512px โตถึง
+ * 282 KB จานสี 128 เหลือ 35 KB โดยดูด้วยตาแยกไม่ออก ทั้งเฉดแดงที่พื้น
+ * และไล่ทองบนลาย ตรวจแล้วด้วยการซูมมุมพื้นเรียบ ไม่พบแถบสีจากการลดสี
+ */
+const PNG = { compressionLevel: 9, palette: true, colors: 128 };
+
+/** แบบปกติ — ย่อจากต้นฉบับตรงๆ */
+const plain = (size) => sharp(SOURCE).resize(size, size).png(PNG).toBuffer();
 
 const TARGETS = [
-  { svg: standard, size: 192, out: ["public", "icon-192.png"] },
-  { svg: standard, size: 512, out: ["public", "icon-512.png"] },
-  { svg: maskable, size: 512, out: ["public", "icon-maskable-512.png"] },
+  { make: () => plain(192), out: ["public", "icon-192.png"] },
+  { make: () => plain(512), out: ["public", "icon-512.png"] },
+  { make: () => maskable(512), out: ["public", "icon-maskable-512.png"] },
   // iOS ไม่อ่าน manifest จึงต้องมีไฟล์นี้แยก Next.js หยิบไปใส่ให้เองจาก app/
-  { svg: standard, size: 180, out: ["src", "app", "apple-icon.png"] },
+  { make: () => plain(180), out: ["src", "app", "apple-icon.png"] },
+  /**
+   * ไอคอนบนแท็บเบราว์เซอร์ — 64px ให้เบราว์เซอร์ย่อลงเหลือ 16 หรือ 32 เอง
+   *
+   * เคยเป็น SVG ซึ่งคมทุกขนาด แต่ลายใหม่เป็นภาพ ไม่ใช่เส้น จึงต้องเป็น PNG
+   * ที่ 16px ลายจะเหลือแค่รอยทองบนพื้นแดง ซึ่งยังพอแยกออกจากแท็บอื่นได้
+   */
+  { make: () => plain(64), out: ["src", "app", "icon.png"] },
 ];
 
-await mkdir(join(root, "public"), { recursive: true });
-
-for (const { svg, size, out } of TARGETS) {
-  const path = join(root, ...out);
-
-  const png = await sharp(Buffer.from(svg))
-    .resize(size, size)
-    .png({ compressionLevel: 9 })
-    .toBuffer();
-
-  await writeFile(path, png);
-  console.log(`  ${out.join("/")}  ${size}×${size}  ${(png.length / 1024).toFixed(1)} KB`);
+for (const { make, out } of TARGETS) {
+  const png = await make();
+  await writeFile(join(root, ...out), png);
+  const { width: w } = await sharp(png).metadata();
+  console.log(`  ${out.join("/").padEnd(32)} ${w}×${w}  ${(png.length / 1024).toFixed(1)} KB`);
 }
 
 console.log("\nสร้างไอคอนครบแล้ว");

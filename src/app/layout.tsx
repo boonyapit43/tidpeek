@@ -4,9 +4,11 @@ import "./globals.css";
 
 /**
  * ไอคอนไม่ต้องประกาศตรงนี้ Next.js หยิบให้เองจากไฟล์ที่วางตามชื่อ
- *   src/app/icon.svg        favicon (สเกลได้ทุกขนาด)
+ *   src/app/icon.png        ไอคอนบนแท็บเบราว์เซอร์
  *   src/app/apple-icon.png  ไอคอนตอนปักหน้าจอโฮมของ iOS
  * ส่วนไอคอนของ manifest อยู่ใน public/ ดู src/app/manifest.ts
+ *
+ * ทั้งหมดสร้างจาก assets/app-icon.png ด้วย scripts/gen-icons.mjs
  */
 export const metadata: Metadata = {
   title: {

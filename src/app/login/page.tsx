@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import Image from "next/image";
 import { redirect } from "next/navigation";
 import { hasSession } from "@/lib/auth";
 import { LoginForm } from "./login-form";
@@ -71,29 +72,30 @@ export default async function LoginPage() {
 }
 
 /**
- * สัญลักษณ์ประจำแอป — ลายเดียวกับไอคอนใน src/app/icon.svg
+ * สัญลักษณ์ประจำแอป — ใช้ไฟล์ไอคอนตัวเดียวกับที่ปักไว้หน้าโฮม
  *
- * วาดซ้ำเป็น SVG ในโค้ดแทนการ <img src="/icon.svg"> เพราะขนาดนี้ไฟล์เล็กกว่า
- * คำขอ HTTP หนึ่งครั้ง และไม่มีจังหวะที่ช่องว่างเปล่ารอภาพโหลดบนเน็ตมือถือ
+ * เดิมวาดลายซ้ำเป็น SVG ในโค้ด เพราะลายเก่าเป็นเส้นไม่กี่เส้นซึ่งเขียนลง
+ * โค้ดแล้วเล็กกว่าคำขอ HTTP หนึ่งครั้ง ลายใหม่เป็นภาพ ทำแบบนั้นไม่ได้แล้ว
  *
- * ถ้าแก้ลายที่ icon.svg อย่าลืมแก้ที่นี่ด้วยให้ตรงกัน
+ * เลือกไฟล์ 192px ทั้งที่แสดงแค่ 48px เพราะเป็นไฟล์เดียวกับที่ manifest
+ * ใช้ คนที่ปักแอปไว้หน้าโฮมแล้วจึงได้จากแคช ไม่ต้องโหลดเพิ่ม
+ *
+ * unoptimized เพราะไฟล์ 6KB นี้ไม่มีอะไรให้ตัวปรับขนาดภาพของ Next.js
+ * ทำให้เล็กลงอีก มีแต่จะเพิ่มงานให้เซิร์ฟเวอร์ตอนมีคนเปิดหน้าล็อกอิน
+ *
+ * พื้นสีแดงใต้ภาพคือสีมุมของไอคอนเอง จองที่ไว้กันจอกระตุกตอนภาพยังมาไม่ถึง
+ * ช่องนี้จึงไม่เคยเป็นรูโหว่สีขาวบนเน็ตมือถือช้าๆ
  */
 function Mark() {
   return (
-    <div className="bg-brand-gradient flex size-12 items-center justify-center rounded-2xl shadow-lg shadow-brand/30">
-      <svg viewBox="0 0 512 512" className="size-7" aria-hidden>
-        <path
-          fill="white"
-          d="M104 352
-             C 112 254 178 174 288 136
-             C 246 192 224 246 218 292
-             C 268 222 326 182 400 162
-             C 356 222 328 274 314 318
-             C 352 284 384 268 418 262
-             C 372 336 268 374 138 374
-             C 112 374 102 368 104 352 Z"
-        />
-      </svg>
-    </div>
+    <Image
+      src="/icon-192.png"
+      alt=""
+      width={48}
+      height={48}
+      unoptimized
+      priority
+      className="size-12 rounded-2xl bg-[#7d0207] shadow-lg shadow-black/25"
+    />
   );
 }

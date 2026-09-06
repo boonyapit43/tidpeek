@@ -6,8 +6,8 @@ import type { MetadataRoute } from "next";
  *
  * display standalone คือส่วนที่ทำให้แถบที่อยู่หายไป
  *
- * ไอคอนสร้างจาก src/app/icon.svg ด้วย scripts/gen-icons.mjs
- * แก้ลายที่ไฟล์ SVG แล้วรันสคริปต์ใหม่ อย่าแก้ PNG โดยตรง
+ * ไอคอนสร้างจาก assets/app-icon.png ด้วย scripts/gen-icons.mjs
+ * แก้ลายที่ไฟล์ต้นฉบับแล้วรันสคริปต์ใหม่ อย่าแก้ PNG ปลายทางโดยตรง
  */
 export default function manifest(): MetadataRoute.Manifest {
   return {
