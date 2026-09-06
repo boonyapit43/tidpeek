@@ -32,7 +32,7 @@ export default function manifest(): MetadataRoute.Manifest {
      * ต้องเท่ากับ --band-from โหมดสว่างใน globals.css และ themeColor
      * ใน layout.tsx — เหตุผลเต็มอยู่ที่ layout.tsx
      */
-    theme_color: "#485ace",
+    theme_color: "#830001",
     lang: "th",
     // แนวตั้งอย่างเดียว เพราะทุกหน้าออกแบบมาสำหรับจอสูง
     orientation: "portrait",

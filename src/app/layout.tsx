@@ -54,8 +54,8 @@ export const viewport: Viewport = {
    *    ใน manifest.ts ให้ตรงกันทั้งสามที่
    */
   themeColor: [
-    { media: "(prefers-color-scheme: light)", color: "#485ace" },
-    { media: "(prefers-color-scheme: dark)", color: "#29347b" },
+    { media: "(prefers-color-scheme: light)", color: "#830001" },
+    { media: "(prefers-color-scheme: dark)", color: "#620000" },
   ],
 };
 

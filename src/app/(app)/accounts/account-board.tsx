@@ -65,7 +65,17 @@ export function AccountBoard({
   return (
     <div className="space-y-3">
       <section className="overflow-hidden rounded-2xl bg-surface shadow-sm">
-        <div className="bg-brand-gradient text-on-accent px-4 py-4">
+        {/**
+         * ใช้พื้นสีเดียวกับแถบหัวแอป ไม่ใช่สีปุ่ม
+         *
+         * การ์ดนี้อยู่ใต้แถบหัวห่างแค่ 24px ถ้าใช้คนละสีจะอ่านเป็นของสองชุด
+         * ที่ไม่เกี่ยวกัน เจอตอนเปลี่ยนสีแถบหัวแล้วการ์ดยังเป็นสีเดิม
+         *
+         * ⚠️ ต้องเป็น text-white ไม่ใช่ text-on-accent
+         *    on-accent เป็นสีเข้มในโหมดมืด ซึ่งถูกสำหรับพื้นสีสดที่สว่างขึ้น
+         *    แต่พื้นนี้เข้มลงในโหมดมืด วัดแล้วได้ 1.4:1 อ่านไม่ออกเลย
+         */}
+        <div className="bg-app-band px-4 py-4 text-white">
           <div className="text-xs opacity-90">เงินรวมทุกบัญชี</div>
           <div className="num mt-0.5 text-3xl font-bold tracking-tight">{bahtShort(total)}</div>
         </div>
