@@ -3,6 +3,7 @@ import { drizzle } from "drizzle-orm/postgres-js";
 import postgres from "postgres";
 import { env } from "@/lib/env";
 import * as schema from "./schema";
+import { poolOptions, portOf } from "./pool";
 
 /**
  * จุดเดียวในแอปที่ต่อฐานข้อมูล
@@ -16,28 +17,15 @@ import * as schema from "./schema";
  * Supabase มี connection string สองแบบ พอร์ตต่างกันและใช้คนละสถานการณ์
  *
  *   6543  transaction pooler (pgBouncer)  — ใช้กับ serverless เช่น Vercel
- *   5432  ต่อตรง                          — ใช้กับเซิร์ฟเวอร์ที่รันค้างไว้ เช่น VPS
+ *   5432  session                          — ใช้กับเซิร์ฟเวอร์ที่รันค้างไว้ เช่น VPS
  *
- * pgBouncer โหมด transaction ไม่รองรับ prepared statement จึงต้องปิดทิ้ง
- * ถ้าลืมปิดจะเจอ error "prepared statement already exists" แบบสุ่มๆ
- * ซึ่งตามยากมาก เลยตรวจจากพอร์ตให้อัตโนมัติตรงนี้
+ * ตรวจจากพอร์ตแล้วตั้งค่าให้เองที่ src/db/pool.ts ซึ่งแยกออกไปเพื่อให้เทสได้
+ * และมีคำอธิบายว่าทำไม max ห้ามเป็น 1
  */
-const port = (() => {
-  try {
-    return new URL(env.DATABASE_URL).port;
-  } catch {
-    return "";
-  }
-})();
-
-const isTransactionPooler = port === "6543";
-
 function createClient() {
   return postgres(env.DATABASE_URL, {
     ssl: env.DATABASE_SSL ? "require" : false,
-    prepare: !isTransactionPooler,
-    // pooler จัดคิว connection ให้อยู่แล้ว ฝั่งแอปเปิดค้างไว้เยอะไม่มีประโยชน์
-    max: isTransactionPooler ? 1 : 10,
+    ...poolOptions(portOf(env.DATABASE_URL)),
     idle_timeout: 20,
     connect_timeout: 15,
   });
