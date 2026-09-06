@@ -50,7 +50,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
        * แถบสถานะจะใช้สีจาก manifest ถ้าหัวแอปเป็นสีขาวจะเห็นรอยต่อ
        * สีตัดกันคาจอตลอดเวลา แบบนี้ไล่ต่อกันเป็นผืนเดียว
        */}
-      <header className="bg-app-band sticky top-0 z-30 pt-[env(safe-area-inset-top)] shadow-sm">
+      <header className="bg-app-chrome sticky top-0 z-30 pt-[env(safe-area-inset-top)] shadow-sm">
         <div className="mx-auto flex max-w-2xl items-center gap-3 px-4 py-2">
           {/* ชื่อร้านเป็นลิงก์กลับไปหน้าเลือกร้าน ซึ่งเป็นที่เดียวที่สลับร้านได้
               จงใจไม่ทำเป็นดรอปดาวน์ในแถบนี้ เพราะสลับร้านพลาดระหว่างกรอก

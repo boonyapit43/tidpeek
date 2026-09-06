@@ -29,7 +29,7 @@ export default function manifest(): MetadataRoute.Manifest {
      */
     background_color: "#ffffff",
     /**
-     * ต้องเท่ากับ --band-from โหมดสว่างใน globals.css และ themeColor
+     * ต้องเท่ากับ --chrome-from โหมดสว่างใน globals.css และ themeColor
      * ใน layout.tsx — เหตุผลเต็มอยู่ที่ layout.tsx
      */
     theme_color: "#830001",

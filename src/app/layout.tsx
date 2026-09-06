@@ -40,7 +40,7 @@ export const viewport: Viewport = {
   // ห้ามใส่ maximumScale หรือ userScalable=false — คนสายตาไม่ดีต้องซูมได้
 
   /**
-   * สีแถบสถานะ ต้องเท่ากับ --band-from ของแต่ละโหมด ไม่ใช่สีพื้นหน้า
+   * สีแถบสถานะ ต้องเท่ากับ --chrome-from ของแต่ละโหมด ไม่ใช่สีพื้นหน้า
    *
    * สิ่งที่อยู่ติดกับแถบสถานะคือแถบหัวแอป ซึ่งติดหนึบอยู่บนสุดเสมอ
    * ไม่ใช่พื้นหลังของหน้า เคยตั้งเป็นสีพื้นหน้า (ขาว) ซึ่งทำให้เห็นเส้น
@@ -50,12 +50,12 @@ export const viewport: Viewport = {
    * หน้า /share ก็ใช้สีเดียวกันนี้เป็นพื้นทั้งหน้า จึงต่อเนื่องด้วย
    * เหลือแค่หน้าล็อกอินกับหน้าเลือกร้านที่พื้นสว่าง ซึ่งเปิดวันละครั้ง
    *
-   * ⚠️ แก้ที่นี่แล้วต้องแก้ --band-from ใน globals.css และ theme_color
+   * ⚠️ แก้ที่นี่แล้วต้องแก้ --chrome-from ใน globals.css และ theme_color
    *    ใน manifest.ts ให้ตรงกันทั้งสามที่
    */
   themeColor: [
     { media: "(prefers-color-scheme: light)", color: "#830001" },
-    { media: "(prefers-color-scheme: dark)", color: "#620000" },
+    { media: "(prefers-color-scheme: dark)", color: "#2a2220" },
   ],
 };
 

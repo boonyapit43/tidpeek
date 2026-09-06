@@ -75,7 +75,7 @@ describe("โทเคนโหมดมืดสองสโคปต้อง�
  *
  * สีเดียวกันนี้ถูกเขียนไว้สามที่คนละรูปแบบ
  *
- *   globals.css   --band-from            เป็น oklch()
+ *   globals.css   --chrome-from          เป็น oklch()
  *   layout.tsx    viewport.themeColor    เป็น hex
  *   manifest.ts   theme_color            เป็น hex
  *
@@ -115,10 +115,15 @@ const hexToRgb = (hex: string): [number, number, number] => [
   parseInt(hex.slice(5, 7), 16),
 ];
 
-/** ดึงค่า oklch ของโทเคนหนึ่งจากบล็อกที่ให้มา */
-function bandFrom(block: string): [number, number, number] {
-  const m = block.match(/--band-from:\s*oklch\(([\d.]+)\s+([\d.]+)\s+([\d.]+)\)/);
-  if (!m) throw new Error("ไม่เจอ --band-from ในบล็อกที่ให้มา");
+/**
+ * ดึงค่า oklch ของ --chrome-from จากบล็อกที่ให้มา
+ *
+ * ต้องเป็น chrome ไม่ใช่ band — สองอันนี้เท่ากันในโหมดสว่างแต่ต่างกัน
+ * ในโหมดมืด ถ้าจับผิดตัวเทสจะผ่านทั้งที่สีแถบสถานะไม่ตรงกับแถบหัว
+ */
+function chromeFrom(block: string): [number, number, number] {
+  const m = block.match(/--chrome-from:\s*oklch\(([\d.]+)\s+([\d.]+)\s+([\d.]+)\)/);
+  if (!m) throw new Error("ไม่เจอ --chrome-from ในบล็อกที่ให้มา");
   return [Number(m[1]), Number(m[2]), Number(m[3])];
 }
 
@@ -147,20 +152,20 @@ describe("สีแถบสถานะตรงกับสีแถบหั�
     });
   };
 
-  it("โหมดสว่าง — themeColor ตรงกับ --band-from", () => {
-    const fromCss = oklchToRgb(...bandFrom(blockAfter(":root")));
+  it("โหมดสว่าง — themeColor ตรงกับ --chrome-from", () => {
+    const fromCss = oklchToRgb(...chromeFrom(blockAfter(":root")));
     ต้องใกล้กัน(hexToRgb(themeColorFor(layout, "light")), fromCss, "layout.tsx โหมดสว่าง");
   });
 
-  it("โหมดมืด — themeColor ตรงกับ --band-from", () => {
-    const fromCss = oklchToRgb(...bandFrom(blockAfter(':root[data-theme="dark"]')));
+  it("โหมดมืด — themeColor ตรงกับ --chrome-from", () => {
+    const fromCss = oklchToRgb(...chromeFrom(blockAfter(':root[data-theme="dark"]')));
     ต้องใกล้กัน(hexToRgb(themeColorFor(layout, "dark")), fromCss, "layout.tsx โหมดมืด");
   });
 
   it("theme_color ใน manifest ตรงกับโหมดสว่าง", () => {
     const m = manifest.match(/theme_color:\s*"(#[0-9a-fA-F]{6})"/);
     expect(m, "ไม่เจอ theme_color ใน manifest.ts").not.toBeNull();
-    const fromCss = oklchToRgb(...bandFrom(blockAfter(":root")));
+    const fromCss = oklchToRgb(...chromeFrom(blockAfter(":root")));
     ต้องใกล้กัน(hexToRgb(m![1].toLowerCase()), fromCss, "manifest.ts");
   });
 });
