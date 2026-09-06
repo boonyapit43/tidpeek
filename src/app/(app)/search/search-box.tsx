@@ -60,6 +60,11 @@ export function SearchBox({
           enterKeyHint="search"
           autoFocus={defaultQuery === ""}
           className="flex-1"
+          /**
+           * บอก VersionWatch ว่าคำค้นไม่ใช่ของที่เสียหายถ้าหาย
+           * ไม่งั้นแค่มีคำค้างในช่องนี้ก็จะกันไม่ให้แอปรับรุ่นใหม่ตลอดไป
+           */
+          data-transient
         />
 
         <button

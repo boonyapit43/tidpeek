@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 import { logout } from "@/actions/auth";
 import { Nav } from "@/components/nav";
 import { ThemeToggle } from "@/components/theme-toggle";
+import { VersionWatch } from "@/components/version-watch";
 import { hasSession } from "@/lib/auth";
 import { getSelectedShop } from "@/lib/shop";
 import { getTheme } from "@/lib/theme";
@@ -42,6 +43,9 @@ export default async function AppLayout({ children }: { children: React.ReactNod
 
   return (
     <div className="min-h-dvh">
+      {/* โหลดหน้าใหม่ให้เองเมื่อ deploy รุ่นใหม่ ดูเหตุผลในไฟล์ */}
+      <VersionWatch />
+
       {/**
        * แถบบนติดหนึบตอนเลื่อน เพราะชื่อร้านคือบริบทที่ต้องเห็นตลอดเวลา
        * ไม่งั้นพอเลื่อนดูรายการยาวๆ แล้วลืมว่ากำลังดูร้านไหนอยู่
