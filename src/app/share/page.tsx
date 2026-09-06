@@ -78,7 +78,20 @@ export default async function SharePage({
   );
 
   return (
-    <main className="bg-app-band flex min-h-dvh flex-col items-center justify-center px-3 py-5">
+    /**
+     * เว้นระยะเผื่อรอยบากกับแถบ home ของ iPhone
+     *
+     * หน้านี้อยู่นอกกลุ่ม (app) จึงไม่ได้ระยะนี้มาจาก layout เหมือนหน้าอื่น
+     * และตอนเปิดจากไอคอนหน้าโฮม แถบสถานะเป็นแบบโปร่งใสทับเนื้อหา (ตั้งไว้ที่
+     * appleWebApp.statusBarStyle) ถ้าไม่เผื่อไว้ หัวการ์ดจะไปอยู่ใต้รอยบาก
+     * และลิงก์ "กลับไปหน้าสรุป" จะไปอยู่ใต้แถบ home จนกดยาก
+     */
+    <main
+      className={[
+        "bg-app-band flex min-h-dvh flex-col items-center justify-center px-3",
+        "pt-[calc(1.25rem+env(safe-area-inset-top))] pb-[calc(1.25rem+env(safe-area-inset-bottom))]",
+      ].join(" ")}
+    >
       {/**
        * การ์ดกว้างสุด 62rem — กว้างพอให้สามการ์ดยืนเรียงกันโดยชื่อประเภทไม่ถูกตัด
        * และยังไม่กว้างจนสามใบห่างกันเกินกว่าจะอ่านเป็นภาพเดียว
