@@ -66,16 +66,21 @@ export function AccountBoard({
     <div className="space-y-3">
       <section className="overflow-hidden rounded-2xl bg-surface shadow-sm">
         {/**
-         * ใช้พื้นสีเดียวกับแถบหัวแอป ไม่ใช่สีปุ่ม
+         * ใช้พื้นเดียวกับแถบหัวแอป (chrome) ไม่ใช่สีแบรนด์เต็มๆ (band)
          *
          * การ์ดนี้อยู่ใต้แถบหัวห่างแค่ 24px ถ้าใช้คนละสีจะอ่านเป็นของสองชุด
          * ที่ไม่เกี่ยวกัน เจอตอนเปลี่ยนสีแถบหัวแล้วการ์ดยังเป็นสีเดิม
+         *
+         * ผลที่ตามมาคือโหมดมืดการ์ดนี้เป็นเทาเข้มไม่ใช่แดง ซึ่งเป็นสิ่งที่
+         * ต้องการ — เคยใช้ band แล้วแดงเต็มแผ่นค้างอยู่กลางจอมืด เจ้าของร้าน
+         * บอกว่าไม่เข้ากัน สีแบรนด์ในโหมดมืดเหลือไว้ที่ /share ที่เดียว
+         * เพราะหน้านั้นถูกแคปส่งออกไปข้างนอก ไม่ใช่ chrome ที่มองทุกวัน
          *
          * ⚠️ ต้องเป็น text-white ไม่ใช่ text-on-accent
          *    on-accent เป็นสีเข้มในโหมดมืด ซึ่งถูกสำหรับพื้นสีสดที่สว่างขึ้น
          *    แต่พื้นนี้เข้มลงในโหมดมืด วัดแล้วได้ 1.4:1 อ่านไม่ออกเลย
          */}
-        <div className="bg-app-band px-4 py-4 text-white">
+        <div className="bg-app-chrome px-4 py-4 text-white">
           <div className="text-xs opacity-90">เงินรวมทุกบัญชี</div>
           <div className="num mt-0.5 text-3xl font-bold tracking-tight">{bahtShort(total)}</div>
         </div>
