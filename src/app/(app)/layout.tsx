@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { logout } from "@/actions/auth";
+import { AutoLock } from "@/components/auto-lock";
 import { Nav } from "@/components/nav";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { VersionWatch } from "@/components/version-watch";
@@ -43,6 +44,9 @@ export default async function AppLayout({ children }: { children: React.ReactNod
 
   return (
     <div className="min-h-dvh">
+      {/* ล็อกแอปเมื่อปิดทิ้งไว้เกิน 15 นาที ต้องกรอก PIN ใหม่ */}
+      <AutoLock />
+
       {/* โหลดหน้าใหม่ให้เองเมื่อ deploy รุ่นใหม่ ดูเหตุผลในไฟล์ */}
       <VersionWatch />
 
