@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import Image from "next/image";
 import { redirect } from "next/navigation";
+import { LockReset } from "@/components/auto-lock";
 import { hasSession } from "@/lib/auth";
 import { LoginForm } from "./login-form";
 
@@ -40,6 +41,9 @@ export default async function LoginPage() {
         "pt-[calc(1rem+env(safe-area-inset-top))] pb-[calc(1rem+env(safe-area-inset-bottom))]",
       ].join(" ")}
     >
+      {/* ยืนอยู่หน้าประตูที่ล็อกแล้ว ล้างนาฬิกาการล็อกทิ้ง ดูเหตุผลในไฟล์ */}
+      <LockReset />
+
       {/* แสงสีแบรนด์จางๆ ที่ขอบบน ให้หน้าแรกไม่ใช่พื้นเทาโล่งๆ
           เป็นแค่ฉากหลัง จึงกันคลิกและซ่อนจากโปรแกรมอ่านหน้าจอ */}
       <div
