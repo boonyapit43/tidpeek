@@ -48,6 +48,8 @@ create extension if not exists pgcrypto;
 create table if not exists shops (
   id         uuid primary key default gen_random_uuid(),
   name       text not null,
+  -- data URL ของรูปร้าน ย่อแล้ว 128px ราว 5-8KB เพดานอยู่ที่ shopImageSchema
+  image      text,
   sort_order integer not null default 0,
   is_active  boolean not null default true,
   is_deleted boolean not null default false,

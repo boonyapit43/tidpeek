@@ -238,8 +238,42 @@ export const updateAccountSchema = z.object({
 /*  ร้าน                                                               */
 /* ------------------------------------------------------------------ */
 
-export const createShopSchema = z.object({ name: nameSchema });
-export const updateShopSchema = z.object({ id: z.uuid(), name: nameSchema });
+/**
+ * รูปร้าน เก็บเป็น data URL ในฐานข้อมูลเลย ไม่ได้เก็บเป็นไฟล์
+ *
+ * ทำแบบนี้เพราะรูปถูกย่อเหลือ 128×128 ตั้งแต่ในเครื่องก่อนส่ง ได้ไฟล์
+ * ราว 5–8KB ซึ่งเล็กพอที่จะอยู่ในแถวข้อมูลได้สบาย แลกกับการไม่ต้องมี
+ * ระบบเก็บไฟล์แยก ไม่ต้องคุมสิทธิ์เข้าถึงไฟล์ ไม่มีไฟล์ค้างตอนลบร้าน
+ * และรูปมาพร้อมข้อมูลร้านในคำขอเดียว
+ *
+ * ⚠️ เพดานตรงนี้คือด่านสุดท้าย ไม่ใช่ด่านแรก
+ *    ฝั่งหน้าจอย่อรูปให้แล้ว แต่ server action เป็น endpoint ที่ยิงตรงได้
+ *    ใครส่ง data URL ขนาด 10MB มาก็ได้ถ้าไม่ดักตรงนี้ แล้วแถวข้อมูลจะบวม
+ *    จนคิวรีที่ดึงรายชื่อร้านช้าลงทั้งแอป
+ *
+ * 60,000 ตัวอักษร ≈ 45KB ซึ่งเผื่อไว้เยอะแล้วสำหรับรูป 128px
+ */
+const MAX_IMAGE_CHARS = 60_000;
+
+export const shopImageSchema = z
+  .string()
+  .trim()
+  .max(MAX_IMAGE_CHARS, "รูปใหญ่เกินไป ลองเลือกรูปอื่น")
+  .refine(
+    (v) => v === "" || /^data:image\/(png|jpeg|webp);base64,[A-Za-z0-9+/=]+$/.test(v),
+    "ไฟล์นี้ไม่ใช่รูปภาพ",
+  )
+  // ช่องว่างแปลว่า "ไม่มีรูป" เก็บเป็น null ไม่ใช่สตริงว่าง
+  .transform((v) => (v === "" ? null : v))
+  .nullable()
+  .optional();
+
+export const createShopSchema = z.object({ name: nameSchema, image: shopImageSchema });
+export const updateShopSchema = z.object({
+  id: z.uuid(),
+  name: nameSchema,
+  image: shopImageSchema,
+});
 export const deleteShopSchema = z.object({ id: z.uuid() });
 
 /* ------------------------------------------------------------------ */

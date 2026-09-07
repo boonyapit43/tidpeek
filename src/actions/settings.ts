@@ -131,7 +131,7 @@ export async function createShop(_prev: ActionState, formData: FormData): Promis
     await db.transaction(async (tx) => {
       const [shop] = await tx
         .insert(shops)
-        .values({ name: parsed.data.name, sortOrder })
+        .values({ name: parsed.data.name, image: parsed.data.image ?? null, sortOrder })
         .returning({ id: shops.id });
 
       /**
@@ -159,7 +159,7 @@ export async function updateShop(_prev: ActionState, formData: FormData): Promis
 
     const updated = await db
       .update(shops)
-      .set({ name: parsed.data.name, updatedAt: new Date() })
+      .set({ name: parsed.data.name, image: parsed.data.image ?? null, updatedAt: new Date() })
       .where(and(eq(shops.id, parsed.data.id), eq(shops.isDeleted, false)))
       .returning({ id: shops.id });
 

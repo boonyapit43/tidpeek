@@ -12,12 +12,15 @@ import {
   SubmitButton,
   useKeptValue,
 } from "@/components/form-parts";
+import { ImagePicker } from "@/components/image-picker";
 import { Sheet } from "@/components/sheet";
 import { cn } from "@/lib/cn";
 
 export type ShopCardData = {
   id: string;
   name: string;
+  /** data URL ของรูปร้าน ย่อแล้ว 128px — null คือยังไม่ได้ใส่รูป */
+  image: string | null;
   todayProfit: string;
   isLoss: boolean;
   todayCount: number;
@@ -108,14 +111,29 @@ function EnterShopButton({ shop }: { shop: ShopCardData }) {
       )}
     >
       <span className="flex items-center gap-3">
-        {/* วงกลมอักษรแรกของชื่อร้าน ให้แต่ละกล่องมีหน้าตาของตัวเอง
-            ไล่สีเดียวกับโลโก้แอปเพื่อความเป็นชุดเดียวกัน */}
-        <span
-          aria-hidden
-          className="bg-brand-gradient flex size-10 shrink-0 items-center justify-center rounded-xl text-base font-bold text-on-accent shadow-sm shadow-brand/25"
-        >
-          {shop.name.trim().charAt(0)}
-        </span>
+        {/**
+         * มีรูปก็โชว์รูป ไม่มีก็ใช้อักษรแรกของชื่อร้านเหมือนเดิม
+         *
+         * ไม่ได้บังคับให้ต้องมีรูป เพราะร้านที่เพิ่งสร้างยังไม่มี และการ
+         * บังคับใส่รูปก่อนถึงจะเริ่มบันทึกได้คือการขวางงานจริงด้วยของตกแต่ง
+         *
+         * ไม่ใช้ next/image เพราะเป็น data URL ที่ตัวปรับขนาดภาพทำอะไรไม่ได้
+         */}
+        {shop.image ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img
+            src={shop.image}
+            alt=""
+            className="size-10 shrink-0 rounded-xl object-cover shadow-sm"
+          />
+        ) : (
+          <span
+            aria-hidden
+            className="bg-brand-gradient flex size-10 shrink-0 items-center justify-center rounded-xl text-base font-bold text-on-accent shadow-sm shadow-brand/25"
+          >
+            {shop.name.trim().charAt(0)}
+          </span>
+        )}
 
         {/* ถ้าไม่มีตัวเลขกำไรมาคั่น ชื่อร้านต้องเว้นทางให้ปุ่มดินสอเอง */}
         <span className={cn("min-w-0 flex-1", shop.todayCount === 0 && "pr-8")}>
@@ -194,8 +212,10 @@ function EditShopForm({ shop, onDone }: { shop: ShopCardData; onDone: () => void
           />
         </Field>
 
+        <ImagePicker name="image" initial={shop.image} />
+
         <StatusMessage state={renameState} />
-        <SubmitButton className="w-full">บันทึกชื่อใหม่</SubmitButton>
+        <SubmitButton className="w-full">บันทึกการแก้ไข</SubmitButton>
       </form>
 
       <div className="mt-3 space-y-2 border-t border-line pt-3">

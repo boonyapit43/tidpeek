@@ -162,6 +162,7 @@ export async function listShopsWithToday(today: string): Promise<ShopCard[]> {
     .select({
       id: shops.id,
       name: shops.name,
+      image: shops.image,
       sortOrder: shops.sortOrder,
       isActive: shops.isActive,
       isDeleted: shops.isDeleted,

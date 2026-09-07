@@ -10,6 +10,7 @@ import {
   SubmitButton,
   useKeptValue,
 } from "@/components/form-parts";
+import { ImagePicker } from "@/components/image-picker";
 import { Sheet } from "@/components/sheet";
 
 /**
@@ -97,6 +98,8 @@ function AddShopForm({ onDone, autoFocus }: { onDone: () => void; autoFocus: boo
           enterKeyHint="done"
         />
       </Field>
+
+      <ImagePicker name="image" />
 
       <StatusMessage state={state} />
       <SubmitButton className="w-full">เพิ่มร้าน</SubmitButton>

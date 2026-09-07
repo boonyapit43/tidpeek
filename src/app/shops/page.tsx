@@ -70,6 +70,7 @@ export default async function ShopsPage() {
           shops={shops.map((s) => ({
             id: s.id,
             name: s.name,
+            image: s.image,
             todayProfit: bahtShort(s.todayProfit),
             isLoss: Number.parseFloat(s.todayProfit) < 0,
             todayCount: s.todayCount,

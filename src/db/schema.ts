@@ -77,6 +77,14 @@ export const shops = pgTable(
   {
     id: uuid("id").primaryKey().defaultRandom(),
     name: text("name").notNull(),
+    /**
+     * รูปร้าน เก็บเป็น data URL ย่อแล้ว 128×128 ราว 5-8KB
+     *
+     * ไม่ได้เก็บเป็นไฟล์แยกเพราะจะต้องมีระบบเก็บไฟล์ คุมสิทธิ์เข้าถึง
+     * และตามลบไฟล์ตอนลบร้าน ซึ่งแลกไม่คุ้มกับรูปขนาดเท่านี้
+     * เพดานขนาดอยู่ที่ shopImageSchema ใน src/lib/validation.ts
+     */
+    image: text("image"),
     sortOrder: integer("sort_order").notNull().default(0),
     isActive: boolean("is_active").notNull().default(true),
     ...auditColumns,

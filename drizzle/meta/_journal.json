@@ -43,6 +43,13 @@
       "when": 1787926647453,
       "tag": "0005_careless_vulture",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1788753375441,
+      "tag": "0006_freezing_nuke",
+      "breakpoints": true
     }
   ]
 }
