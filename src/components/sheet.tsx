@@ -116,7 +116,7 @@ export function Sheet({
             type="button"
             onClick={onClose}
             aria-label="ปิด"
-            className="-mr-2.5 flex size-11 shrink-0 items-center justify-center rounded-lg text-ink-soft hover:bg-surface-2"
+            className="-mr-2.5 flex size-11 shrink-0 items-center justify-center rounded-lg text-ink-soft transition hover:bg-surface-2 active:scale-90 active:bg-surface-2"
           >
             <svg
               viewBox="0 0 24 24"
