@@ -35,11 +35,14 @@ export function Sheet({
   open,
   onClose,
   title,
+  action,
   children,
 }: {
   open: boolean;
   onClose: () => void;
   title: string;
+  /** ปุ่มประจำแผ่น วางซ้ายปุ่มปิด เช่นปุ่มลบของแผ่นแก้ไข */
+  action?: React.ReactNode;
   children: React.ReactNode;
 }) {
   const ref = useRef<HTMLDialogElement>(null);
@@ -87,9 +90,9 @@ export function Sheet({
     >
       <div
         className={cn(
-          "rounded-t-2xl bg-surface p-5 shadow-xl md:rounded-2xl",
+          "rounded-t-2xl bg-surface p-4 shadow-xl md:rounded-2xl",
           // เว้นที่ให้แถบ home ของ iPhone
-          "pb-[calc(1.25rem+env(safe-area-inset-bottom))] md:pb-5",
+          "pb-[calc(1rem+env(safe-area-inset-bottom))] md:pb-4",
           // จำกัดความสูงแล้วให้เลื่อนข้างใน กันแผ่นล้นจอเมื่อคีย์บอร์ดเด้งขึ้น
           "max-h-[85dvh] overflow-y-auto",
           // overscroll-contain กันไม่ให้หน้าข้างหลังเลื่อนตามเมื่อเลื่อนสุดขอบแผ่น
@@ -97,13 +100,23 @@ export function Sheet({
           "overscroll-contain",
         )}
       >
-        <div className="mb-4 flex items-center justify-between gap-3">
-          <h2 className="text-base font-bold text-ink">{title}</h2>
+        <div className="mb-3 flex items-center justify-between gap-1">
+          <h2 className="min-w-0 flex-1 truncate text-base font-bold text-ink">{title}</h2>
+
+          {/**
+           * ที่ว่างสำหรับปุ่มประจำแผ่น เช่นปุ่มลบ
+           *
+           * มีเพราะปุ่มทำลายล้างที่วางไว้ท้ายฟอร์มมีปัญหาสองอย่าง — มันกิน
+           * ความสูงที่แผ่นไม่ค่อยมีอยู่แล้ว และมันไปนั่งใต้ปุ่มบันทึกพอดี
+           * ซึ่งเป็นตำแหน่งที่นิ้วเลื่อนไปโดนได้ง่าย
+           */}
+          {action}
+
           <button
             type="button"
             onClick={onClose}
             aria-label="ปิด"
-            className="-mr-2.5 flex size-11 items-center justify-center rounded-lg text-ink-soft hover:bg-surface-2"
+            className="-mr-2.5 flex size-11 shrink-0 items-center justify-center rounded-lg text-ink-soft hover:bg-surface-2"
           >
             <svg
               viewBox="0 0 24 24"
