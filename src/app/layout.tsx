@@ -27,6 +27,20 @@ export const metadata: Metadata = {
     // แถบสถานะโปร่งใสเมื่อเปิดจากไอคอนหน้าโฮม ทำให้แอปดูเต็มจอ
     statusBarStyle: "black-translucent",
   },
+
+  /**
+   * ⚠️ ต้องเขียน apple-mobile-web-app-capable เองเพิ่ม
+   *
+   * capable: true ข้างบนทำให้ Next.js 16 ใส่ให้แค่ <meta mobile-web-app-capable>
+   * ซึ่งเป็นชื่อมาตรฐานตัวใหม่ ไม่ใส่ตัวที่ขึ้นต้นด้วย apple- ให้แล้ว
+   * (ตรวจจาก HTML ที่ production ส่งจริง — มีแต่ตัวไม่มี apple-)
+   *
+   * แต่ iOS ยังผูก apple-mobile-web-app-status-bar-style ไว้กับตัวเก่าอยู่
+   * ขาดตัวนี้แล้ว black-translucent ไม่ทำงานเต็มที่ ผลที่เจ้าของร้านเจอคือ
+   * แถบเมนูล่างลอยอยู่เหนือขอบจอจริงราว 60px แล้วเห็นพื้นหน้าโผล่ใต้เมนู
+   * (วัดจากภาพหน้าจอบน iPhone 17 Pro Max — ขอบบนถูกต้อง ขอบล่างไม่ถูก)
+   */
+  other: { "apple-mobile-web-app-capable": "yes" },
   // หน้าบัญชีของร้านไม่ควรถูก Google เก็บไปทำดัชนี
   robots: { index: false, follow: false },
 };
