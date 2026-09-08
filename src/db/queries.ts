@@ -17,7 +17,7 @@ import { alias } from "drizzle-orm/pg-core";
 import { db } from "./index";
 import { accounts, categories, shops, transactions, transfers } from "./schema";
 import type { Account, Category, Direction, Shop } from "./schema";
-import { addDays, monthRange, today, weekRange, yearRange } from "@/lib/date";
+import { monthRange, weekRange, yearRange } from "@/lib/date";
 
 /**
  * การอ่านข้อมูลทั้งหมดของแอปอยู่ในไฟล์นี้ไฟล์เดียว
@@ -571,47 +571,6 @@ export async function searchTotals(
     .where(and(...conditions));
 
   return row ?? { income: "0", expense: "0", count: 0 };
-}
-
-/**
- * ชื่อรายการที่เคยพิมพ์ในร้านนี้ ใช้เติมคำอัตโนมัติในฟอร์ม
- *
- * mode() within group คือ "ค่าที่พบบ่อยที่สุดในกลุ่ม" ของ Postgres
- * ใช้เดาว่าชื่อนี้มักถูกจัดอยู่ในประเภทไหน แล้วเลือกให้ล่วงหน้า
- * บนมือถือช่วยลดการกดไปหนึ่งจังหวะต่อการบันทึกหนึ่งรายการ
- */
-export async function listRecentTitles(
-  shopId: string,
-  direction: Direction,
-): Promise<{ title: string; categoryId: string | null; uses: number }[]> {
-  return db
-    .select({
-      title: transactions.title,
-      categoryId: sql<string | null>`mode() within group (order by ${transactions.categoryId})`,
-      uses: count(),
-    })
-    .from(transactions)
-    .where(
-      and(
-        eq(transactions.shopId, shopId),
-        eq(transactions.isDeleted, false),
-        eq(transactions.direction, direction),
-        /**
-         * ดูย้อนหลังแค่ครึ่งปี ไม่ใช่ทั้งประวัติ
-         *
-         * เร็วขึ้นมาก — วัดที่ 22,000 รายการได้ 47ms เหลือไม่กี่มิลลิ เพราะ
-         * เข้า index ตามช่วงวันแทนที่จะกวาดทั้งตารางมา group ทุกครั้งที่
-         * เปิดหน้าบันทึก ซึ่งเป็นหน้าที่ถูกเปิดบ่อยที่สุดของแอป
-         *
-         * และได้คำแนะนำที่ดีกว่าด้วย — ชื่อที่ร้านใช้เมื่อปีที่แล้วแต่เลิกใช้
-         * ไปแล้วไม่ควรมาเบียดที่ของชื่อที่ใช้อยู่จริงตอนนี้
-         */
-        gte(transactions.txnDate, addDays(today(), -180)),
-      ),
-    )
-    .groupBy(transactions.title)
-    .orderBy(desc(count()), desc(sql`max(${transactions.createdAt})`))
-    .limit(40);
 }
 
 /**

@@ -215,7 +215,14 @@ function AccountFields({ account }: { account?: AccountWithBalance }) {
        * ซึ่งไม่ใช่ตัวเลขที่เอาไปเทียบกับเงินในลิ้นชักหรือในแอปธนาคารได้
        */}
       <Field label="ยอดตั้งต้น (เงินที่มีอยู่ก่อนเริ่มใช้แอป)" htmlFor={`${id}-opening`}>
-        <MoneyInput {...opening} id={`${id}-opening`} name="openingBalance" placeholder="0.00" />
+        <MoneyInput
+          {...opening}
+          id={`${id}-opening`}
+          name="openingBalance"
+          placeholder="0.00"
+          // ช่องเดียวในแอปที่ติดลบได้ — บัญชีบัตรเครดิตเริ่มต้นติดลบ
+          allowNegative
+        />
       </Field>
     </>
   );

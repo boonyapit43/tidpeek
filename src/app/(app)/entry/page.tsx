@@ -5,7 +5,6 @@ import {
   listAccountsWithBalance,
   listCategories,
   listRecentEntries,
-  listRecentTitles,
 } from "@/db/queries";
 import { today } from "@/lib/date";
 import { bahtShort } from "@/lib/money";
@@ -28,15 +27,12 @@ export default async function EntryPage() {
 
   // ดึงพร้อมกันทั้งหมด ไม่ไล่ await ทีละอัน ไม่งั้นเวลารอจะบวกกันเป็นทอดๆ
   // ซึ่งรู้สึกได้ชัดบนเน็ตมือถือ
-  const [accounts, categories, hintsOut, hintsIn, summary, recent] =
-    await Promise.all([
-      listAccountsWithBalance(shopId),
-      listCategories(shopId),
-      listRecentTitles(shopId, "out"),
-      listRecentTitles(shopId, "in"),
-      getSummary(shopId, { day }),
-      listRecentEntries(shopId),
-    ]);
+  const [accounts, categories, summary, recent] = await Promise.all([
+    listAccountsWithBalance(shopId),
+    listCategories(shopId),
+    getSummary(shopId, { day }),
+    listRecentEntries(shopId),
+  ]);
 
   return (
     <div className="space-y-3">
@@ -52,10 +48,6 @@ export default async function EntryPage() {
         shopId={shopId}
         accounts={accounts}
         categories={categories}
-        titleHints={{
-          in: hintsIn.map(({ title, categoryId }) => ({ title, categoryId })),
-          out: hintsOut.map(({ title, categoryId }) => ({ title, categoryId })),
-        }}
       />
 
       {/* อยู่ใต้ฟอร์ม ไม่ได้อยู่บน เพราะสิ่งที่ต้องเห็นก่อนคือช่องกรอก

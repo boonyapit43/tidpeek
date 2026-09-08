@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState, useEffect, useId, useMemo, useRef, useState } from "react";
+import { useActionState, useEffect, useMemo, useRef, useState } from "react";
 import { createTransaction } from "@/actions/transactions";
 import { IDLE } from "@/actions/shared";
 import {
@@ -34,8 +34,6 @@ import { today } from "@/lib/date";
 const NONE = "__none__";
 import { AddCategorySheet } from "./add-category-sheet";
 
-export type TitleHint = { title: string; categoryId: string | null };
-
 /**
  * ฟอร์มบันทึกรายการ — หน้าจอที่ถูกใช้บ่อยที่สุดของแอป
  *
@@ -51,17 +49,13 @@ export function EntryForm({
   shopId,
   accounts,
   categories,
-  titleHints,
 }: {
   shopId: string;
   accounts: AccountWithBalance[];
   categories: Category[];
-  /** บัญชีที่ร้านนี้ใช้ลงรายการล่าสุด — ใช้เป็นค่าตั้งต้นของช่องบัญชี */
-  titleHints: Record<Direction, TitleHint[]>;
 }) {
   const [state, formAction] = useActionState(createTransaction, IDLE);
   const amountRef = useRef<HTMLInputElement>(null);
-  const datalistId = useId();
 
   /**
    * เริ่มที่ฝั่งจ่ายออก ไม่ใช่รับเข้า
@@ -86,13 +80,6 @@ export function EntryForm({
    * ตอนคนเลือก "ไม่ระบุ" ระบบจะนึกว่ายังไม่ได้เลือกแล้วเด้งกลับไปตัวแรกทันที
    */
   const [categoryId, setCategoryId] = useState<string | null>(null);
-  /**
-   * แตะช่องประเภท "สำหรับรายการที่กำลังพิมพ์อยู่" หรือยัง — คนละเรื่องกับ
-   * categoryId ที่ค้างข้ามรายการโดยตั้งใจ (ลงค่าแรกสามคนติดกันไม่ต้องเลือกซ้ำ)
-   * ธงนี้รีเซ็ตทุกครั้งที่บันทึกสำเร็จหรือสลับฝั่ง ใช้กันตัวเดาประเภทไม่ให้
-   * ทับสิ่งที่คนเพิ่งตั้งใจเลือกไว้กับรายการนี้
-   */
-  const [categoryTouched, setCategoryTouched] = useState(false);
   /** null = ยังไม่ได้เลือกเอง — ฟอร์มบันทึกใหม่ไม่มีตัวเลือกไม่ระบุ จึงเหลือสองสถานะ */
   const [accountId, setAccountId] = useState<string | null>(null);
   const [title, setTitle] = useState("");
@@ -105,8 +92,6 @@ export function EntryForm({
     () => categories.filter((c) => c.direction === direction),
     [categories, direction],
   );
-
-  const hints = titleHints[direction];
 
   /**
    * ประเภทที่เลือกอยู่จริงตอนนี้ — null คือยังไม่ได้เลือก และต้องโชว์เป็น
@@ -190,7 +175,6 @@ export function EntryForm({
       // การเลือกเมื่อกี้เป็นของรายการที่บันทึกจบไปแล้ว รายการใหม่เริ่มใหม่หมด
       setCategoryId(null);
       setAccountId(null);
-      setCategoryTouched(false);
     }
   }
 
@@ -199,24 +183,6 @@ export function EntryForm({
   useEffect(() => {
     if (state.status === "ok") amountRef.current?.focus();
   }, [state]);
-
-  /**
-   * พิมพ์ชื่อที่เคยใช้แล้วเดาประเภทให้ ลดการแตะไปหนึ่งจังหวะต่อรายการ
-   *
-   * เดาเฉพาะตอนที่คนยังไม่ได้แตะช่องประเภทของรายการนี้ — ถ้าเพิ่งเลือกไว้
-   * แม้แต่เลือก "ไม่ระบุ" ก็ถือว่าตั้งใจ ห้ามเดาทับ ไม่งั้นแค่กลับไปแก้
-   * ตัวสะกดในชื่อรายการ ประเภทที่เลือกไว้ก็เด้งไปเป็นของที่ระบบจำได้
-   * แล้วรายการถูกบันทึกผิดหมวดโดยไม่ทันเห็น
-   */
-  function handleTitle(value: string) {
-    setTitle(value);
-    if (categoryTouched) return;
-
-    const hit = hints.find((h) => h.title === value);
-    if (hit?.categoryId && visibleCategories.some((c) => c.id === hit.categoryId)) {
-      setCategoryId(hit.categoryId);
-    }
-  }
 
   const isIncome = direction === "in";
 
@@ -238,11 +204,7 @@ export function EntryForm({
         {/* สลับฝั่ง — ปุ่มใหญ่เต็มความกว้าง กดพลาดยากแม้ถือมือเดียว */}
         <DirectionToggle
           direction={direction}
-          onChange={(next) => {
-            setDirection(next);
-            // สลับฝั่งแล้วประเภทเดิมใช้ไม่ได้อยู่แล้ว เปิดทางให้ตัวเดาทำงานใหม่
-            setCategoryTouched(false);
-          }}
+          onChange={setDirection}
         />
 
         <Field label="จำนวนเงิน" htmlFor="amount" error={fieldError(state, "amount")}>
@@ -259,23 +221,27 @@ export function EntryForm({
         </Field>
 
         <Field label="รายการ" htmlFor="title" error={fieldError(state, "title")}>
+          {/**
+            * ไม่มีคำแนะนำใดๆ ทั้งของแอปและของเบราว์เซอร์ — เจ้าของร้านขอเอง
+            *
+            * เดิมมี datalist ที่เสนอชื่อที่เคยพิมพ์ เรียงตามความถี่ ซึ่งกลาย
+            * เป็นวงจรที่เสริมตัวเอง — ชื่อที่ใช้บ่อยขึ้นไปอยู่บนสุด แล้วยิ่ง
+            * ถูกแตะเลือกบ่อยขึ้นอีก จนรายการที่ควรมีชื่อต่างกันกลายเป็นชื่อ
+            * เดียวกันหมด และการแตะเลือกยังเติมประเภทให้อัตโนมัติด้วย
+            * แตะครั้งเดียวได้สองช่องโดยไม่ทันดูว่าบัญชีที่เลือกไว้ตรงกันไหม
+            *
+            * autoComplete=off มาจาก Input เองแล้ว จึงไม่มีของเบราว์เซอร์ด้วย
+            */}
           <Input
             id="title"
             name="title"
-            // datalist ให้เบราว์เซอร์เสนอคำที่เคยพิมพ์ ทำงานได้ทั้ง iOS และ Android
-            list={datalistId}
             value={title}
-            onChange={(e) => handleTitle(e.target.value)}
+            onChange={(e) => setTitle(e.target.value)}
             placeholder={isIncome ? "เช่น ยอดขายวันนี้" : "เช่น นม, ค่าส่งของ"}
             required
             maxLength={200}
             enterKeyHint="next"
           />
-          <datalist id={datalistId}>
-            {hints.map((h) => (
-              <option key={h.title} value={h.title} />
-            ))}
-          </datalist>
         </Field>
 
         {/* ไม่มีคำอธิบายใต้ช่องนี้ เพราะประเภทที่ไม่นับเป็นกำไรมีวงเล็บกำกับ
@@ -308,7 +274,6 @@ export function EntryForm({
                 if (!picked) return;
 
                 setCategoryId(picked === NONE ? "" : picked);
-                setCategoryTouched(true);
               }}
               className="flex-1"
             >

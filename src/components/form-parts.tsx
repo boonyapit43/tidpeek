@@ -4,6 +4,7 @@ import { useState } from "react";
 import { useFormStatus } from "react-dom";
 import type { ActionState } from "@/actions/shared";
 import { cn } from "@/lib/cn";
+import { cleanMoneyInput } from "@/lib/money";
 
 /**
  * ช่องที่จำสิ่งที่พิมพ์ไว้ แม้บันทึกไม่สำเร็จ
@@ -85,8 +86,17 @@ export function Field({
   );
 }
 
+/**
+ * ช่องพิมพ์ทั่วไป
+ *
+ * autoComplete ปิดเป็นค่าตั้งต้น เจ้าของร้านขอให้เลิกแนะนำทั้งหมด
+ * เบราว์เซอร์เก็บประวัติของช่องที่ชื่อเหมือนกันไว้เองแล้วเด้งขึ้นมาบนแถบ
+ * เหนือคีย์บอร์ด ซึ่งซ้อนกับคำแนะนำของแอปจนดูเหมือนแอปเป็นคนเติมให้
+ *
+ * วางไว้ก่อน {...props} เพื่อให้ช่องที่อยากได้จริงๆ เขียนทับได้
+ */
 export function Input({ className, ...props }: React.ComponentProps<"input">) {
-  return <input className={cn(fieldBase, className)} {...props} />;
+  return <input autoComplete="off" className={cn(fieldBase, className)} {...props} />;
 }
 
 export function Select({ className, ...props }: React.ComponentProps<"select">) {
@@ -114,13 +124,36 @@ export function Select({ className, ...props }: React.ComponentProps<"select">) 
  *     ซึ่งขัดกับกฎที่ว่าเงินต้องเป็น string ตลอดทาง
  * pattern บังคับให้ Safari บน iOS เปิดแป้นตัวเลขเช่นกัน
  */
-export function MoneyInput({ className, ...props }: React.ComponentProps<"input">) {
+export function MoneyInput({
+  className,
+  allowNegative = false,
+  onChange,
+  ...props
+}: React.ComponentProps<"input"> & {
+  /** ยอดตั้งต้นของบัญชีติดลบได้ (บัตรเครดิต) — จำนวนเงินของรายการห้าม */
+  allowNegative?: boolean;
+}) {
   return (
     <input
       type="text"
       inputMode="decimal"
-      pattern="[0-9]*[.,]?[0-9]*"
+      /**
+       * pattern มีไว้บังคับให้ Safari บน iOS เปิดแป้นตัวเลข ไม่ได้มีไว้ตรวจ
+       * ตัวตรวจจริงคือ cleanMoneyInput ข้างล่างซึ่งทำให้ค่าผิดรูปเกิดไม่ได้
+       *
+       * ⚠️ ต้องยอมให้มีเครื่องหมายลบเมื่อ allowNegative ไม่งั้นเบราว์เซอร์
+       *    จะบล็อกการบันทึกยอดตั้งต้นติดลบด้วยกล่องข้อความภาษาอังกฤษ
+       *    ซึ่งเป็นบั๊กเงียบๆ ที่ทำให้บัญชีบัตรเครดิตบันทึกไม่ได้เลย
+       */
+      pattern={allowNegative ? "-?[0-9]*[.,]?[0-9]*" : "[0-9]*[.,]?[0-9]*"}
       autoComplete="off"
+      onChange={(e) => {
+        const cleaned = cleanMoneyInput(e.target.value, allowNegative);
+        // แตะค่าใน DOM เฉพาะตอนที่มีอะไรถูกตัดออกจริง
+        // ไม่งั้นเคอร์เซอร์จะกระโดดไปท้ายช่องทุกครั้งที่พิมพ์แทรกกลางตัวเลข
+        if (cleaned !== e.target.value) e.target.value = cleaned;
+        onChange?.(e);
+      }}
       className={cn(fieldBase, "num text-right text-2xl font-semibold tabular-nums", className)}
       {...props}
     />

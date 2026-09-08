@@ -1,6 +1,5 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { closeTestDb, createSchema, raw, resetData } from "@/test/db";
-import { addDays, today } from "@/lib/date";
 import {
   exportTransactionsFlat,
   entriesPerCategory,
@@ -9,7 +8,6 @@ import {
   listAccountMovements,
   listCategoryEntries,
   listPeriodEntries,
-  listRecentTitles,
   getSummary,
   listAccountsWithBalance,
   listCategoryTotals,
@@ -498,45 +496,144 @@ describe("รายการที่แนบไปกับหน้าสร�
   });
 });
 
-describe("คำแนะนำชื่อรายการในฟอร์มบันทึก", () => {
-  /**
-   * ดูย้อนหลังแค่ครึ่งปี ไม่ใช่ทั้งประวัติ
-   *
-   * เหตุผลหลักคือความเร็ว — ไม่งั้น query นี้กวาดทั้งตารางทุกครั้งที่เปิด
-   * หน้าบันทึก ซึ่งเป็นหน้าที่ถูกเปิดบ่อยที่สุด และแพงขึ้นเรื่อยๆ ทุกปี
-   * ผลพลอยได้คือคำแนะนำดีขึ้น ชื่อที่เลิกใช้ไปแล้วไม่มาเบียดที่ของที่ใช้อยู่
-   */
-  it("ชื่อที่ใช้นานเกินครึ่งปีไม่โผล่มาเบียด", async () => {
-    const recent = addDays(today(), -10);
-    const longAgo = addDays(today(), -400);
-
-    await raw`
-      insert into transactions (shop_id, txn_date, direction, amount, title, category_id)
-      values (${shopId}, ${recent}, 'out', 50, 'ของที่ยังซื้ออยู่', ${costId}),
-             (${shopId}, ${longAgo}, 'out', 50, 'ของที่เลิกซื้อไปแล้ว', ${costId})`;
-
-    const titles = (await listRecentTitles(shopId, "out")).map((t) => t.title);
-
-    expect(titles).toContain("ของที่ยังซื้ออยู่");
-    expect(titles).not.toContain("ของที่เลิกซื้อไปแล้ว");
+describe("วันที่ของรายการล่าสุด", () => {
+  it("ได้วันที่ใหม่สุดของร้าน ไม่นับรายการที่ลบและไม่นับร้านอื่น", async () => {
+    // ชุดข้อมูลมีถึง 2026-12-31 ส่วนแถวที่ลบแล้ว (2026-08-01) กับของร้านอื่นต้องไม่เกี่ยว
+    expect(await latestTxnDate(shopId)).toBe("2026-12-31");
   });
 
-  it("เดาประเภทจากที่เคยใช้กับชื่อนั้นบ่อยสุด", async () => {
-    const day = addDays(today(), -3);
-    for (let i = 0; i < 3; i++) {
-      await raw`
-        insert into transactions (shop_id, txn_date, direction, amount, title, category_id)
-        values (${shopId}, ${day}, 'out', 50, 'น้ำแข็ง', ${costId})`;
-    }
+  it("ร้านที่ไม่มีรายการเลย ได้ null", async () => {
+    expect(await latestTxnDate(otherShopId)).not.toBeNull(); // ร้านอื่นมีหนึ่งแถว
 
-    const hit = (await listRecentTitles(shopId, "out")).find((t) => t.title === "น้ำแข็ง");
-
-    expect(hit?.categoryId).toBe(costId);
-    expect(hit?.uses).toBe(3);
+    const [empty] = await raw<{ id: string }[]>`
+      insert into shops (name) values (${"ร้านว่าง"}) returning id`;
+    expect(await latestTxnDate(empty.id)).toBeNull();
   });
 });
 
-describe("วันที่ของรายการล่าสุด", () => {
+describe("ส่งออกข้อมูล", () => {
+  const YEAR = { year: "2026" } as const;
+
+  it("มีชื่อประเภทกับชื่อบัญชี ไม่ใช่แค่ id", async () => {
+    const rows = await exportTransactionsFlat(shopId, YEAR);
+    const row = rows.find((r) => r.title === "ขายวันเสาร์")!;
+
+    expect(row.categoryName).toBe("ขายหน้าร้าน");
+    expect(row.accountName).toBe("เงินสด");
+    expect(row.counts).toBe(true);
+  });
+
+  it("วันที่ออกมาเป็น YYYY-MM-DD ไม่ใช่ Date ที่เลื่อนเขตเวลาได้", async () => {
+    const rows = await exportTransactionsFlat(shopId, YEAR);
+    const row = rows.find((r) => r.title === "ขายวันเสาร์")!;
+
+    expect(row.txnDate).toBe("2026-08-01");
+  });
+
+  /**
+   * บั๊กที่เคยมี — ส่งออกแล้วได้รายการของทุกร้านปนกันมา
+   *
+   * ไฟล์ที่ส่งให้คนทำบัญชีของร้านหนึ่ง จึงมีรายการของอีกร้านอยู่ด้วย
+   * โดยที่คนรับไฟล์ไปไม่มีทางรู้เลยว่าปน
+   */
+  it("ต้องมีเฉพาะรายการของร้านที่เลือก ไม่ปนร้านอื่น", async () => {
+    const rows = await exportTransactionsFlat(shopId, YEAR);
+    expect(rows.map((r) => r.title)).not.toContain("ของร้านอื่น");
+  });
+
+  it("กรองตามช่วงวันได้ ไม่ใช่ได้ทั้งหมดเสมอ", async () => {
+    const august = await exportTransactionsFlat(shopId, { month: "2026-08" });
+    const wholeYear = await exportTransactionsFlat(shopId, YEAR);
+
+    expect(august.length).toBeLessThan(wholeYear.length);
+    expect(august.every((r) => r.txnDate.startsWith("2026-08"))).toBe(true);
+  });
+
+  it("ช่วงกำหนดเองเก็บเฉพาะวันในช่วงนั้น", async () => {
+    const rows = await exportTransactionsFlat(shopId, { from: "2026-08-01", to: "2026-08-02" });
+
+    expect(rows.every((r) => r.txnDate >= "2026-08-01" && r.txnDate <= "2026-08-02")).toBe(true);
+    expect(rows.map((r) => r.title)).not.toContain("ซื้อเนื้อ");
+  });
+});
+
+/* ------------------------------------------------------------------ */
+
+/**
+ * เพดานของลิสต์ กับจำนวนจริงที่เอาไปบอกคนใช้
+ *
+ * สองอย่างนี้ต้องมาคู่กันเสมอ ลิสต์ที่ตัดแล้วไม่บอกว่าตัด อ่านได้ว่า
+ * "ไม่มีรายการเก่ากว่านี้แล้ว" ซึ่งกับสมุดบัญชีคือการเข้าใจผิดเรื่องเงิน
+ * ที่คนใช้ไม่มีทางรู้ตัว
+ */
+describe("เพดานลิสต์ กับจำนวนจริง", () => {
+  it("เจาะดูประเภทแล้วตัดตามเพดาน แต่จำนวนจริงยังนับครบ", async () => {
+    const AUGUST = { month: "2026-08" } as const;
+
+    // สิงหามีของประเภทซื้อของเข้าร้านสองรายการ ขอมาแค่หนึ่ง
+    const capped = await listCategoryEntries(shopId, AUGUST, costId, "out", 1);
+    expect(capped).toHaveLength(1);
+    // ต้องได้ตัวใหม่สุดก่อน ไม่ใช่ตัดเอาตัวไหนก็ได้
+    expect(capped[0].title).toBe("ซื้อเนื้อ");
+
+    // ส่วนจำนวนที่เอาไปโชว์บนหัวมาจากยอดรวมของประเภท ซึ่งไม่โดนเพดาน
+    const totals = await listCategoryTotals(shopId, AUGUST);
+    const group = totals.find((t) => t.categoryId === costId && t.direction === "out");
+    expect(group?.txnCount).toBe(2);
+  });
+
+  it("ขอมากกว่าที่มี ได้เท่าที่มี ไม่พัง", async () => {
+    const rows = await listCategoryEntries(shopId, { month: "2026-08" }, costId, "out", 999);
+    expect(rows).toHaveLength(2);
+  });
+
+  it("ค้นหาตัดตามเพดาน แต่ยอดรวมยังนับทุกแถวที่ตรง", async () => {
+    const q = { q: "ขาย" };
+
+    const capped = await searchTransactions(shopId, q, 1);
+    expect(capped).toHaveLength(1);
+
+    // ยอดรวมกับจำนวนต้องเป็นของทั้งชุดผลลัพธ์ ไม่ใช่ของแถวที่โหลดมา
+    const totals = await searchTotals(shopId, q);
+    expect(totals.count).toBeGreaterThan(1);
+  });
+});
+
+describe("นับความเคลื่อนไหวของบัญชี", () => {
+  it("นับทั้งรายการปกติและการโอน เท่ากับที่ลิสต์ได้ตอนไม่ติดเพดาน", async () => {
+    await raw`
+      insert into transfers (shop_id, txn_date, from_account_id, to_account_id, amount)
+      values (${shopId}, '2026-08-10', ${cashId}, ${bankId}, 500)`;
+
+    const [rows, total] = await Promise.all([
+      listAccountMovements(shopId, cashId, 999),
+      countAccountMovements(shopId, cashId),
+    ]);
+
+    expect(total).toBe(rows.length);
+    // เงินสดมีรายการปกติสี่ บวกโอนออกหนึ่ง
+    expect(total).toBe(5);
+  });
+
+  /**
+   * ที่ต้องเทสแยก เพราะจำนวนกับลิสต์เป็นคนละ query — ถ้าอันหนึ่งกรอง
+   * ของที่ลบแล้วแต่อีกอันไม่กรอง หน้าจะขึ้น "แสดง 5 จาก 6 รายการ"
+   * แล้วกดดูเพิ่มก็ไม่มีอะไรเพิ่ม กลายเป็นปุ่มที่กดแล้วไม่เกิดอะไร
+   */
+  it("ไม่นับรายการที่ลบแล้ว เหมือนที่ลิสต์ไม่แสดง", async () => {
+    const before = await countAccountMovements(shopId, cashId);
+
+    await raw`
+      insert into transactions (shop_id, txn_date, direction, amount, title, account_id, is_deleted)
+      values (${shopId}, '2026-08-10', 'out', 123, 'ลบแล้ว', ${cashId}, true)`;
+
+    expect(await countAccountMovements(shopId, cashId)).toBe(before);
+  });
+
+  it("บัญชีของร้านอื่น ได้ศูนย์ ไม่ใช่จำนวนจริง", async () => {
+    expect(await countAccountMovements(otherShopId, cashId)).toBe(0);
+  });
+});describe("วันที่ของรายการล่าสุด", () => {
   it("ได้วันที่ใหม่สุดของร้าน ไม่นับรายการที่ลบและไม่นับร้านอื่น", async () => {
     // ชุดข้อมูลมีถึง 2026-12-31 ส่วนแถวที่ลบแล้ว (2026-08-01) กับของร้านอื่นต้องไม่เกี่ยว
     expect(await latestTxnDate(shopId)).toBe("2026-12-31");

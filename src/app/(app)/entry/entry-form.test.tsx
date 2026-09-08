@@ -77,7 +77,6 @@ function setup(props: Partial<React.ComponentProps<typeof EntryForm>> = {}) {
       shopId="shop-1"
       accounts={ACCOUNTS}
       categories={CATEGORIES}
-      titleHints={{ in: [], out: [] }}
       {...props}
     />,
   );

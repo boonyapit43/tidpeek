@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { baht, bahtShort, profitPercent, toNumber } from "./money";
+import { baht, bahtShort, profitPercent, toNumber, cleanMoneyInput } from "./money";
 
 describe("toNumber", () => {
   it("แปลง string ที่มาจาก numeric ของ Postgres", () => {
@@ -89,5 +89,67 @@ describe("ความแม่นยำของเงิน", () => {
 
   it("รองรับยอดสูงสุดที่ numeric(12,2) เก็บได้", () => {
     expect(baht("9999999999.99")).toBe("9,999,999,999.99");
+  });
+});
+
+/**
+ * ตัวกรองช่องจำนวนเงิน
+ *
+ * เจ้าของร้านถามว่า "ทำไมกรอกตัวหนังสือได้" ซึ่งเดิมกรอกได้จริง แล้วไปโดน
+ * ดักตอนกดบันทึกด้วยกล่องข้อความภาษาอังกฤษของเบราว์เซอร์ ตัวนี้ตัดตั้งแต่
+ * ตอนพิมพ์ ตัวอักษรจึงไม่ติดตั้งแต่แรก
+ *
+ * กติกาต้องตรงกับ amountSchema ใน validation.ts เป๊ะ ถ้าสองที่นี้คิดไม่ตรงกัน
+ * จะเกิดค่าที่พิมพ์ลงช่องได้แต่บันทึกไม่ผ่าน ซึ่งคือทางตันที่ไม่มีทางออก
+ */
+describe("cleanMoneyInput", () => {
+  it("ตัวหนังสือพิมพ์ไม่ติดเลย", () => {
+    expect(cleanMoneyInput("abcdef")).toBe("");
+    expect(cleanMoneyInput("12ก34")).toBe("1234");
+    expect(cleanMoneyInput("500 บาท")).toBe("500");
+  });
+
+  it("ตัวเลขธรรมดาผ่านไปเหมือนเดิม ไม่ไปยุ่ง", () => {
+    expect(cleanMoneyInput("1234")).toBe("1234");
+    expect(cleanMoneyInput("12.50")).toBe("12.50");
+    expect(cleanMoneyInput("")).toBe("");
+  });
+
+  // คอมมาในแอปนี้คือตัวคั่นหลักพัน ไม่ใช่จุดทศนิยม — amountSchema ก็ทิ้งแบบเดียวกัน
+  it("คอมมากับเว้นวรรคทิ้ง ไม่ใช่แปลงเป็นจุด", () => {
+    expect(cleanMoneyInput("1,234")).toBe("1234");
+    expect(cleanMoneyInput("1 234.50")).toBe("1234.50");
+  });
+
+  it("ทศนิยมไม่เกินสองตำแหน่ง เท่ากับที่ฐานข้อมูลเก็บได้", () => {
+    expect(cleanMoneyInput("12.345")).toBe("12.34");
+    expect(cleanMoneyInput("0.999")).toBe("0.99");
+  });
+
+  it("จุดได้จุดเดียว จุดที่เกินมายุบเข้าด้วยกัน", () => {
+    expect(cleanMoneyInput("1.2.3")).toBe("1.23");
+  });
+
+  // ".5" ไม่ผ่าน amountSchema ที่บังคับ \d+ นำหน้า เติม 0 ให้เลยจะได้ไม่เป็นทางตัน
+  it("ขึ้นต้นด้วยจุดเติมศูนย์ให้", () => {
+    expect(cleanMoneyInput(".5")).toBe("0.5");
+  });
+
+  it("พิมพ์จุดค้างไว้ระหว่างพิมพ์ได้ ไม่ถูกตัดทิ้งจนพิมพ์ทศนิยมไม่ได้", () => {
+    expect(cleanMoneyInput("12.")).toBe("12.");
+  });
+
+  /**
+   * ยอดตั้งต้นของบัญชีติดลบได้ (บัตรเครดิต) ส่วนจำนวนเงินของรายการห้าม —
+   * รายรับติดลบคือรายจ่าย ซึ่งมีฝั่งของมันอยู่แล้ว ถ้าปนกันยอดสรุปจะเพี้ยน
+   */
+  it("ปกติเครื่องหมายลบพิมพ์ไม่ติด", () => {
+    expect(cleanMoneyInput("-500")).toBe("500");
+  });
+
+  it("เปิด allowNegative แล้วติดลบได้ แต่เฉพาะหน้าสุด", () => {
+    expect(cleanMoneyInput("-500", true)).toBe("-500");
+    expect(cleanMoneyInput("5-00", true)).toBe("500");
+    expect(cleanMoneyInput("-", true)).toBe("-");
   });
 });
