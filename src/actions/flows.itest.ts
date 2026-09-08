@@ -12,6 +12,7 @@ import {
   deleteAccount,
   deleteCategory,
   deleteShop,
+  reorderAccounts,
   updateAccount,
 } from "./settings";
 import { createTransaction, deleteTransaction, updateTransaction } from "./transactions";
@@ -927,5 +928,105 @@ describe("ชื่อซ้ำ", () => {
     ok(await deleteCategory(IDLE, fd({ shopId, id: existing.id })));
 
     ok(await createCategory(IDLE, fd({ shopId, direction: "out", name: "ค่าแรง", counts: "on" })));
+  });
+});
+
+describe("จัดลำดับบัญชีเอง", () => {
+  /** ชื่อบัญชีเรียงตาม sort_order — ตัวเดียวกับที่หน้าบัญชีใช้เรียง */
+  const orderOf = async (shopId: string) =>
+    (
+      await raw<{ name: string }[]>`
+        select name from accounts
+         where is_deleted = false and (shop_id is null or shop_id = ${shopId})
+         order by sort_order asc, name asc`
+    ).map((a) => a.name);
+
+  /** เพิ่มบัญชีจนครบสามใบ (ร้านใหม่มีเงินสดมาให้ใบเดียว) */
+  const threeAccounts = async () => {
+    const shopId = await makeShop();
+    ok(await createAccount(IDLE, fd({ shopId, name: "SCB", kind: "bank", openingBalance: "0" })));
+    ok(await createAccount(IDLE, fd({ shopId, name: "ไทยพลัส", kind: "bank", openingBalance: "0" })));
+    return { shopId, ids: (await accountsOf(shopId)).map((a) => a.id) };
+  };
+
+  it("ส่งลำดับใหม่ทั้งชุดแล้วเรียงตามนั้นจริง", async () => {
+    const { shopId, ids } = await threeAccounts();
+    const before = await orderOf(shopId);
+
+    // เอาใบสุดท้ายขึ้นมาไว้ลำดับแรก
+    const moved = [ids[2], ids[0], ids[1]];
+    ok(await reorderAccounts(IDLE, fd({ shopId, ids: moved.join(",") })));
+
+    const after = await orderOf(shopId);
+    expect(after).toEqual([before[2], before[0], before[1]]);
+  });
+
+  it("เรียงแล้วได้เลข 1 2 3 ติดกัน ไม่ใช่เลขที่ชนกันเอง", async () => {
+    const { shopId, ids } = await threeAccounts();
+    ok(await reorderAccounts(IDLE, fd({ shopId, ids: [ids[1], ids[2], ids[0]].join(",") })));
+
+    const rows = await raw<{ sort_order: number }[]>`
+      select sort_order from accounts
+       where is_deleted = false and (shop_id is null or shop_id = ${shopId})
+       order by sort_order`;
+
+    expect(rows.map((r) => r.sort_order)).toEqual([1, 2, 3]);
+  });
+
+  /**
+   * ⚠️ เคสนี้คือเหตุผลที่ action ต้องเทียบว่าชุด id "เท่ากันเป๊ะ"
+   *    ไม่ใช่แค่ตรวจว่าทุกตัวเป็นของร้านนี้
+   *
+   * ถ้ายอมรับแค่บางส่วน ใบที่ไม่ได้ส่งมาจะไม่ถูกเขียนเลขใหม่ แล้วเลขเก่าของมัน
+   * จะไปชนกับเลขที่เพิ่งเขียน กลายเป็นลำดับที่เดาไม่ได้ — action ยิงตรงได้
+   * จากอินเทอร์เน็ต จึงต้องกันที่นี่ ไม่ใช่หวังว่าหน้าจอจะส่งมาครบ
+   */
+  it("ส่งมาไม่ครบทุกใบ ต้องไม่เขียนอะไรเลย", async () => {
+    const { shopId, ids } = await threeAccounts();
+    const before = await orderOf(shopId);
+
+    const state = await reorderAccounts(IDLE, fd({ shopId, ids: [ids[2], ids[0]].join(",") }));
+
+    expect(state.status).toBe("error");
+    expect(await orderOf(shopId)).toEqual(before);
+  });
+
+  it("เอาบัญชีของอีกร้านปนมาไม่ได้", async () => {
+    const { shopId, ids } = await threeAccounts();
+    const other = await makeShop("ร้านสอง");
+    const [otherAcc] = await accountsOf(other);
+    const before = await orderOf(shopId);
+
+    const state = await reorderAccounts(
+      IDLE,
+      fd({ shopId, ids: [ids[0], ids[1], otherAcc.id].join(",") }),
+    );
+
+    expect(state.status).toBe("error");
+    expect(await orderOf(shopId)).toEqual(before);
+  });
+
+  it("ส่ง id ซ้ำมาไม่ได้ — ใบหนึ่งจะได้เลขสองครั้ง อีกใบไม่ได้เลย", async () => {
+    const { shopId, ids } = await threeAccounts();
+    const before = await orderOf(shopId);
+
+    const state = await reorderAccounts(
+      IDLE,
+      fd({ shopId, ids: [ids[0], ids[0], ids[1]].join(",") }),
+    );
+
+    expect(state.status).toBe("error");
+    expect(await orderOf(shopId)).toEqual(before);
+  });
+
+  it("ยังไม่ได้ล็อกอิน จัดลำดับไม่ได้", async () => {
+    const { shopId, ids } = await threeAccounts();
+    const before = await orderOf(shopId);
+    await destroySession();
+
+    const state = await reorderAccounts(IDLE, fd({ shopId, ids: [...ids].reverse().join(",") }));
+
+    expect(state.status).toBe("error");
+    expect(await orderOf(shopId)).toEqual(before);
   });
 });

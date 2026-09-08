@@ -19,6 +19,7 @@ import {
   createCategorySchema,
   createShopSchema,
   deleteShopSchema,
+  reorderSchema,
   rowRefSchema,
   shopRefSchema,
   toggleActiveSchema,
@@ -361,6 +362,68 @@ export async function deleteAccount(_prev: ActionState, formData: FormData): Pro
     // รายการเก่ายังชี้มาที่บัญชีนี้อยู่ แค่ไม่แสดงชื่อแล้วเพราะ query กรองออก
     // ยอดของบัญชีนี้จึงหายไปจากยอดรวม แต่ตัวรายการยังอยู่ครบในหน้ารายวัน
     return succeeded("ลบบัญชีแล้ว");
+  });
+}
+
+/**
+ * จัดลำดับบัญชีใหม่ทั้งชุด
+ *
+ * รับ id เรียงตามลำดับที่ต้องการ แล้วเขียน sort_order เป็น 1, 2, 3 ตามนั้น
+ * ไม่ได้รับ "ย้ายตัวนี้ไปตำแหน่งที่ N" เพราะการส่งลำดับทั้งชุดทำให้ผลลัพธ์
+ * ไม่ขึ้นกับว่าคำสั่งมาถึงตามลำดับไหน ลากรัวๆ หลายครั้งแล้วคำสั่งสวนกัน
+ * ตัวที่มาทีหลังก็ยังเขียนทับด้วยภาพที่ถูกต้องทั้งภาพเสมอ
+
+ *
+ * ⚠️ ต้องเทียบว่าชุด id ที่ส่งมา "เท่ากันเป๊ะ" กับบัญชีที่ร้านนี้เห็น
+ *
+ *    ไม่ใช่แค่ตรวจว่าทุกตัวเป็นของร้านนี้ เพราะ action ยิงตรงจากอินเทอร์เน็ตได้
+ *    ถ้าส่งมาแค่บางส่วน บัญชีที่เหลือจะไม่ถูกเขียนเลขใหม่ แล้วไปชนเลขกับตัวที่
+ *    เพิ่งเขียน กลายเป็นลำดับที่เดาไม่ได้ ถ้าส่ง id ของร้านอื่นปนมา ก็จะไป
+ *    ขยับลำดับบัญชีของร้านที่ไม่ได้เป็นคนสั่ง
+ *
+ * เขียนใน transaction เพื่อให้ลำดับเปลี่ยนครบทั้งชุดหรือไม่เปลี่ยนเลย
+ * ไม่มีสภาพครึ่งๆ ที่บางตัวได้เลขใหม่บางตัวยังเป็นเลขเก่า
+ */
+export async function reorderAccounts(
+  _prev: ActionState,
+  formData: FormData,
+): Promise<ActionState> {
+  return runAction(async () => {
+    if (!(await hasSession())) return UNAUTHORIZED;
+
+    const parsed = reorderSchema.safeParse(formObject(formData));
+    if (!parsed.success) return invalid(parsed.error);
+
+    const { shopId, ids } = parsed.data;
+
+    // บัญชีที่ร้านนี้เห็นจริง รวมของกลางและตัวที่ปิดใช้งานไว้
+    const visible = await db
+      .select({ id: accounts.id })
+      .from(accounts)
+      .where(
+        and(
+          eq(accounts.isDeleted, false),
+          or(isNull(accounts.shopId), eq(accounts.shopId, shopId)),
+        ),
+      );
+
+    const allowed = new Set(visible.map((a) => a.id));
+    const sameSize = allowed.size === ids.length;
+    if (!sameSize || !ids.every((id) => allowed.has(id))) {
+      return failed("รายการบัญชีเปลี่ยนไประหว่างจัดลำดับ ลองโหลดหน้าใหม่");
+    }
+
+    await db.transaction(async (tx) => {
+      for (const [index, id] of ids.entries()) {
+        await tx
+          .update(accounts)
+          .set({ sortOrder: index + 1, updatedAt: new Date() })
+          .where(accountScope(shopId, id));
+      }
+    });
+
+    revalidateAll();
+    return succeeded("บันทึกลำดับแล้ว");
   });
 }
 

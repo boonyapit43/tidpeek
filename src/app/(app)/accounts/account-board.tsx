@@ -1,7 +1,10 @@
 "use client";
 
 import Link from "next/link";
-import { useState } from "react";
+import { useState, useTransition } from "react";
+import { reorderAccounts } from "@/actions/settings";
+import { IDLE } from "@/actions/shared";
+import { SortableList } from "@/components/sortable-list";
 import { KIND_LABEL } from "@/components/account-sheet";
 import { Button } from "@/components/form-parts";
 import type { AccountWithBalance } from "@/db/queries";
@@ -23,6 +26,36 @@ export function AccountBoard({
   accounts: AccountWithBalance[];
 }) {
   const [transferring, setTransferring] = useState(false);
+
+  /**
+   * โหมดจัดลำดับแยกจากโหมดปกติ ไม่ได้ลากได้ตลอดเวลา
+   *
+   * เพราะแถวบัญชีแตะแล้วเข้าหน้ารายละเอียด ถ้าลากได้ตลอดเวลา ทุกการแตะจะ
+   * กลายเป็นกำกวมว่านี่คือแตะเปิดหรือเริ่มลาก และนิ้วที่เลื่อนหน้าจออยู่
+   * หน้าร้านจะสลับลำดับโดยไม่ตั้งใจ เป็นแบบเดียวกับที่ iOS ทำในหน้า Settings
+   * ซึ่งต้องกด Edit ก่อนถึงจะลากได้
+   */
+  const [sorting, setSorting] = useState(false);
+  const [saving, startSaving] = useTransition();
+  const [saveError, setSaveError] = useState<string | null>(null);
+
+  const saveOrder = (ids: string[]) => {
+    setSaveError(null);
+    const data = new FormData();
+    data.set("shopId", shopId);
+    data.set("ids", ids.join(","));
+
+    /**
+     * ลำดับบนจอขยับไปแล้วตั้งแต่ปล่อยนิ้ว ไม่รอเซิร์ฟเวอร์ตอบ
+     * ถ้าบันทึกไม่ผ่านค่อยบอก แล้วให้โหลดหน้าใหม่เพื่อกลับไปเห็นของจริง —
+     * ไม่ย้อนลำดับบนจอเอง เพราะการที่แถวเด้งกลับเองโดยไม่มีคำอธิบาย
+     * อ่านไม่ออกยิ่งกว่าการเห็นข้อความบอกตรงๆ
+     */
+    startSaving(async () => {
+      const result = await reorderAccounts(IDLE, data);
+      if (result.status === "error") setSaveError(result.message);
+    });
+  };
 
   /**
    * รวมยอดด้วย number ตรงนี้ได้ เพราะเป็นตัวเลขสำหรับดูเฉยๆ ไม่ได้เอาไปเก็บ
@@ -84,6 +117,23 @@ export function AccountBoard({
           <div className="num mt-0.5 text-3xl font-bold tracking-tight">{bahtShort(total)}</div>
         </div>
 
+        {sorting ? (
+          <SortableList
+            items={accounts}
+            onReorder={saveOrder}
+            labelOf={(a) => a.name}
+            renderRow={(account) => (
+              <div className="flex min-h-touch items-center gap-3 py-3 pl-4">
+                <span className="min-w-0 flex-1 truncate text-sm font-medium text-ink">
+                  {account.name}
+                </span>
+                <span className="num shrink-0 text-sm text-ink-soft">
+                  {bahtShort(account.balance)}
+                </span>
+              </div>
+            )}
+          />
+        ) : (
         <ul className="divide-y divide-line">
           {accounts.map((account) => {
             const balance = Number.parseFloat(account.balance);
@@ -137,6 +187,30 @@ export function AccountBoard({
             );
           })}
         </ul>
+        )}
+
+        {/**
+         * ปุ่มเข้า/ออกโหมดจัดลำดับ อยู่ท้ายรายการ ไม่ใช่บนหัวการ์ด
+         * เพราะหัวการ์ดเป็นยอดรวมซึ่งเป็นตัวเลขที่ต้องอ่านได้ทันทีที่เปิดหน้า
+         * ไม่ควรมีปุ่มอะไรไปเบียด
+         */}
+        {accounts.length > 1 && (
+          <div className="flex items-center justify-between gap-3 border-t border-line px-4 py-2">
+            <span className="text-xs text-ink-soft">
+              {saveError ?? (sorting ? "ลากปุ่มขีดเพื่อสลับลำดับ" : saving ? "กำลังบันทึกลำดับ" : "")}
+            </span>
+            <button
+              type="button"
+              onClick={() => {
+                setSorting((v) => !v);
+                setSaveError(null);
+              }}
+              className="-mr-2 flex min-h-touch shrink-0 items-center gap-1.5 rounded-lg px-2 text-sm font-semibold text-brand transition active:bg-surface-2"
+            >
+              {sorting ? "เสร็จ" : "จัดลำดับ"}
+            </button>
+          </div>
+        )}
       </section>
 
       {/* ปุ่มอยู่ติดกับรายการบัญชีเลย ไม่ได้ไปต่อท้ายคำเตือน

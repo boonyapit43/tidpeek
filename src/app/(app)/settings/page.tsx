@@ -48,22 +48,6 @@ export default async function SettingsPage() {
         canAddDefaults={!hasDefaults}
       />
       <ExportSection shopName={shop.name} />
-
-      {/**
-       * ทางเข้าหน้าวัดขนาดจอ — ชั่วคราว
-       *
-       * ต้องมีลิงก์ในแอปเพราะแอปที่ปักไว้หน้าโฮมเปิดที่ /summary เสมอ
-       * และโหมดนั้นไม่มีช่องพิมพ์ที่อยู่เว็บ จึงไปหน้าอื่นเองไม่ได้เลย
-       *
-       * ลบทั้งบล็อกนี้พร้อมกับ src/app/viewport-check เมื่อแก้ปัญหา
-       * แถบเมนูลอยเสร็จแล้ว
-       */}
-      <a
-        href="/viewport-check"
-        className="flex min-h-touch items-center justify-center rounded-2xl border border-dashed border-line text-sm font-medium text-ink-soft transition active:scale-[0.99] active:bg-surface"
-      >
-        ตรวจขนาดจอ (ชั่วคราว)
-      </a>
     </div>
   );
 }
