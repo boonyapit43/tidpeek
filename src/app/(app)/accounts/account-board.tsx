@@ -123,7 +123,7 @@ export function AccountBoard({
             onReorder={saveOrder}
             labelOf={(a) => a.name}
             renderRow={(account) => (
-              <div className="flex min-h-touch items-center gap-3 py-3 pl-4">
+              <div className="flex min-h-touch w-full items-center gap-3 px-4 py-3">
                 <span className="min-w-0 flex-1 truncate text-sm font-medium text-ink">
                   {account.name}
                 </span>
@@ -197,7 +197,7 @@ export function AccountBoard({
         {accounts.length > 1 && (
           <div className="flex items-center justify-between gap-3 border-t border-line px-4 py-2">
             <span className="text-xs text-ink-soft">
-              {saveError ?? (sorting ? "ลากปุ่มขีดเพื่อสลับลำดับ" : saving ? "กำลังบันทึกลำดับ" : "")}
+              {saveError ?? (sorting ? "จิ้มค้างที่รายการแล้วลากเพื่อสลับลำดับ" : saving ? "กำลังบันทึกลำดับ" : "")}
             </span>
             <button
               type="button"

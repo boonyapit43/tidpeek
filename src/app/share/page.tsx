@@ -8,11 +8,15 @@ import { bahtShort } from "@/lib/money";
 import { getSelectedShop } from "@/lib/shop";
 import { breakdownRows } from "./breakdown-rows";
 import { BreakdownPanel, OverviewPanel } from "./panels";
+import { SaveImageButton } from "./save-image";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
 
 export const metadata: Metadata = { title: "ภาพสรุป" };
+
+/** ใช้ร่วมกันระหว่างการ์ดกับปุ่มบันทึกภาพ ต้องตรงกันเป๊ะ ไม่งั้นปุ่มหาการ์ดไม่เจอ */
+const CARD_ID = "share-card";
 
 /**
  * ภาพสรุปสำหรับแคปหน้าจอส่งต่อ
@@ -111,6 +115,19 @@ export default async function SharePage({
             </svg>
             กลับไปหน้าสรุป
           </Link>
+
+          {/**
+           * ปุ่มบันทึกภาพชิดขวา คู่กับปุ่มย้อนกลับ
+           *
+           * มีเพราะการ์ดสูงกว่าจอ แคปทีเดียวไม่พอ (วัดได้ 1108px บนจอ 932px)
+           * ปุ่มนี้ได้ทั้งการ์ดในไฟล์เดียวไม่ว่าจอจะสูงแค่ไหน
+           *
+           * อยู่นอกกรอบการ์ดตามกฎของหน้านี้ — ของที่กดได้ห้ามอยู่ในกรอบ
+           * เพราะมันจะติดไปในภาพทั้งที่คนรับกดไม่ได้
+           */}
+          <div className="ml-auto">
+            <SaveImageButton targetId={CARD_ID} fileName={`${shop.name} ${label}`} />
+          </div>
         </div>
       </header>
 
@@ -128,7 +145,10 @@ export default async function SharePage({
        * การ์ดกว้างสุด 62rem — กว้างพอให้สามการ์ดยืนเรียงกันโดยชื่อประเภทไม่ถูกตัด
        * และยังไม่กว้างจนสามใบห่างกันเกินกว่าจะอ่านเป็นภาพเดียว
        */}
-      <section className="w-full rounded-2xl border border-line bg-surface p-3 shadow-sm sm:p-4">
+      <section
+          id={CARD_ID}
+          className="w-full rounded-2xl border border-line bg-surface p-3 shadow-sm sm:p-4"
+        >
         <header className="flex items-center justify-between gap-4 px-1 pb-3">
           <h1 className="min-w-0 truncate text-xl font-bold tracking-tight text-ink">
             {shop.name}

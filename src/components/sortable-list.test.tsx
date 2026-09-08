@@ -38,10 +38,12 @@ const shown = () =>
   screen
     .getAllByRole("button")
     .map((b) => b.getAttribute("aria-label") ?? "")
-    .map((l) => l.replace("ย้ายลำดับของ ", "").replace(" — ใช้ลูกศรขึ้นลงได้", ""));
+    .map((l) => l.replace("ย้ายลำดับของ ", "").replace(" — จิ้มค้างแล้วลาก หรือใช้ลูกศรขึ้นลง", ""));
 
-const handleFor = (name: string) =>
-  screen.getByRole("button", { name: `ย้ายลำดับของ ${name} — ใช้ลูกศรขึ้นลงได้` });
+const rowFor = (name: string) =>
+  screen.getByRole("button", {
+    name: `ย้ายลำดับของ ${name} — จิ้มค้างแล้วลาก หรือใช้ลูกศรขึ้นลง`,
+  });
 
 afterEach(cleanup);
 
@@ -50,7 +52,7 @@ describe("SortableList", () => {
     const user = userEvent.setup();
     const onReorder = setup();
 
-    handleFor("เงินสด").focus();
+    rowFor("เงินสด").focus();
     await user.keyboard("{ArrowDown}");
 
     expect(shown()).toEqual(["SCB", "เงินสด", "ไทยพลัส"]);
@@ -61,7 +63,7 @@ describe("SortableList", () => {
     const user = userEvent.setup();
     setup();
 
-    handleFor("ไทยพลัส").focus();
+    rowFor("ไทยพลัส").focus();
     await user.keyboard("{ArrowUp}");
 
     expect(shown()).toEqual(["เงินสด", "ไทยพลัส", "SCB"]);
@@ -71,7 +73,7 @@ describe("SortableList", () => {
     const user = userEvent.setup();
     const onReorder = setup();
 
-    handleFor("เงินสด").focus();
+    rowFor("เงินสด").focus();
     await user.keyboard("{ArrowUp}");
 
     expect(shown()).toEqual(["เงินสด", "SCB", "ไทยพลัส"]);
@@ -83,7 +85,7 @@ describe("SortableList", () => {
     const user = userEvent.setup();
     const onReorder = setup();
 
-    handleFor("ไทยพลัส").focus();
+    rowFor("ไทยพลัส").focus();
     await user.keyboard("{ArrowDown}");
 
     expect(shown()).toEqual(["เงินสด", "SCB", "ไทยพลัส"]);
@@ -94,18 +96,28 @@ describe("SortableList", () => {
     const user = userEvent.setup();
     setup();
 
-    handleFor("เงินสด").focus();
+    rowFor("เงินสด").focus();
     await user.keyboard("{ArrowDown}");
 
     // การที่แถวขยับไม่ได้ถูกอ่านออกมาเอง ต้องบอกเป็นข้อความ
     expect(screen.getByText("เงินสด ย้ายไปลำดับที่ 2 จาก 3")).toBeDefined();
   });
 
-  it("ปุ่มลากกัน touch-action ไว้ ไม่งั้นลากแล้วหน้าจอเลื่อนแทน", () => {
+  /**
+   * ตอนยังไม่ลากต้องเลื่อนหน้าจอด้วยการลากบนแถวได้ ไม่งั้นรายการยาวๆ
+   * จะเลื่อนไม่ได้เลยทั้งที่ยังไม่ได้เข้าโหมดลาก
+   */
+  it("ตอนยังไม่ลาก แถวยอมให้เลื่อนหน้าจอในแนวตั้ง", () => {
     setup();
-    // เขียนเป็น inline เพราะคลาสยูทิลิตี้ไม่ถูกสร้างออกมา ดูเหตุผลในไฟล์คอมโพเนนต์
-    expect(handleFor("เงินสด").style.touchAction).toBe("none");
+    expect(rowFor("เงินสด").style.touchAction).toBe("pan-y");
   });
+
+  /**
+   * ⚠️ ไม่มีเทสต์ของการจิ้มค้างแล้วลากในไฟล์นี้
+   *    jsdom คืน getBoundingClientRect เป็นศูนย์ทั้งหมด และไม่มีตัวจัดการ
+   *    ท่าสัมผัสจริง การจับเวลากับการห้ามเลื่อนหน้าจอจึงทดสอบที่นี่ไม่ได้เลย
+   *    ตรวจบนเบราว์เซอร์จริงที่จอ 430x932 ด้วย PointerEvent จริงแทน
+   */
 
   it("รายการจากเซิร์ฟเวอร์เปลี่ยน ลำดับบนจอตามไปด้วย", () => {
     const onReorder = vi.fn();
