@@ -322,6 +322,8 @@ function ShareRow({ qs }: { qs: string }) {
       <OutLink
         href={`/api/export?${qs}`}
         label="ไฟล์ Excel"
+        // ปลายทางเป็นไฟล์ ไม่ใช่หน้าเว็บ — ห้ามพาหน้านี้หายไป
+        download
         icon={
           <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3" />
         }
@@ -330,18 +332,44 @@ function ShareRow({ qs }: { qs: string }) {
   );
 }
 
+/**
+ * ทางออกที่เป็น "ไฟล์" ต้องไม่พาหน้าปัจจุบันหายไป
+ *
+ * ⚠️ เจ้าของร้านทักว่ากดดึง Excel แล้วไม่มีปุ่มย้อนกลับ
+ *
+ * ลิงก์ธรรมดาสั่งให้เบราว์เซอร์ "ไปที่" /api/export ซึ่งตอบกลับเป็นไฟล์
+ * บนเดสก์ท็อปหน้าเดิมค้างอยู่แล้วไฟล์ถูกดาวน์โหลด แต่ในแอปที่ปักไว้หน้าโฮม
+ * ของ iOS ไม่มีแถบที่อยู่และไม่มีปุ่มย้อนกลับ ถ้า webview ไปค้างที่เอกสาร
+ * ของไฟล์ จะไม่เหลือทางกลับเลยนอกจากปิดแอปแล้วเปิดใหม่
+ *
+ * download บอกเบราว์เซอร์ตรงๆ ว่า "โหลดเก็บ ไม่ต้องไป" ซึ่งใช้ได้เพราะ
+ * เป็นที่อยู่โดเมนเดียวกัน ชื่อไฟล์ยังมาจาก Content-Disposition ของเซิร์ฟเวอร์
+ * เหมือนเดิม (ชื่อไทยเข้ารหัส UTF-8 ไว้แล้ว)
+ *
+ * target=_blank เป็นตาข่ายชั้นสอง สำหรับเบราว์เซอร์ที่ไม่สนใจ download —
+ * ไฟล์จะไปเปิดในหน้าต่างของมันเอง หน้าเดิมยังอยู่ครบ ไม่ว่าทางไหนก็ไม่มีทาง
+ * ที่หน้าปัจจุบันจะหายไป ซึ่งคือหัวใจของการแก้ครั้งนี้
+ *
+ * rel=noopener กันหน้าที่เปิดใหม่เข้าถึง window.opener ของหน้านี้
+ */
 function OutLink({
   href,
   label,
   icon,
+  download,
 }: {
   href: string;
   label: string;
   icon: React.ReactNode;
+  /** ปลายทางเป็นไฟล์ ไม่ใช่หน้าเว็บ */
+  download?: boolean;
 }) {
   return (
     <a
       href={href}
+      download={download}
+      target={download ? "_blank" : undefined}
+      rel={download ? "noopener" : undefined}
       className="flex min-h-touch items-center justify-center gap-2 rounded-2xl bg-surface px-4 text-sm font-semibold text-ink shadow-sm transition active:bg-surface-2"
     >
       <svg

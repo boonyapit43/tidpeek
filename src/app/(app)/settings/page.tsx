@@ -96,10 +96,14 @@ function ExportSection({ shopName }: { shopName: string }) {
   );
 }
 
+/** ปลายทางเป็นไฟล์ — download กับ target กันไม่ให้หน้านี้หายไป ดูเหตุผลที่ summary/page.tsx */
 function ExportLink({ href, label }: { href: string; label: string }) {
   return (
     <a
       href={href}
+      download
+      target="_blank"
+      rel="noopener"
       className="flex min-h-touch items-center justify-between gap-3 px-4 py-3 text-sm text-ink transition active:bg-surface-2"
     >
       {label}

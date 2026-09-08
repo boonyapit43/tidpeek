@@ -6,7 +6,6 @@ import { hasSession } from "@/lib/auth";
 import { resolvePeriod } from "@/lib/export-period";
 import { bahtShort } from "@/lib/money";
 import { getSelectedShop } from "@/lib/shop";
-import { cn } from "@/lib/cn";
 import { breakdownRows } from "./breakdown-rows";
 import { BreakdownPanel, OverviewPanel } from "./panels";
 
@@ -78,25 +77,58 @@ export default async function SharePage({
   );
 
   return (
-    /**
-     * เว้นระยะเผื่อรอยบากกับแถบ home ของ iPhone
-     *
-     * หน้านี้อยู่นอกกลุ่ม (app) จึงไม่ได้ระยะนี้มาจาก layout เหมือนหน้าอื่น
-     * และตอนเปิดจากไอคอนหน้าโฮม แถบสถานะเป็นแบบโปร่งใสทับเนื้อหา (ตั้งไว้ที่
-     * appleWebApp.statusBarStyle) ถ้าไม่เผื่อไว้ หัวการ์ดจะไปอยู่ใต้รอยบาก
-     * และลิงก์ "กลับไปหน้าสรุป" จะไปอยู่ใต้แถบ home จนกดยาก
-     */
-    <main
-      className={[
-        "bg-app-band flex min-h-dvh flex-col items-center justify-center px-3",
-        "pt-[calc(1.25rem+env(safe-area-inset-top))] pb-[calc(1.25rem+env(safe-area-inset-bottom))]",
-      ].join(" ")}
-    >
+    <div className="min-h-dvh bg-surface-2">
+      {/**
+       * แถบหัวเหมือนทุกหน้าในแอป พร้อมปุ่มกลับที่ติดอยู่บนสุดตลอด
+       *
+       * ⚠️ ปุ่มกลับเคยอยู่ใต้การ์ด แล้วเจ้าของร้านบอกว่า "ไม่มีปุ่มให้ย้อนกลับ"
+       *    ซึ่งถูก — วัดบนจอ 430x932 การ์ดสูง 1108px ปุ่มจึงไปอยู่ต่ำกว่า
+       *    ขอบจอ 212px ต้องเลื่อนลงถึงจะเจอ และไม่มีอะไรบอกว่ามีของอยู่ข้างล่าง
+       *    หน้านี้อยู่นอกกลุ่ม (app) จึงไม่มีแถบเมนูล่างให้กดกลับด้วย
+       *    sticky ทำให้ปุ่มอยู่ในสายตาเสมอไม่ว่าการ์ดจะยาวแค่ไหน
+       *
+       * ใช้สี chrome เดียวกับแถบหัวแอป เพื่อให้ต่อเนื่องกับแถบสถานะของมือถือ
+       * เหมือนหน้าอื่น — เดิมทั้งหน้าเป็นพื้นแดงเต็มผืนซึ่งเจ้าของร้านบอกว่า
+       * ไม่สวย และมันก็ไม่เหมือนหน้าไหนในแอปเลยสักหน้า
+       */}
+      <header className="bg-app-chrome sticky top-0 z-30 pt-[env(safe-area-inset-top)] shadow-sm">
+        <div className="mx-auto flex max-w-[62rem] items-center gap-1 px-2 py-2">
+          <Link
+            href="/summary"
+            className="-ml-1 flex min-h-touch items-center gap-1.5 rounded-lg px-2 text-sm font-semibold text-white transition hover:bg-white/10 active:bg-white/15"
+          >
+            <svg
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth={2}
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              className="size-5 shrink-0"
+              aria-hidden
+            >
+              <path d="M15 18l-6-6 6-6" />
+            </svg>
+            กลับไปหน้าสรุป
+          </Link>
+        </div>
+      </header>
+
+      {/**
+       * เว้นระยะเผื่อแถบ home ของ iPhone — หน้านี้อยู่นอกกลุ่ม (app)
+       * จึงไม่ได้ระยะนี้มาจาก layout เหมือนหน้าอื่น ส่วนขอบบนแถบหัวรับไปแล้ว
+       */}
+      <main
+        className={[
+          "mx-auto flex w-full max-w-[62rem] flex-col items-center px-3 pt-4",
+          "pb-[calc(1.25rem+env(safe-area-inset-bottom))]",
+        ].join(" ")}
+      >
       {/**
        * การ์ดกว้างสุด 62rem — กว้างพอให้สามการ์ดยืนเรียงกันโดยชื่อประเภทไม่ถูกตัด
        * และยังไม่กว้างจนสามใบห่างกันเกินกว่าจะอ่านเป็นภาพเดียว
        */}
-      <section className="w-full max-w-[62rem] rounded-2xl bg-surface-2 p-3 shadow-xl sm:p-4">
+      <section className="w-full rounded-2xl border border-line bg-surface p-3 shadow-sm sm:p-4">
         <header className="flex items-center justify-between gap-4 px-1 pb-3">
           <h1 className="min-w-0 truncate text-xl font-bold tracking-tight text-ink">
             {shop.name}
@@ -153,26 +185,13 @@ export default async function SharePage({
       </section>
 
       {/**
-       * ปุ่มกลับอยู่นอกการ์ด ใต้สุด — แคปหน้าจอบนมือถือได้ทั้งจอเสมอ
-       * ถ้าวางไว้ในกรอบจะติดมาในภาพทุกครั้ง อยู่ข้างล่างยังพอครอบตัดทิ้งได้ง่าย
-       */}
-      <Link
-        href="/summary"
-        className={cn(
-          "mt-4 inline-flex min-h-touch items-center rounded-xl bg-white/15 px-4",
-          "text-sm font-medium text-white backdrop-blur-sm transition hover:bg-white/25",
-        )}
-      >
-        กลับไปหน้าสรุป
-      </Link>
-
-      {/**
        * บอกวิธีให้ได้ภาพแนวนอนเต็มที่ — โผล่เฉพาะจอแคบ
        * อยู่นอกการ์ดจึงไม่ติดไปในภาพที่ครอบตัดมาแล้ว
        */}
-      <p className="mt-2 text-center text-xs text-white/70 sm:hidden">
-        หมุนจอเป็นแนวนอนก่อนแคป จะได้ภาพที่กว้างและอ่านง่ายกว่า
-      </p>
-    </main>
+        <p className="mt-3 text-center text-xs text-ink-soft sm:hidden">
+          หมุนจอเป็นแนวนอนก่อนแคป จะได้ภาพที่กว้างและอ่านง่ายกว่า
+        </p>
+      </main>
+    </div>
   );
 }

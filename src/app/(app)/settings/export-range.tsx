@@ -30,8 +30,19 @@ export function ExportRange({
   // บอกตรงนี้เลยดีกว่า จะได้ไม่ได้ไฟล์ที่ไม่ตรงกับที่กรอกโดยไม่รู้ตัว
   const backwards = from > to;
 
+  /**
+   * target=_blank เพราะฟอร์มใส่ download ไม่ได้เหมือนลิงก์
+   * ถ้าไม่มี หน้าตั้งค่าจะถูกแทนที่ด้วยเอกสารของไฟล์ แล้วในแอปที่ปักไว้
+   * หน้าโฮมจะไม่เหลือทางกลับ ดูเหตุผลเต็มที่ summary/page.tsx
+   */
   return (
-    <form method="get" action="/api/export" className="space-y-3 border-b border-line p-4">
+    <form
+      method="get"
+      action="/api/export"
+      target="_blank"
+      rel="noopener"
+      className="space-y-3 border-b border-line p-4"
+    >
       <p className="text-xs text-ink-soft">
         เลือกช่วงวันเอง ได้ไฟล์ Excel ของ{shopName} แยกเป็นสี่ชีต สรุป · รายการ ·
         โอนระหว่างบัญชี · ยอดบัญชี
