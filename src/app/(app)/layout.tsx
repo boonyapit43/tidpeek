@@ -1,11 +1,11 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { logout } from "@/actions/auth";
-import { AutoLock } from "@/components/auto-lock";
+import { AwakeBeacon } from "@/components/awake-beacon";
 import { Nav } from "@/components/nav";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { VersionWatch } from "@/components/version-watch";
-import { hasSession } from "@/lib/auth";
+import { hasSession, isAwake } from "@/lib/auth";
 import { getSelectedShop } from "@/lib/shop";
 import { getTheme } from "@/lib/theme";
 
@@ -36,6 +36,15 @@ export const runtime = "nodejs";
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
   if (!(await hasSession())) redirect("/login");
 
+  /**
+   * วางเครื่องทิ้งไว้เกิน 15 นาที = ต้องกรอก PIN ใหม่
+   *
+   * ต้องเช็คตรงนี้ ก่อนจะไปดึงข้อมูลร้านหรือสร้าง HTML ใดๆ ไม่ใช่ฝั่งหน้าจอ
+   * ตอนที่หน้าโหลดเสร็จแล้ว — ของเดิมทำแบบหลัง ผลคือยอดเงินโชว์ค้างอยู่
+   * 2-3 วินาทีก่อนเด้งออก ซึ่งคือเวลาที่มากพอให้คนอ่านจบทั้งหน้า
+   */
+  if (!(await isAwake())) redirect("/login");
+
   const [shop, theme] = await Promise.all([getSelectedShop(), getTheme()]);
 
   // ยังไม่ได้เลือกร้าน หรือร้านที่เคยเลือกถูกลบ/ปิดไปแล้ว
@@ -44,8 +53,8 @@ export default async function AppLayout({ children }: { children: React.ReactNod
 
   return (
     <div className="min-h-dvh">
-      {/* ล็อกแอปเมื่อปิดทิ้งไว้เกิน 15 นาที ต้องกรอก PIN ใหม่ */}
-      <AutoLock />
+      {/* ต่ออายุ cookie ที่บอกว่าแอปยังตื่นอยู่ ตัวที่ล็อกจริงคือด่านข้างบน */}
+      <AwakeBeacon />
 
       {/* โหลดหน้าใหม่ให้เองเมื่อ deploy รุ่นใหม่ ดูเหตุผลในไฟล์ */}
       <VersionWatch />

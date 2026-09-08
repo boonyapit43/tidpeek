@@ -1,9 +1,9 @@
 import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 import { logout } from "@/actions/auth";
-import { AutoLock } from "@/components/auto-lock";
+import { AwakeBeacon } from "@/components/awake-beacon";
 import { listShopsWithToday } from "@/db/queries";
-import { hasSession } from "@/lib/auth";
+import { hasSession, isAwake } from "@/lib/auth";
 import { today } from "@/lib/date";
 import { bahtShort } from "@/lib/money";
 import { AddShopButton } from "./add-shop";
@@ -27,13 +27,15 @@ export const metadata: Metadata = { title: "เลือกร้าน" };
  */
 export default async function ShopsPage() {
   if (!(await hasSession())) redirect("/login");
+  // หน้านี้โชว์ชื่อร้านกับยอดวันนี้ จึงต้องผ่านด่านเดียวกับหน้าอื่น
+  if (!(await isAwake())) redirect("/login");
 
   const shops = await listShopsWithToday(today());
 
   return (
     <main className="mx-auto flex min-h-dvh w-full max-w-md flex-col px-5 pt-[calc(1.5rem+env(safe-area-inset-top))] pb-[calc(1.5rem+env(safe-area-inset-bottom))] sm:max-w-2xl">
-      {/* หน้านี้ก็ล็อกอินแล้ว ต้องนับเวลาด้วย ไม่งั้นเวลาที่ค้างอยู่จะไปเด้งใส่หน้าถัดไป */}
-      <AutoLock />
+      {/* ต่ออายุ cookie ที่บอกว่าแอปยังตื่นอยู่ */}
+      <AwakeBeacon />
 
       <header className="mb-5 flex items-center justify-between gap-3">
         <div className="min-w-0">

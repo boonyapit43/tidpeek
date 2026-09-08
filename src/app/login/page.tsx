@@ -1,8 +1,7 @@
 import type { Metadata } from "next";
 import Image from "next/image";
 import { redirect } from "next/navigation";
-import { LockReset } from "@/components/auto-lock";
-import { hasSession } from "@/lib/auth";
+import { hasSession, isAwake } from "@/lib/auth";
 import { LoginForm } from "./login-form";
 
 /**
@@ -32,7 +31,13 @@ export const runtime = "nodejs";
  * ต่างจาก vh ที่นับรวมแถบซึ่งทำให้เนื้อหาล้นออกไปใต้จอ
  */
 export default async function LoginPage() {
-  if (await hasSession()) redirect("/summary");
+  /**
+   * ล็อกอินไว้แล้ว "และ" ยังไม่ถูกล็อก ถึงจะข้ามหน้านี้ไปได้
+   *
+   * ต้องเช็คสองอย่าง ไม่ใช่อย่างเดียว — คนที่ถูกล็อกยัง hasSession อยู่
+   * ถ้าเช็คแค่ตัวเดียวจะเด้งกลับเข้าแอป แล้วแอปเด้งกลับมาที่นี่ วนไม่จบ
+   */
+  if ((await hasSession()) && (await isAwake())) redirect("/summary");
 
   return (
     <main
@@ -41,9 +46,6 @@ export default async function LoginPage() {
         "pt-[calc(1rem+env(safe-area-inset-top))] pb-[calc(1rem+env(safe-area-inset-bottom))]",
       ].join(" ")}
     >
-      {/* ยืนอยู่หน้าประตูที่ล็อกแล้ว ล้างนาฬิกาการล็อกทิ้ง ดูเหตุผลในไฟล์ */}
-      <LockReset />
-
       {/* แสงสีแบรนด์จางๆ ที่ขอบบน ให้หน้าแรกไม่ใช่พื้นเทาโล่งๆ
           เป็นแค่ฉากหลัง จึงกันคลิกและซ่อนจากโปรแกรมอ่านหน้าจอ */}
       <div

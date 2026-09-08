@@ -3,9 +3,11 @@
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import {
+  clearAwake,
   clearRateLimit,
   createSession,
   destroySession,
+  markAwake,
   rateLimit,
   verifyPin,
 } from "@/lib/auth";
@@ -54,6 +56,9 @@ export async function login(_prev: ActionState, formData: FormData): Promise<Act
 
   clearRateLimit(key);
   await createSession();
+  // ปลดล็อก 15 นาทีทันทีตรงนี้ ไม่รอ AwakeBeacon ฝั่งหน้าจอ
+  // ไม่งั้นหน้าถัดไปจะเด้งกลับมาที่นี่เพราะด่านยังไม่เห็น cookie
+  await markAwake();
 
   // ไปหน้าเลือกร้านก่อนเสมอ ไม่พาเข้าร้านล่าสุดให้เอง
   // เพราะ "กำลังบันทึกลงร้านไหน" เป็นสิ่งที่ผิดไม่ได้ในแอปบัญชี
@@ -65,6 +70,7 @@ export async function login(_prev: ActionState, formData: FormData): Promise<Act
 
 export async function logout(): Promise<void> {
   await destroySession();
+  await clearAwake();
   // ลืมร้านที่เลือกไว้ด้วย คนถัดไปที่ล็อกอินจะได้เริ่มที่หน้าเลือกร้านเสมอ
   await forgetShop();
   redirect("/login");

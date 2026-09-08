@@ -6,7 +6,7 @@ import {
   getSummary,
   listCategoryTotals,
 } from "@/db/queries";
-import { hasSession } from "@/lib/auth";
+import { hasSession, isAwake } from "@/lib/auth";
 import { getSelectedShop } from "@/lib/shop";
 import { thaiTimestamp, today } from "@/lib/date";
 import { resolvePeriod } from "@/lib/export-period";
@@ -55,6 +55,16 @@ export async function GET(request: Request) {
 async function handle(request: Request) {
   if (!(await hasSession())) {
     return new Response("ต้องล็อกอินก่อน", { status: 401 });
+  }
+
+  /**
+   * ทางนี้ก็ต้องผ่านด่านล็อก 15 นาทีเหมือนหน้าเว็บ
+   *
+   * ไม่งั้นเครื่องที่ล็อกอยู่ยังดูดข้อมูลทั้งร้านออกเป็นไฟล์ได้ด้วยการเปิด
+   * ที่อยู่นี้ตรงๆ — กลอนที่ล็อกแค่ประตูหน้าแต่เปิดหน้าต่างทิ้งไว้ ไม่ใช่กลอน
+   */
+  if (!(await isAwake())) {
+    return new Response("แอปถูกล็อก กรอก PIN ใหม่ก่อน", { status: 401 });
   }
 
   const params = new URL(request.url).searchParams;

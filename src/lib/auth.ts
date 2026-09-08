@@ -3,6 +3,7 @@ import { createHash, timingSafeEqual } from "node:crypto";
 import { cookies } from "next/headers";
 import { SignJWT, jwtVerify } from "jose";
 import { env } from "./env";
+import { AWAKE_COOKIE, AWAKE_MAX_AGE_SECONDS } from "./lock";
 
 /**
  * ล็อกอินด้วย PIN เดียวที่ใช้ร่วมกันทั้งร้าน
@@ -87,6 +88,47 @@ export async function hasSession(): Promise<boolean> {
     // ลายเซ็นผิด หมดอายุ หรือถูกแก้ — ทุกกรณีถือว่าไม่ได้ล็อกอิน
     return false;
   }
+}
+
+/* ------------------------------------------------------------------ */
+/*  ล็อกแอปเมื่อวางทิ้งไว้นาน                                          */
+/* ------------------------------------------------------------------ */
+
+/**
+ * แอปยังตื่นอยู่ไหม
+ *
+ * ไม่ต้องเทียบเวลาเอง cookie หมดอายุเองเมื่อครบ 15 นาทีที่ไม่ได้ถูกต่ออายุ
+ * "มีอยู่" จึงแปลว่า "ยังไม่ครบ" ตรงตัว เหตุผลที่ออกแบบแบบนี้อยู่ใน lib/lock.ts
+ *
+ * แยกจาก hasSession() เพราะสองอย่างนี้ตอบคนละคำถาม — hasSession ถามว่า
+ * "ล็อกอินไว้ไหม" ส่วนอันนี้ถามว่า "เพิ่งวางเครื่องไปหรือเปล่า" เครื่องที่
+ * ล็อกอินค้างไว้ข้ามวันแต่เพิ่งถูกหยิบขึ้นมา ตอบสองคำถามนี้ไม่เหมือนกัน
+ */
+export async function isAwake(): Promise<boolean> {
+  return (await cookies()).has(AWAKE_COOKIE);
+}
+
+/**
+ * ต่ออายุจากฝั่งเซิร์ฟเวอร์
+ *
+ * ใช้ตอนกรอก PIN ผ่าน ให้เข้าใช้งานได้ทันทีโดยไม่ต้องรอ AwakeBeacon
+ * ฝั่งหน้าจอทำงานก่อน ถ้าไม่มีบรรทัดนี้ หน้าถัดจากล็อกอินจะเด้งกลับมา
+ * หน้า PIN ทันที เพราะด่านฝั่งเซิร์ฟเวอร์ยังไม่เห็น cookie
+ */
+export async function markAwake(): Promise<void> {
+  (await cookies()).set(AWAKE_COOKIE, "1", {
+    // ฝั่งหน้าจอต้องต่ออายุเองระหว่างใช้งาน จึงเป็น httpOnly ไม่ได้
+    // ไม่ใช่ความลับ ตัวที่เป็นความลับคือ ledger_session ซึ่งยัง httpOnly อยู่
+    httpOnly: false,
+    secure: env.NODE_ENV === "production",
+    sameSite: "lax",
+    path: "/",
+    maxAge: AWAKE_MAX_AGE_SECONDS,
+  });
+}
+
+export async function clearAwake(): Promise<void> {
+  (await cookies()).delete(AWAKE_COOKIE);
 }
 
 /* ------------------------------------------------------------------ */

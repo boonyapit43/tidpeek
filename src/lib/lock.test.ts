@@ -1,54 +1,38 @@
 import { describe, expect, it } from "vitest";
-import { LOCK_AFTER_MS, shouldLock } from "./lock";
+import { AWAKE_COOKIE, AWAKE_MAX_AGE_SECONDS, awakeCookie } from "./lock";
 
 /**
- * กติกาการล็อกแอปเมื่อปิดทิ้งไว้นาน
+ * บรรทัด cookie ที่ฝั่งหน้าจอเอาไปต่ออายุตัวเอง
  *
- * ผิดได้สองทางและเจ็บคนละแบบ — ล็อกถี่เกินไปคือต้องกรอก PIN ทุกครั้งที่
- * สลับไปตอบไลน์ ส่วนไม่ล็อกเลยคือใครหยิบเครื่องไปก็เปิดดูยอดทั้งเดือนได้
+ * เขียนผิดสักตัวแล้วเบราว์เซอร์จะทิ้งทั้งบรรทัดเงียบๆ ไม่มี error ไม่มีอะไรฟ้อง
+ * อาการที่คนใช้เจอคือ "ใช้ไปสักพักแล้วเด้งออกเอง" ซึ่งไล่หาสาเหตุยากมาก
+ * เพราะมันเกิดหลังผ่านไป 15 นาที ไม่ใช่ตอนกดอะไร
  */
-
-const NOW = 1_700_000_000_000;
-const นาที = (n: number) => n * 60 * 1000;
-
-describe("ล็อกเมื่อไหร่", () => {
-  it("เพิ่งเปิดหน้า ยังไม่เคยสลับออกไป ไม่ล็อก", () => {
-    expect(shouldLock({ hiddenAt: null, now: NOW })).toBe(false);
+describe("awakeCookie", () => {
+  it("ล็อก 15 นาทีไว้ ไม่ให้ใครมาขยับโดยไม่ตั้งใจ", () => {
+    expect(AWAKE_MAX_AGE_SECONDS).toBe(900);
   });
 
-  it("สลับออกไปแป๊บเดียวแล้วกลับมา ไม่ล็อก", () => {
-    expect(shouldLock({ hiddenAt: NOW - นาที(1), now: NOW })).toBe(false);
+  it("มีครบทุกส่วนที่เบราว์เซอร์ต้องการ", () => {
+    const c = awakeCookie(false);
+    expect(c).toContain(`${AWAKE_COOKIE}=1`);
+    // path=/ สำคัญ ไม่มีแล้ว cookie จะติดอยู่เฉพาะหน้าที่เซ็ต
+    // แล้วด่านของหน้าอื่นจะมองไม่เห็น = เด้งออกทันทีที่เปลี่ยนหน้า
+    expect(c).toContain("path=/");
+    expect(c).toContain(`max-age=${AWAKE_MAX_AGE_SECONDS}`);
+    expect(c).toContain("samesite=lax");
   });
 
-  /** สลับไปตอบไลน์แล้วกลับมาต้องไม่โดนล็อก ไม่งั้นกวนจนคนเลิกใช้ */
-  it("หายไป 14 นาที ยังไม่ล็อก", () => {
-    expect(shouldLock({ hiddenAt: NOW - นาที(14), now: NOW })).toBe(false);
-  });
-
-  it("ครบ 15 นาทีพอดี ล็อก", () => {
-    expect(shouldLock({ hiddenAt: NOW - LOCK_AFTER_MS, now: NOW })).toBe(true);
-  });
-
-  it("หายไปครึ่งวัน ล็อก", () => {
-    expect(shouldLock({ hiddenAt: NOW - นาที(720), now: NOW })).toBe(true);
+  it("เป็น https ถึงจะใส่ secure", () => {
+    expect(awakeCookie(true)).toContain("secure");
   });
 
   /**
-   * นาฬิกาเครื่องถูกปรับย้อน หรือค่าที่เก็บไว้เพี้ยน
-   * เลือกไม่ล็อก เพราะเด้งคนที่กำลังใช้งานอยู่ออกแย่กว่าไม่ล็อกหนึ่งครั้ง
+   * เคสนี้คือเหตุผลที่ awakeCookie รับพารามิเตอร์แทนที่จะฮาร์ดโค้ด secure ไว้
+   * ตอนรันที่ localhost แบบ http เบราว์เซอร์จะทิ้ง cookie ที่มี secure ทิ้งทันที
+   * ผลคือ dev เด้งออกทุก 15 นาทีโดยไม่มีทางรู้ว่าทำไม
    */
-  it("เวลาที่เก็บไว้อยู่ในอนาคต ไม่ล็อก", () => {
-    expect(shouldLock({ hiddenAt: NOW + นาที(60), now: NOW })).toBe(false);
-  });
-
-  it("ตั้งเวลาเองได้ เผื่อวันหนึ่งอยากเปลี่ยน", () => {
-    expect(shouldLock({ hiddenAt: NOW - นาที(3), now: NOW, afterMs: นาที(2) })).toBe(true);
-    expect(shouldLock({ hiddenAt: NOW - นาที(3), now: NOW, afterMs: นาที(5) })).toBe(false);
-  });
-});
-
-describe("ค่าที่ตั้งไว้", () => {
-  it("15 นาที", () => {
-    expect(LOCK_AFTER_MS).toBe(15 * 60 * 1000);
+  it("เป็น http ห้ามใส่ secure ไม่งั้นเบราว์เซอร์ทิ้งทั้งบรรทัด", () => {
+    expect(awakeCookie(false)).not.toContain("secure");
   });
 });
