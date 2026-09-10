@@ -81,6 +81,15 @@ export const directionSchema = z.enum(DIRECTIONS);
 
 /** พารามิเตอร์เจาะดูประเภทในหน้าสรุป — uuid ของประเภท หรือ "none" = ไม่ระบุประเภท */
 export const categoryParamSchema = z.union([z.uuid(), z.literal("none")]);
+
+/**
+ * ชื่อรายการที่ใช้เจาะดูกลุ่มหนึ่งในหน้าเจาะประเภท
+ *
+ * มาจากที่อยู่เว็บ จึงแก้มือได้ ยาวเท่ากับช่องชื่อรายการเพราะมันคือค่าเดียวกัน
+ * เกินกว่านั้นแปลว่าไม่ได้มาจากลิงก์ในแอป ตกไปเป็นโหมดรวมยอดตามปกติ
+ * ค่าที่หาไม่เจอไม่ใช่ปัญหา — จะได้หน้าที่บอกว่าไม่มีรายการของชื่อนี้
+ */
+export const titleParamSchema = z.string().trim().min(1).max(200);
 export const accountKindSchema = z.enum(ACCOUNT_KINDS);
 
 const nameSchema = z.string().trim().min(1, "ใส่ชื่อด้วย").max(120, "ชื่อยาวเกินไป");

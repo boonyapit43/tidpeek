@@ -35,6 +35,7 @@ import { getShopContext } from "@/lib/shop";
 import { DEFAULT_SUMMARY_VIEW } from "@/lib/summary-view";
 import {
   categoryParamSchema,
+  titleParamSchema,
   dateSchema,
   directionSchema,
   monthSchema,
@@ -72,6 +73,8 @@ export default async function SummaryPage({
     /** เจาะดูประเภท — uuid หรือ none (ไม่ระบุประเภท) คู่กับ cd บอกฝั่ง */
     c?: string;
     cd?: string;
+    /** เจาะลงไปอีกชั้น — ชื่อรายการกลุ่มหนึ่งในประเภทนั้น */
+    t?: string;
     /** จำนวนรายการที่กดดูเพิ่มไปแล้วในหน้าเจาะดูประเภท */
     n?: string;
   }>;
@@ -147,6 +150,15 @@ export default async function SummaryPage({
             ? { period: { month } as const, label: thaiMonth(month), qs: `p=month&m=${month}` }
             : { period: { year } as const, label: `ปี ${thaiYear(year)}`, qs: `p=year&y=${year}` };
 
+    /**
+     * ชั้นที่สาม — เจาะจากกลุ่มชื่อรายการลงไปดูทีละแถว
+     *
+     * สรุป → ประเภท → ชื่อรายการ ปุ่มกลับจึงต้องถอยทีละชั้น ไม่ใช่กระโดด
+     * กลับหน้าสรุปทีเดียว ไม่งั้นคนที่เจาะเข้ามาสามชั้นจะเสียที่ที่ยืนอยู่
+     */
+    const drillTitle = titleParamSchema.safeParse(params.t).data;
+    const groupQs = `${current.qs}&c=${drill}&cd=${drillDirection}`;
+
     return (
       <CategoryDetail
         shopId={shopId}
@@ -154,12 +166,16 @@ export default async function SummaryPage({
         direction={drillDirection}
         period={current.period}
         periodLabel={current.label}
-        backHref={`/summary?${current.qs}`}
+        backHref={drillTitle === undefined ? `/summary?${current.qs}` : `/summary?${groupQs}`}
         shown={shown}
         moreHref={moreHref(
-          new URLSearchParams(`${current.qs}&c=${drill}&cd=${drillDirection}`),
+          new URLSearchParams(
+            drillTitle === undefined ? groupQs : `${groupQs}&t=${encodeURIComponent(drillTitle)}`,
+          ),
           shown,
         )}
+        title={drillTitle}
+        titleHref={(key) => `/summary?${groupQs}&t=${encodeURIComponent(key)}`}
       />
     );
   }
@@ -428,7 +444,7 @@ function dailyPoints(
 async function DayView({ shopId, day }: { shopId: string; day: string }) {
   const [summary, categoryTotals, entries] = await Promise.all([
     getSummary(shopId, { day }),
-    listCategoryTotals(shopId, { day }),
+    listCategoryTotals(shopId, { day }),
     listPeriodEntries(shopId, { day }),
   ]);
 
@@ -511,7 +527,7 @@ async function WeekView({ shopId, week }: { shopId: string; week: string }) {
   const [summary, days, categoryTotals, entries] = await Promise.all([
     getSummary(shopId, { week }),
     listDailyForWeek(shopId, week),
-    listCategoryTotals(shopId, { week }),
+    listCategoryTotals(shopId, { week }),
     listPeriodEntries(shopId, { week }),
   ]);
 
@@ -575,7 +591,7 @@ async function MonthView({ shopId, month }: { shopId: string; month: string }) {
   const [summary, days, categoryTotals, entries] = await Promise.all([
     getSummary(shopId, { month }),
     listDailyForMonth(shopId, month),
-    listCategoryTotals(shopId, { month }),
+    listCategoryTotals(shopId, { month }),
     listPeriodEntries(shopId, { month }),
   ]);
 
@@ -634,7 +650,7 @@ async function YearView({ shopId, year }: { shopId: string; year: string }) {
   const [summary, months, categoryTotals, entries] = await Promise.all([
     getSummary(shopId, { year }),
     listMonthlyForYear(shopId, year),
-    listCategoryTotals(shopId, { year }),
+    listCategoryTotals(shopId, { year }),
     listPeriodEntries(shopId, { year }),
   ]);
 

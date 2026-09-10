@@ -7,6 +7,7 @@ import {
   latestTxnDate,
   listAccountMovements,
   listCategoryEntries,
+  listCategoryTitleTotals,
   listPeriodEntries,
   getSummary,
   listAccountsWithBalance,
@@ -769,5 +770,103 @@ describe("นับความเคลื่อนไหวของบัญ�
 
   it("บัญชีของร้านอื่น ได้ศูนย์ ไม่ใช่จำนวนจริง", async () => {
     expect(await countAccountMovements(otherShopId, cashId)).toBe(0);
+  });
+});
+
+describe("รวมยอดตามชื่อรายการในประเภทหนึ่ง", () => {
+  const SEP = { month: "2026-09" } as const;
+
+  /**
+   * เคสจากข้อมูลจริงของร้าน — ชื่อคนถูกพิมพ์ซ้ำหลายวัน คำถามคือ
+   * "เดือนนี้จ่ายคนนี้ไปเท่าไหร่แล้ว" ซึ่งลิสต์ทีละแถวตอบไม่ได้
+   */
+  it("ชื่อเดียวกันหลายแถว รวมเป็นบรรทัดเดียวพร้อมจำนวนครั้ง", async () => {
+    await raw`
+      insert into transactions (shop_id, txn_date, direction, amount, title, category_id)
+      values (${shopId}, '2026-09-01', 'out', 250, 'กอล์ฟ', ${costId}),
+             (${shopId}, '2026-09-02', 'out', 150, 'กอล์ฟ', ${costId}),
+             (${shopId}, '2026-09-03', 'out', 500, 'อั๋น', ${costId})`;
+
+    const rows = await listCategoryTitleTotals(shopId, SEP, costId, "out");
+    const golf = rows.find((r) => r.title === "กอล์ฟ");
+
+    expect(golf?.count).toBe(2);
+    expect(Number(golf?.total)).toBe(400);
+    // เรียงจากยอดมากไปน้อย ตัวที่จ่ายเยอะสุดต้องอยู่บนสุด
+    expect(rows[0].title).toBe("อั๋น");
+  });
+
+  /**
+   * ⚠️ เคสสำคัญที่สุดในไฟล์นี้ — ตรงเป๊ะเท่านั้นถึงจะรวม
+   *
+   * "เเ" (สระเอสองตัว) กับ "แ" มองด้วยตาเกือบเหมือนกัน และในข้อมูลจริงของร้าน
+   * มีทั้งสองแบบปะปนกัน เคยลองรวมให้แล้วเจ้าของร้านให้เอาออก ด้วยเหตุผลที่ดีกว่า
+   * — ถ้าแอปรวมให้เงียบๆ เขาจะไม่มีวันรู้ว่าตัวเองพิมพ์ไว้สองแบบ
+   * แยกให้เห็นแล้วเขาแก้ที่ต้นทางเองได้ ซึ่งแก้ครั้งเดียวจบ
+   *
+   * เทสนี้จึงล็อกไว้ว่า "ห้ามฉลาด" ถ้าวันหลังมีใครใส่การรวมตัวสะกดกลับเข้ามา
+   * มันจะแดงทันที
+   */
+  it("ตัวสะกดต่างกันแม้ตัวเดียว ต้องแยกบรรทัด ไม่รวมให้", async () => {
+    await raw`
+      insert into transactions (shop_id, txn_date, direction, amount, title, category_id)
+      values (${shopId}, '2026-09-01', 'out', 495, 'แก๊ส', ${costId}),
+             (${shopId}, '2026-09-02', 'out', 165, 'เเก๊ส', ${costId})`;
+
+    const rows = await listCategoryTitleTotals(shopId, SEP, costId, "out");
+
+    expect(rows.map((r) => r.title).sort()).toEqual(["เเก๊ส", "แก๊ส"].sort());
+    expect(rows.every((r) => r.count === 1)).toBe(true);
+
+    // แตะบรรทัดหนึ่งต้องได้เฉพาะแถวที่สะกดแบบนั้น ไม่ลากอีกแบบมาด้วย
+    const entries = await listCategoryEntries(shopId, SEP, costId, "out", 50, "แก๊ส");
+    expect(entries).toHaveLength(1);
+    expect(entries[0].title).toBe("แก๊ส");
+    expect(Number(entries[0].amount)).toBe(495);
+  });
+
+  it("ชื่อที่ต่างกันจริงยังแยกบรรทัดกัน", async () => {
+    await raw`
+      insert into transactions (shop_id, txn_date, direction, amount, title, category_id)
+      values (${shopId}, '2026-09-01', 'out', 200, 'กอล์ฟ', ${costId}),
+             (${shopId}, '2026-09-02', 'out', 1280, 'กอล์ฟเบิก', ${costId})`;
+
+    const rows = await listCategoryTitleTotals(shopId, SEP, costId, "out");
+    expect(rows.map((r) => r.title).sort()).toEqual(["กอล์ฟ", "กอล์ฟเบิก"]);
+  });
+
+  /**
+   * ยอดเท่ากันเป๊ะเกิดขึ้นจริง — เจอตอนเขียนเทสชุดนี้เอง กอล์ฟกับอั๋นจ่ายไป
+   * 400 เท่ากันพอดี
+   *
+   * ⚠️ เทสนี้ล็อกลำดับที่ตั้งใจไว้ แต่พิสูจน์ไม่ได้ว่าตัวจัดลำดับสำรองจำเป็น
+   *    ลองถอด asc(TITLE_KEY) ออกแล้วรัน — ยังเขียวอยู่ เพราะ Postgres บังเอิญ
+   *    คืนแถวมาเรียงตามชื่อพอดีในเคสเล็กๆ แบบนี้
+   *
+   *    ซึ่งคือเหตุผลที่ต้องมีตัวจัดลำดับสำรอง ไม่ใช่เหตุผลที่จะเอาออก —
+   *    "บังเอิญถูก" ไม่ใช่ข้อรับประกัน มันเปลี่ยนได้เมื่อข้อมูลโตขึ้นจนฐาน
+   *    ข้อมูลเลือกวิธีรวมกลุ่มแบบอื่น แล้วลิสต์จะเริ่มสลับที่เองโดยไม่มีใคร
+   *    แตะอะไร ซึ่งเป็นอาการที่ไม่มีทางไล่หาสาเหตุเจอจากรายงานของคนใช้
+   */
+  it("ยอดเท่ากันได้ลำดับตามชื่อ ไม่ใช่ตามที่บันทึกเข้ามา", async () => {
+    // ใส่กลับด้านกับที่คาดหวัง ถ้าไม่มีตัวจัดลำดับสำรอง โอกาสที่ฐานข้อมูล
+    // จะคืนมาเรียงตามชื่อพอดีเองมีน้อยมากเมื่อมีหลายแถว
+    await raw`
+      insert into transactions (shop_id, txn_date, direction, amount, title, category_id)
+      values (${shopId}, '2026-09-01', 'out', 300, 'ฉ', ${costId}),
+             (${shopId}, '2026-09-02', 'out', 300, 'จ', ${costId}),
+             (${shopId}, '2026-09-03', 'out', 300, 'ง', ${costId}),
+             (${shopId}, '2026-09-04', 'out', 300, 'ค', ${costId}),
+             (${shopId}, '2026-09-05', 'out', 300, 'ข', ${costId}),
+             (${shopId}, '2026-09-06', 'out', 300, 'ก', ${costId})`;
+
+    const rows = await listCategoryTitleTotals(shopId, SEP, costId, "out");
+
+    expect(rows.map((r) => r.title)).toEqual(["ก", "ข", "ค", "ง", "จ", "ฉ"]);
+  });
+
+  it("ช่วงที่ไม่มีรายการ ได้ลิสต์ว่าง ไม่พัง", async () => {
+    const rows = await listCategoryTitleTotals(shopId, { month: "2026-01" }, costId, "out");
+    expect(rows).toEqual([]);
   });
 });

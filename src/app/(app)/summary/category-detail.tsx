@@ -1,5 +1,10 @@
 import Link from "next/link";
-import { listCategoryEntries, listCategoryTotals, type Period } from "@/db/queries";
+import {
+  listCategoryEntries,
+  listCategoryTitleTotals,
+  listCategoryTotals,
+  type Period,
+} from "@/db/queries";
 import type { Direction } from "@/db/schema";
 import { thaiDate } from "@/lib/date";
 import { bahtShort } from "@/lib/money";
@@ -25,6 +30,8 @@ export async function CategoryDetail({
   backHref,
   shown,
   moreHref,
+  title,
+  titleHref,
 }: {
   shopId: string;
   /** null = กลุ่มรายการที่ไม่ระบุประเภท ซึ่งเจาะดูได้เหมือนกลุ่มอื่น */
@@ -36,9 +43,26 @@ export async function CategoryDetail({
   /** จำนวนรายการที่จะโหลดมาแสดง ที่เหลือรอกดดูเพิ่ม */
   shown: number;
   moreHref: string;
+  /**
+   * เจาะลงไปอีกชั้น — ชื่อรายการกลุ่มที่เลือกไว้
+   *
+   * ไม่มีค่า = โหมดรวมยอดตามชื่อ ซึ่งเป็นหน้าแรกที่เห็นตอนแตะประเภท
+   * มีค่า    = โหมดไล่ทีละรายการของชื่อนั้น
+   */
+  title?: string;
+  /** ตัวสร้างลิงก์ไปกลุ่มหนึ่ง ใช้ตอนอยู่ในโหมดรวมยอด */
+  titleHref: (key: string) => string;
 }) {
-  const [entries, totals] = await Promise.all([
-    listCategoryEntries(shopId, period, categoryId, direction, shown),
+  const grouped = title === undefined;
+
+  const [entries, byTitle, totals] = await Promise.all([
+    // โหมดรวมยอดไม่ต้องดึงรายการทีละแถวเลย ประหยัดการไปกลับหนึ่งครั้ง
+    grouped
+      ? Promise.resolve([])
+      : listCategoryEntries(shopId, period, categoryId, direction, shown, title),
+    grouped
+      ? listCategoryTitleTotals(shopId, period, categoryId, direction)
+      : Promise.resolve([]),
     listCategoryTotals(shopId, period),
   ]);
 
@@ -75,7 +99,7 @@ export async function CategoryDetail({
         >
           <path d="M15 18l-6-6 6-6" />
         </svg>
-        กลับไปหน้าสรุป
+        {grouped ? "กลับไปหน้าสรุป" : `กลับไป${name}`}
       </Link>
 
       <section className="overflow-hidden rounded-2xl bg-surface shadow-sm">
@@ -90,7 +114,9 @@ export async function CategoryDetail({
               )}
             </div>
             <p className="mt-0.5 text-xs text-ink-soft">
-              {income ? "รับเข้า" : "จ่ายออก"} · {periodLabel} · {total.toLocaleString("th-TH")} รายการ
+              {income ? "รับเข้า" : "จ่ายออก"} · {periodLabel} ·{" "}
+              {grouped && <>{byTitle.length.toLocaleString("th-TH")} ชื่อ · </>}
+              {total.toLocaleString("th-TH")} รายการ
             </p>
           </div>
 
@@ -105,9 +131,66 @@ export async function CategoryDetail({
         </div>
       </section>
 
-      {entries.length === 0 ? (
+      {/**
+       * โหมดรวมยอดตามชื่อรายการ
+       *
+       * เกิดจากคำถามจริงของเจ้าของร้าน — "เดือนนี้จ่ายกอล์ฟไปเท่าไหร่แล้ว"
+       * เดิมแตะประเภทค่าแรงแล้วได้ 46 บรรทัดเรียงตามวัน ต้องบวกเองในหัวทีละชื่อ
+       * แบบนี้เหลือ 14 บรรทัดพร้อมยอดรวม แล้วแตะชื่อไล่ดูทีละรายการต่อได้
+       *
+       * รวมเฉพาะชื่อที่ตรงกันทุกตัวอักษร ไม่มีการรวมตัวสะกดให้ — ตั้งใจแบบนั้น
+       * เจ้าของร้านจะได้เห็นเองว่าเคยพิมพ์ไว้สองแบบ แล้วแก้ที่ต้นทางได้
+       * เหตุผลเต็มอยู่ที่ listCategoryTitleTotals ใน queries.ts
+       */}
+      {grouped ? (
+        byTitle.length === 0 ? (
+          <p className="rounded-2xl bg-surface px-4 py-10 text-center text-sm text-ink-soft shadow-sm">
+            ช่วงนี้ไม่มีรายการของประเภทนี้
+          </p>
+        ) : (
+          <ul className="divide-y divide-line overflow-hidden rounded-2xl bg-surface shadow-sm">
+            {byTitle.map((row) => (
+              <li key={row.title}>
+                <Link
+                  href={titleHref(row.title)}
+                  className="flex min-h-touch items-center gap-3 px-4 py-3 transition active:bg-surface-2"
+                >
+                  <div className="min-w-0 flex-1">
+                    <div className="truncate text-sm font-medium text-ink">{row.title}</div>
+                    <div className="text-xs text-ink-soft">
+                      {row.count.toLocaleString("th-TH")} รายการ
+                    </div>
+                  </div>
+
+                  <span
+                    className={cn(
+                      "num shrink-0 text-sm font-semibold",
+                      income ? "text-income" : "text-expense",
+                    )}
+                  >
+                    {bahtShort(row.total)}
+                  </span>
+
+                  <svg
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth={2}
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    className="size-4 shrink-0 text-ink-soft"
+                    aria-hidden
+                  >
+                    <path d="M9 18l6-6-6-6" />
+                  </svg>
+                </Link>
+              </li>
+            ))}
+          </ul>
+        )
+      ) : entries.length === 0 ? (
         <p className="rounded-2xl bg-surface px-4 py-10 text-center text-sm text-ink-soft shadow-sm">
-          ช่วงนี้ไม่มีรายการของประเภทนี้
+          ช่วงนี้ไม่มีรายการของชื่อนี้
         </p>
       ) : (
         <ul className="divide-y divide-line overflow-hidden rounded-2xl bg-surface shadow-sm">
@@ -142,7 +225,19 @@ export async function CategoryDetail({
         </ul>
       )}
 
-      <LoadMore shown={entries.length} total={total} href={moreHref} />
+      {/**
+       * โหมดรวมยอดดึงมาครบทุกชื่ออยู่แล้ว ไม่มีอะไรให้โหลดเพิ่ม
+       *
+       * และเพดานของโหมดเจาะกลุ่มต้องไม่ใช่ total ซึ่งเป็นจำนวนของทั้งประเภท
+       * ไม่ใช่ของชื่อที่เลือก ถ้าใช้ ปุ่มโหลดเพิ่มจะค้างอยู่ตลอดทั้งที่ไล่ครบแล้ว
+       */}
+      {!grouped && (
+        <LoadMore
+          shown={entries.length}
+          total={entries.length < shown ? entries.length : total}
+          href={moreHref}
+        />
+      )}
     </div>
   );
 }

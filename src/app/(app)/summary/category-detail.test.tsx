@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { cleanup, render, screen } from "@testing-library/react";
-import type { CategoryEntry, CategoryTotal } from "@/db/queries";
+import type { CategoryEntry, CategoryTitleTotal, CategoryTotal } from "@/db/queries";
 
 /**
  * หน้าเจาะดูรายการข้างในประเภทหนึ่ง
@@ -19,10 +19,12 @@ import type { CategoryEntry, CategoryTotal } from "@/db/queries";
 
 const listCategoryEntries = vi.fn<() => Promise<CategoryEntry[]>>();
 const listCategoryTotals = vi.fn<() => Promise<CategoryTotal[]>>();
+const listCategoryTitleTotals = vi.fn<() => Promise<CategoryTitleTotal[]>>();
 
 vi.mock("@/db/queries", () => ({
   listCategoryEntries: () => listCategoryEntries(),
   listCategoryTotals: () => listCategoryTotals(),
+  listCategoryTitleTotals: () => listCategoryTitleTotals(),
 }));
 
 const { CategoryDetail } = await import("./category-detail");
@@ -52,6 +54,7 @@ async function show({ loaded, real }: { loaded: number; real: number }) {
     Array.from({ length: loaded }, (_, i) => entry(`e${i}`, "1890")),
   );
   listCategoryTotals.mockResolvedValue([group(real)]);
+  listCategoryTitleTotals.mockResolvedValue([]);
 
   render(
     await CategoryDetail({
@@ -63,6 +66,9 @@ async function show({ loaded, real }: { loaded: number; real: number }) {
       backHref: "/summary?p=year&y=2026",
       shown: loaded,
       moreHref: "?n=100",
+      // ระบุชื่อกลุ่ม = โหมดไล่ทีละรายการ ซึ่งเป็นโหมดที่เทสชุดนี้ตรวจ
+      title: "ค่าแรงน้อง",
+      titleHref: (key: string) => `?t=${key}`,
     }),
   );
 }

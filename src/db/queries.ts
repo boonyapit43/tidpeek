@@ -1042,6 +1042,82 @@ export async function exportTransfersFlat(shopId: string, period: Period) {
     .orderBy(asc(transfers.txnDate), asc(transfers.createdAt));
 }
 
+/**
+ * นิพจน์จับกลุ่มชื่อรายการ — ต้องตรงกับ titleKey() ใน lib/title.ts เป๊ะ
+ *
+ * รวม "เเ" ให้เป็น "แ" แล้วตัดช่องว่างหัวท้าย เหตุผลอยู่ในไฟล์นั้น
+ * แยกออกมาเป็นค่าคงที่เพราะถูกใช้สองที่ — ตอนจับกลุ่ม และตอนกรองกลุ่มที่เลือก
+ * ถ้าสองที่นั้นใช้คนละนิพจน์ แตะกลุ่มแล้วจะได้หน้าว่างโดยไม่มี error อะไรออกมา
+ */
+export type CategoryTitleTotal = {
+  title: string;
+  count: number;
+  total: string;
+};
+
+/**
+ * ยอดรวมของประเภทหนึ่ง แยกตามชื่อรายการ
+ *
+ * ตอบคำถามที่หน้าเดิมตอบไม่ได้ — "เดือนนี้จ่ายกอล์ฟไปเท่าไหร่แล้ว"
+ * เดิมแตะประเภทค่าแรงแล้วได้ 46 บรรทัดเรียงตามวัน ต้องบวกเองในหัว
+ * แบบนี้เหลือ 14 บรรทัดพร้อมยอดรวมต่อชื่อ
+ *
+ * จับกลุ่มใน SQL ไม่ใช่ดึงมาบวกฝั่ง TypeScript เพราะจำนวนแถวโตตามเวลา
+ * แต่จำนวนชื่อที่ไม่ซ้ำกันไม่โต — มุมมองรายปีของร้านที่ลงทุกวันมีเป็นพันแถว
+ * แต่ยังมีชื่อไม่กี่สิบชื่อ ดึงทั้งพันแถวมาบวกเองคือการขนของเปล่าๆ
+ *
+ * ⚠️ รวมเฉพาะชื่อที่ตรงกันทุกตัวอักษร ห้ามฉลาดกว่านั้น
+ *
+ *    เคยลองรวม "เเ" (สระเอสองตัว) เข้ากับ "แ" เพราะในข้อมูลจริงมีทั้งสองแบบ
+ *    ปะปนกัน — แก๊ส กับ เเก๊ส เป็นของอย่างเดียวกัน เจ้าของร้านให้เอาออก
+ *    ด้วยเหตุผลที่ดีกว่า: ถ้าแอปรวมให้เงียบๆ คนใช้จะไม่มีวันรู้ว่าตัวเอง
+ *    พิมพ์ไว้สองแบบ แล้วก็จะพิมพ์สองแบบต่อไปเรื่อยๆ
+ *
+ *    แยกเป็นสองบรรทัดให้เห็นกับตา แล้วเขาแก้ที่ต้นทางเองได้ ซึ่งแก้ได้จริง
+ *    และแก้ครั้งเดียวจบ ต่างจากการรวมให้ซึ่งซ่อนปัญหาไว้ตลอดไป
+ *
+ *    ชื่อรายการถูกตัดช่องว่างหัวท้ายตั้งแต่ตอนบันทึกแล้ว (validation.ts)
+ *    จึงไม่ต้องตัดซ้ำตรงนี้ และไม่มีกรณีที่ต่างกันด้วยของที่มองไม่เห็น
+ */
+export async function listCategoryTitleTotals(
+  shopId: string,
+  period: Period,
+  categoryId: string | null,
+  direction: Direction,
+): Promise<CategoryTitleTotal[]> {
+  const [from, to] = rangeOf(period);
+
+  return db
+    .select({
+      title: transactions.title,
+      count: count(),
+      total: sql<string>`sum(${transactions.amount})`,
+    })
+    .from(transactions)
+    .where(
+      and(
+        eq(transactions.shopId, shopId),
+        eq(transactions.isDeleted, false),
+        eq(transactions.direction, direction),
+        categoryId === null
+          ? isNull(transactions.categoryId)
+          : eq(transactions.categoryId, categoryId),
+        gte(transactions.txnDate, from),
+        lte(transactions.txnDate, to),
+      ),
+    )
+    .groupBy(transactions.title)
+    /**
+     * เรียงตามยอดมากไปน้อย แล้วตามชื่อเมื่อยอดเท่ากัน
+     *
+     * ตัวจัดลำดับสำรองไม่ใช่ของเกิน — ถ้ามีแค่ยอด สองชื่อที่จ่ายเท่ากันพอดี
+     * จะสลับที่กันเองทุกครั้งที่โหลดหน้า เพราะ Postgres ไม่รับประกันลำดับ
+     * ของแถวที่เทียบแล้วเท่ากัน คนใช้จะเห็นลิสต์ขยับโดยไม่มีใครไปแตะอะไร
+     * (เจอตอนเขียนเทส — กอล์ฟกับอั๋นจ่ายไป 400 เท่ากันพอดี)
+     */
+    .orderBy(desc(sql`sum(${transactions.amount})`), asc(transactions.title));
+}
+
 export type CategoryEntry = {
   id: string;
   txnDate: string;
@@ -1066,6 +1142,8 @@ export async function listCategoryEntries(
   categoryId: string | null,
   direction: Direction,
   limit = 50,
+  /** เจาะลึกลงไปอีกชั้น — เอาเฉพาะชื่อรายการนี้ เทียบตรงตัว */
+  title?: string,
 ): Promise<CategoryEntry[]> {
   const [from, to] = rangeOf(period);
 
@@ -1088,6 +1166,8 @@ export async function listCategoryEntries(
         categoryId === null
           ? isNull(transactions.categoryId)
           : eq(transactions.categoryId, categoryId),
+        // เทียบตรงตัว เหมือนตอนจับกลุ่มเป๊ะ
+        title === undefined ? undefined : eq(transactions.title, title),
         gte(transactions.txnDate, from),
         lte(transactions.txnDate, to),
       ),
