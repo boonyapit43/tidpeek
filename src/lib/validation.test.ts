@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import { formObject } from "@/actions/shared";
 import {
   amountSchema,
+  createShopSchema,
   createTransactionSchema,
   dateSchema,
   openingBalanceSchema,
@@ -196,5 +197,73 @@ describe("createTransactionSchema", () => {
     expect(fields).toContain("title");
     expect(fields).toContain("amount");
     expect(fields).toContain("txnDate");
+  });
+});
+
+/**
+ * สระเอสองตัว "เเ" ที่ถูกพิมพ์แทน "แ"
+ *
+ * ⚠️ "เเ" ไม่ใช่ภาษาไทยที่ถูกต้องเลยแม้แต่กรณีเดียว — สระ เ ต้องมีพยัญชนะ
+ *    ตามหลังเสมอ สอง เ ติดกันจึงเป็นการพิมพ์ แ ผิดเสมอ 100%
+ *    การแก้ให้ตอนบันทึกจึงทำลายคำที่ถูกต้องไม่ได้
+ *
+ * เจอในข้อมูลจริงของร้าน — "เเก๊ส" กับ "แก๊ส" · "น้ำเเข็ง" กับ "น้ำแข็ง"
+ * มองด้วยตาเหมือนกันทุกพิกเซล แต่ยาวไม่เท่ากันและจับกลุ่มแยกกัน
+ *
+ * เลือกแก้ที่ตอนบันทึกแทนที่จะรวมตอนแสดงผล เพราะแบบหลังคือเก็บผิดไว้แล้ว
+ * แกล้งทำเป็นถูก คนใช้จะไม่มีวันรู้ว่าตัวเองพิมพ์ไว้สองแบบ
+ */
+describe("แก้ เเ เป็น แ ตั้งแต่ตอนบันทึก", () => {
+  const base = {
+    shopId: SHOP,
+    txnDate: "2026-08-11",
+    direction: "out",
+    categoryId: CATEGORY,
+    accountId: "",
+    amount: "165",
+    note: "",
+  };
+
+  it("ชื่อรายการถูกแก้", () => {
+    expect(createTransactionSchema.parse({ ...base, title: "เเก๊ส" }).title).toBe("แก๊ส");
+    expect(createTransactionSchema.parse({ ...base, title: "น้ำเเข็ง" }).title).toBe("น้ำแข็ง");
+  });
+
+  it("แก้ทุกตำแหน่งในข้อความ ไม่ใช่แค่ตัวแรก", () => {
+    const r = createTransactionSchema.parse({ ...base, title: "เเป้งเเละเเก๊ส" });
+    expect(r.title).toBe("แป้งและแก๊ส");
+  });
+
+  it("หมายเหตุก็ถูกแก้", () => {
+    const r = createTransactionSchema.parse({ ...base, title: "แก๊ส", note: "ซื้อที่ร้านเเถวบ้าน" });
+    expect(r.note).toBe("ซื้อที่ร้านแถวบ้าน");
+  });
+
+  it("ชื่อร้านก็ถูกแก้", () => {
+    expect(createShopSchema.parse({ name: "คลุกเเห้งติดปีก" }).name).toBe("คลุกแห้งติดปีก");
+  });
+
+  it("คำที่พิมพ์ถูกอยู่แล้วไม่ถูกแตะ", () => {
+    expect(createTransactionSchema.parse({ ...base, title: "แก๊ส" }).title).toBe("แก๊ส");
+    expect(createTransactionSchema.parse({ ...base, title: "กอล์ฟ" }).title).toBe("กอล์ฟ");
+  });
+
+  /**
+   * สระ เ เดี่ยวๆ ต้องไม่ถูกแตะ ไม่งั้นคำที่ถูกต้องจะพัง
+   * "เเ" ต้องติดกันจริงๆ เท่านั้น
+   */
+  it("สระ เ ตัวเดียวไม่ถูกแตะ", () => {
+    expect(createTransactionSchema.parse({ ...base, title: "เนื้อ" }).title).toBe("เนื้อ");
+    expect(createTransactionSchema.parse({ ...base, title: "เกลือเเละเนย" }).title).toBe(
+      "เกลือและเนย",
+    );
+  });
+
+  it("ยังตัดช่องว่างหัวท้ายเหมือนเดิม", () => {
+    expect(createTransactionSchema.parse({ ...base, title: "  เเก๊ส  " }).title).toBe("แก๊ส");
+  });
+
+  it("ชื่อที่มีแต่ช่องว่างยังถูกปฏิเสธ", () => {
+    expect(createTransactionSchema.safeParse({ ...base, title: "   " }).success).toBe(false);
   });
 });
